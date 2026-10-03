@@ -10,7 +10,7 @@ customers, a team and a request log. All of it is seeded fake data.
 | Layer    | Choice |
 | -------- | ------ |
 | API      | Go 1.25+, stdlib `net/http` (method + path patterns), `log/slog` |
-| Storage  | In-memory store behind the `httpapi.Store` interface (Postgres + pgx + sqlc planned) |
+| Storage  | PostgreSQL 17 via pgx/v5 + sqlc, goose migrations embedded in the binary; in-memory fallback behind the same `httpapi.Store` interface |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4 |
 | Data     | TanStack Query (server state), TanStack Router (routes, URL-driven sheets) |
 | UI       | Hand-rolled shadcn-style primitives, Radix Dialog, cmdk, sonner, lucide icons, Geist fonts |
@@ -22,12 +22,19 @@ is in [`design/admin-prototype.html`](design/admin-prototype.html).
 ## Run it
 
 ```bash
-# 1. API on :8080
-go run ./cmd/server
+# 1. Postgres in Docker on :5433 (also creates goadmin_test)
+docker compose up -d --wait
 
-# 2. UI on :5173 with hot reload (proxies /api → :8080)
+# 2. API on :8080. Applies migrations and seeds an empty database on boot.
+DATABASE_URL='postgres://goadmin:goadmin@localhost:5433/goadmin?sslmode=disable' go run ./cmd/server
+
+# 3. UI on :5173 with hot reload (proxies /api → :8080)
 cd web && npm install && npm run dev
 ```
+
+Without `DATABASE_URL` the server falls back to the in-memory store, so it runs
+without Docker but resets on every restart. The Makefile wraps all of this:
+`make db-up dev-api`, `make dev-api-mem`, `make db-reset`.
 
 Single-binary build:
 
@@ -49,7 +56,8 @@ Sign in with any demo account. The password is `goadmin`, and in development the
 
 Environment variables: `ADDR` (default `:8080`), `APP_ENV` (`development` | `production`;
 production switches logs to JSON, sets `Secure` cookies and hides the demo accounts), `LOG_LEVEL`,
-`APP_VERSION`, `UPLOAD_DIR` (default `data/uploads`), `SESSION_TTL` (default `12h`).
+`APP_VERSION`, `DATABASE_URL` (empty = in-memory), `SEED` (default `true`: load demo data into an empty
+database), `UPLOAD_DIR` (default `data/uploads`), `SESSION_TTL` (default `12h`). See `.env.example`.
 
 ## Layout
 
@@ -58,8 +66,14 @@ cmd/server/            entrypoint: config, logger, graceful shutdown
 internal/config/       env config
 internal/auth/         PBKDF2 password hashing, server-side sessions
 internal/media/        upload storage + generated SVG product artwork
-internal/domain/       types, validation, domain errors (money in cents)
-internal/store/memory/ in-memory store + deterministic fake-data seed
+internal/domain/       types, validation, domain errors, shared aggregations (money in cents)
+internal/seed/         deterministic demo dataset used by both stores
+internal/store/postgres/
+  migrations/              goose SQL migrations (embedded, applied on boot)
+  queries/                 SQL for sqlc
+  db/                      sqlc-generated code — don't edit, run `make sqlc`
+  store.go, sessions.go    httpapi.Store / SessionStore on pgxpool
+internal/store/memory/ in-memory store (no-dependency mode, quick tests)
 internal/reqlog/       ring buffer behind the Request log page
 internal/httpapi/      routes, middleware (request id, access log, recover), handlers
 web/                   Vite app; embed.go serves dist/ with SPA fallback
@@ -124,11 +138,32 @@ and the UI reads it from `/roles` to hide or disable controls. A few extra rules
 apply: the owner can't be edited or removed, only the owner can grant or manage
 the admin role, and nobody can remove themselves.
 
+## Database
+
+- **Schema.** See `migrations/00001_init.sql`. Money is stored as `bigint` cents,
+  CHECK constraints mirror domain validation, emails are unique case-insensitively,
+  and a partial unique index allows exactly one owner.
+- **Derived data stays derived.** Customer order count, LTV, last order and
+  segment come from the `customers_v` view, not denormalized columns. The view
+  mirrors `domain.CustomerSegment`, and a parity test keeps the two in sync.
+- **Order lines are snapshots.** `order_items` copy name, price and image, so
+  editing or deleting a product doesn't rewrite history (`ON DELETE SET NULL`).
+- **Sessions live in Postgres.** Only SHA-256 hashes of the tokens are stored,
+  expiry slides forward, and expired rows are purged hourly. Logins survive
+  restarts and work across several API instances.
+- **Errors map to the domain.** Unique, FK and check violations become 422/404/403
+  in `mapErr`, so handlers don't know they're talking to Postgres.
+- **New migration.** Add `internal/store/postgres/migrations/0000N_name.sql`
+  (goose `-- +goose Up/Down`) and restart. For new queries, edit `queries/*.sql`
+  and run `make sqlc`. sqlc needs cgo, so the Makefile runs it in Docker.
+
 ## Tests
 
 ```bash
-go test ./...          # handler tests: auth, role matrix, CSRF, uploads, request-log redaction
-cd web && npm run e2e  # builds the UI, boots the Go server on :8099, runs Playwright
+go test ./...                     # handler tests on the in-memory store
+make test-pg                      # same tests on Postgres + memory/Postgres parity test
+cd web && npm run e2e             # Playwright against the in-memory server on :8099
+cd web && npm run e2e:pg          # Playwright against a fresh goadmin_e2e database
 ```
 
 Locally the e2e suite runs on the installed Chrome. With `CI=1` it uses
@@ -136,8 +171,9 @@ Playwright's bundled Chromium instead (`npx playwright install chromium`).
 
 ## Patterns worth copying
 
-- **Consumer-side interface.** `httpapi.Store` is declared where it is used,
-  so a Postgres store can replace `memory.Store` without touching handlers.
+- **Consumer-side interface.** `httpapi.Store` is declared where it is used.
+  Postgres and memory implement it, handlers don't care, and one test suite
+  covers both.
 - **Strict JSON decoding.** Bodies are capped, unknown fields are rejected and
   trailing data is rejected (`decodeJSON`).
 - **Domain errors map to HTTP in one place.** See `writeDomainError`.
@@ -154,7 +190,7 @@ Playwright's bundled Chromium instead (`npx playwright install chromium`).
 
 ## Roadmap
 
-- Postgres store (pgx + sqlc + goose migrations)
-- Persisting sessions and uploads metadata alongside Postgres
+- Object storage (S3) for uploads instead of local disk
+- Background job that rebuilds the dashboard rollups from orders
 - Password reset and invite acceptance flows, 2FA
 - OpenAPI spec and a generated TS client
