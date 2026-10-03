@@ -9,24 +9,55 @@ export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'refund
 export type Segment = 'VIP' | 'Regular' | 'New' | 'At risk'
 export type Role = 'owner' | 'admin' | 'editor' | 'support' | 'viewer'
 export type MemberStatus = 'active' | 'invited' | 'suspended'
+export type Permission =
+  | 'dashboard:read'
+  | 'products:read'
+  | 'products:write'
+  | 'orders:read'
+  | 'orders:write'
+  | 'customers:read'
+  | 'customers:write'
+  | 'team:read'
+  | 'team:write'
+  | 'requests:read'
+  | 'settings:write'
+  | 'workspace:manage'
+
+export interface ProductImage {
+  id: string
+  url: string
+  alt: string
+  generated: boolean
+  sizeBytes: number
+}
 
 export interface Product {
   id: number
   name: string
   sku: string
   category: Category
+  vendor: string
+  tags: string[]
   priceCents: number
+  compareAtCents: number
+  costCents: number
   stock: number
+  weightGrams: number
   status: ProductStatus
   sold30d: number
   rating: number
   hue: number
   trend: number[]
   description: string
+  images: ProductImage[]
+  createdAt: string
   updatedAt: string
 }
 
-export type ProductInput = Pick<Product, 'name' | 'sku' | 'category' | 'priceCents' | 'stock' | 'status' | 'description'>
+export type ProductInput = Pick<
+  Product,
+  'name' | 'sku' | 'category' | 'vendor' | 'tags' | 'priceCents' | 'compareAtCents' | 'costCents' | 'stock' | 'weightGrams' | 'status' | 'description'
+>
 
 export interface ProductStats {
   total: number
@@ -43,6 +74,7 @@ export interface OrderItem {
   sku: string
   category: Category
   hue: number
+  imageUrl: string
   qty: number
   priceCents: number
 }
@@ -57,16 +89,47 @@ export interface Order {
   placedAt: string
 }
 
+export interface CustomerNote {
+  id: number
+  author: string
+  text: string
+  at: string
+}
+
 export interface Customer {
   id: number
   name: string
   email: string
+  phone: string
   country: string
+  address: { line1: string; city: string; postalCode: string; country: string }
   orders: number
   ltvCents: number
   segment: Segment
+  tags: string[]
+  acceptsMarketing: boolean
+  source: string
+  notes: CustomerNote[]
   lastSeenAt: string
+  lastOrderAt: string
   createdAt: string
+}
+
+export interface CustomerDetail {
+  customer: Customer
+  stats: {
+    totalSpentCents: number
+    orders: number
+    avgOrderCents: number
+    itemsBought: number
+    refunds: number
+    firstOrderAt: string
+    lastOrderAt: string
+  }
+  orders: Order[]
+  products: { productId: number; name: string; category: Category; hue: number; imageUrl: string; qty: number; spentCents: number }[]
+  categories: { category: Category; salesCents: number }[]
+  monthly: { month: string; cents: number }[]
 }
 
 export interface Member {
@@ -80,6 +143,17 @@ export interface Member {
 }
 
 export type MemberInput = Pick<Member, 'name' | 'email' | 'role'>
+
+export interface Me {
+  user: Member
+  permissions: Permission[]
+}
+
+export interface RolesInfo {
+  roles: Role[]
+  permissions: { key: Permission; group: string; label: string; description: string }[]
+  matrix: Record<Role, Permission[]>
+}
 
 export interface KPI {
   key: string
@@ -98,7 +172,7 @@ export interface Dashboard {
   kpis: KPI[]
   ordersHeatmap: number[][]
   categories: { category: Category; salesCents: number }[]
-  topProducts: { id: number; name: string; category: Category; hue: number; sold: number; revenueCents: number }[]
+  topProducts: { id: number; name: string; category: Category; hue: number; imageUrl: string; sold: number; revenueCents: number }[]
   recentOrders: Order[]
   activity: { kind: string; actor: string; message: string; at: string }[]
   markets: { country: string; name: string; sharePct: number }[]
@@ -128,23 +202,43 @@ export interface Meta {
   pendingOrders: number
 }
 
-export interface RequestEntry {
+export interface RequestSummary {
+  id: string
   time: string
   method: string
   path: string
   status: number
   durationMs: number
   bytes: number
-  requestId: string
   ip: string
+  actor: string
+}
+
+export interface RequestEntry extends RequestSummary {
+  query: string
+  proto: string
+  userAgent: string
+  actorRole: string
+  route: string
+  requestHeaders: Record<string, string>
+  responseHeaders: Record<string, string>
+  requestBody: string
+  responseBody: string
+  requestBytes: number
+  bodyTruncated: boolean
 }
 
 export interface RequestStats {
   total: number
   successRate: number
+  p50Ms: number
   p95Ms: number
+  p99Ms: number
   client4xx: number
   server5xx: number
+  methods: Record<string, number>
+  perMinute: number[]
+  endpoints: { route: string; count: number; avgMs: number; p95Ms: number; errors: number }[]
 }
 
 export class ApiError extends Error {
@@ -159,9 +253,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isForm = init?.body instanceof FormData
   const res = await fetch('/api/v1' + path, {
     ...init,
-    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', ...(init?.body && !isForm ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
   })
   if (res.status === 204) return undefined as T
   const body = await res.json().catch(() => ({}))
@@ -179,30 +275,49 @@ const qs = (params: Record<string, string | number | undefined>) => {
 const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) })
 
 export const api = {
+  login: (email: string, password: string) => request<Me>('/auth/login', json('POST', { email, password })),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  me: () => request<Me>('/auth/me'),
+  demoAccounts: () => request<{ password: string; accounts: { name: string; email: string; role: Role }[] }>('/auth/demo-accounts'),
+  roles: () => request<RolesInfo>('/roles'),
+
   meta: () => request<Meta>('/meta'),
   runtime: () => request<RuntimeStats>('/runtime'),
   dashboard: (range: number) => request<Dashboard>(`/dashboard${qs({ range })}`),
 
   products: (f: { q?: string; category?: string; status?: string; sort?: string }) =>
     request<{ items: Product[]; stats: ProductStats }>(`/products${qs(f)}`),
+  product: (id: number) => request<Product>(`/products/${id}`),
   createProduct: (in_: ProductInput) => request<Product>('/products', json('POST', in_)),
   updateProduct: (id: number, in_: ProductInput) => request<Product>(`/products/${id}`, json('PUT', in_)),
   deleteProduct: (id: number) => request<void>(`/products/${id}`, { method: 'DELETE' }),
   bulkProducts: (ids: number[], action: 'publish' | 'archive' | 'delete') =>
     request<{ affected: number }>('/products/bulk', json('POST', { ids, action })),
+  uploadImage: (id: number, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request<Product>(`/products/${id}/images`, { method: 'POST', body: fd })
+  },
+  deleteImage: (id: number, imageId: string) => request<Product>(`/products/${id}/images/${encodeURIComponent(imageId)}`, { method: 'DELETE' }),
+  setPrimaryImage: (id: number, imageId: string) =>
+    request<Product>(`/products/${id}/images/${encodeURIComponent(imageId)}/primary`, { method: 'POST' }),
 
-  orders: (f: { q?: string; status?: string; limit?: number }) =>
-    request<{ items: Order[]; counts: Partial<Record<OrderStatus, number>> }>(`/orders${qs(f)}`),
+  orders: (f: { q?: string; status?: string; limit?: number; offset?: number; customer?: number }) =>
+    request<{ items: Order[]; counts: Partial<Record<OrderStatus, number>>; total: number }>(`/orders${qs(f)}`),
+  order: (id: number) => request<Order>(`/orders/${id}`),
   updateOrderStatus: (id: number, status: OrderStatus) => request<Order>(`/orders/${id}/status`, json('PATCH', { status })),
 
   customers: (f: { q?: string; segment?: string }) =>
     request<{ items: Customer[]; segments: Partial<Record<Segment, { count: number; ltvCents: number }>> }>(`/customers${qs(f)}`),
+  customer: (id: number) => request<CustomerDetail>(`/customers/${id}`),
+  addCustomerNote: (id: number, text: string) => request<CustomerNote>(`/customers/${id}/notes`, json('POST', { text })),
 
   team: (role?: string) => request<{ items: Member[] }>(`/team${qs({ role })}`),
   createMember: (in_: MemberInput) => request<Member>('/team', json('POST', in_)),
   updateMember: (id: number, in_: MemberInput) => request<Member>(`/team/${id}`, json('PUT', in_)),
   deleteMember: (id: number) => request<void>(`/team/${id}`, { method: 'DELETE' }),
 
-  requests: (f: { q?: string; class?: string; limit?: number }) =>
-    request<{ items: RequestEntry[]; stats: RequestStats }>(`/requests${qs(f)}`),
+  requests: (f: { q?: string; class?: string; method?: string; limit?: number }) =>
+    request<{ items: RequestSummary[]; stats: RequestStats }>(`/requests${qs(f)}`),
+  request: (id: string) => request<RequestEntry>(`/requests/${encodeURIComponent(id)}`),
 }

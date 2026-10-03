@@ -3,8 +3,10 @@ import { Command } from 'cmdk'
 import { Plus, Search, UserPlus } from 'lucide-react'
 import { type ReactNode, useEffect } from 'react'
 import { CATEGORY_ICON } from '@/components/ui/product-thumb'
-import { NAV_ITEMS } from '@/lib/nav'
-import { useProducts } from '@/lib/queries'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import { useCan, useMe } from '@/lib/auth'
+import { visibleNav } from '@/lib/nav'
 
 const itemClass =
   'flex cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 py-2.5 text-muted data-[selected=true]:bg-panel-3 data-[selected=true]:text-fg [&_svg]:size-4 data-[selected=true]:[&_svg]:text-accent'
@@ -13,7 +15,12 @@ const groupClass =
 
 export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const navigate = useNavigate()
-  const { data } = useProducts({})
+  const me = useMe()
+  const canProducts = useCan('products:read')
+  const canEditProducts = useCan('products:write')
+  const canInvite = useCan('team:write')
+  const { data } = useQuery({ queryKey: ['products', {}], queryFn: () => api.products({}), enabled: open && canProducts })
+  const pages = visibleNav(me.permissions).flatMap((g) => g.items)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,20 +54,26 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
       <Command.List className="max-h-90 overflow-y-auto p-1.5">
         <Command.Empty className="py-7 text-center text-muted">No results</Command.Empty>
         <Command.Group heading="Pages" className={groupClass}>
-          {NAV_ITEMS.map((item) => (
+          {pages.map((item) => (
             <Item key={item.to} onSelect={run(() => navigate({ to: item.to }))} icon={<item.icon />}>
               {item.label}
             </Item>
           ))}
         </Command.Group>
-        <Command.Group heading="Actions" className={groupClass}>
-          <Item onSelect={run(() => navigate({ to: '/products', search: { edit: 'new' } }))} icon={<Plus />}>
-            Add product
-          </Item>
-          <Item onSelect={run(() => navigate({ to: '/team', search: { edit: 'new' } }))} icon={<UserPlus />}>
-            Invite team member
-          </Item>
-        </Command.Group>
+        {(canEditProducts || canInvite) && (
+          <Command.Group heading="Actions" className={groupClass}>
+            {canEditProducts && (
+              <Item onSelect={run(() => navigate({ to: '/products', search: { edit: 'new' } }))} icon={<Plus />}>
+                Add product
+              </Item>
+            )}
+            {canInvite && (
+              <Item onSelect={run(() => navigate({ to: '/team', search: { edit: 'new' } }))} icon={<UserPlus />}>
+                Invite team member
+              </Item>
+            )}
+          </Command.Group>
+        )}
         <Command.Group heading="Products" className={groupClass}>
           {data?.items.map((p) => {
             const Icon = CATEGORY_ICON[p.category]

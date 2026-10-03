@@ -1,10 +1,11 @@
-import { Check, Copy, KeyRound, Lock, OctagonAlert, Palette, Plus, SlidersHorizontal } from 'lucide-react'
+import { Check, Copy, KeyRound, Lock, OctagonAlert, ShieldAlert, Palette, Plus, SlidersHorizontal } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/input'
 import { PageHeader, Switch } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
+import { useCan } from '@/lib/auth'
 import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +21,8 @@ const SECTIONS = [
 ] as const
 
 export function SettingsPage() {
+  const canEdit = useCan('settings:write')
+  const canDanger = useCan('workspace:manage')
   const [accent, setAccentState] = useState(getAccent)
   const [logLevel, setLogLevel] = useState('info')
   const [density, setDensity] = useState('comfortable')
@@ -32,6 +35,12 @@ export function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" description="Workspace, service and security configuration." />
+      {!canEdit && (
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-line bg-panel-2 px-3.5 py-2.5 text-[12.5px] text-muted">
+          <ShieldAlert className="size-4 text-warn" />
+          Read-only — only owners and admins can change workspace settings. Appearance is personal and always editable.
+        </div>
+      )}
       <div className="grid items-start gap-7 lg:grid-cols-[200px_minmax(0,1fr)]">
         <nav className="sticky top-20 hidden flex-col gap-0.5 lg:flex">
           {SECTIONS.map(([id, label, Icon]) => (
@@ -43,7 +52,7 @@ export function SettingsPage() {
         </nav>
 
         <div>
-          <Section id="general" title="General" description="Basic service configuration loaded from env on boot.">
+          <Section id="general" title="General" description="Basic service configuration loaded from env on boot." locked={!canEdit}>
             <div className="grid gap-3.5 sm:grid-cols-2">
               <Field label="Service name">
                 <Input defaultValue="goadmin-api" />
@@ -96,7 +105,7 @@ export function SettingsPage() {
             </Field>
           </Section>
 
-          <Section id="security" title="Security" description="Authentication and audit policies for team members.">
+          <Section id="security" title="Security" description="Authentication and audit policies for team members." locked={!canEdit}>
             <ToggleRow title="Require 2FA" description="All members must enroll a TOTP or passkey" checked={toggles.mfa} onChange={flip('mfa', 'Require 2FA')} />
             <ToggleRow title="Audit log" description="Record every write action with actor & diff" checked={toggles.audit} onChange={flip('audit', 'Audit log')} />
             <ToggleRow title="Login alerts" description="Email members on sign-in from a new device" checked={toggles.alerts} onChange={flip('alerts', 'Login alerts')} />
@@ -109,7 +118,7 @@ export function SettingsPage() {
             </Field>
           </Section>
 
-          <Section id="api" title="API keys" description="Keys for server-to-server access to /api/v1.">
+          <Section id="api" title="API keys" description="Keys for server-to-server access to /api/v1." locked={!canEdit}>
             {[
               ['Storefront (read)', 'ga_live_••••••••3f9a', 'Created Aug 12 · used 2m ago'],
               ['Warehouse sync', 'ga_live_••••••••a71c', 'Created Jun 2 · used 1h ago'],
@@ -139,7 +148,7 @@ export function SettingsPage() {
             </div>
           </Section>
 
-          <Section id="danger" title="Danger zone" description="Irreversible actions. Be careful.">
+          <Section id="danger" title="Danger zone" description={canDanger ? 'Irreversible actions. Be careful.' : 'Owner only.'} locked={!canDanger}>
             <DangerRow title="Flush cache" description="Clears cached keys under goadmin:*" action="Flush" onClick={() => toast('Cache flushed')} />
             <DangerRow title="Delete workspace" description="Removes all data. This cannot be undone." action="Delete" onClick={() => toast.error('Disabled in the reference build')} />
           </Section>
@@ -149,14 +158,16 @@ export function SettingsPage() {
   )
 }
 
-function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
+function Section({ id, title, description, locked, children }: { id: string; title: string; description: string; locked?: boolean; children: ReactNode }) {
   return (
     <section id={`s-${id}`} className="grid scroll-mt-20 gap-3 border-b border-line py-6 first:pt-0 md:grid-cols-[260px_minmax(0,1fr)] md:gap-6">
       <div>
         <h3 className="text-sm font-medium">{title}</h3>
         <p className="mt-1 text-[12.5px] text-dim">{description}</p>
       </div>
-      <div className="flex max-w-140 flex-col gap-3.5">{children}</div>
+      <fieldset disabled={locked} className={cn('flex max-w-140 flex-col gap-3.5', locked && 'pointer-events-none opacity-55')}>
+        {children}
+      </fieldset>
     </section>
   )
 }

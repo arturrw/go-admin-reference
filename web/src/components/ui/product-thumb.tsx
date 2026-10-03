@@ -12,10 +12,15 @@ export const CATEGORY_ICON: Record<Category, LucideIcon> = {
   Accessories: Backpack,
 }
 
-/** Generated product artwork: category icon over a hue-tinted gradient. */
+/**
+ * Product picture: the image when there is one, otherwise the category icon
+ * over a hue-tinted gradient.
+ */
 export function ProductThumb({
   category,
   hue,
+  src,
+  alt = '',
   size = 36,
   className,
   iconClassName,
@@ -23,6 +28,8 @@ export function ProductThumb({
 }: {
   category: Category
   hue: number
+  src?: string
+  alt?: string
   /** Pixel size; pass null to size via className instead. */
   size?: number | null
   className?: string
@@ -38,8 +45,12 @@ export function ProductThumb({
   }
   return (
     <div className={cn('relative grid shrink-0 place-items-center overflow-hidden rounded-[10px] border', className)} style={style}>
+      {src ? (
+        <img src={src} alt={alt} loading="lazy" draggable={false} className="absolute inset-0 size-full object-cover" />
+      ) : (
+        <Icon className={iconClassName} style={size ? { width: size * 0.46, height: size * 0.46 } : undefined} />
+      )}
       {children}
-      <Icon className={iconClassName} style={size ? { width: size * 0.46, height: size * 0.46 } : undefined} />
     </div>
   )
 }

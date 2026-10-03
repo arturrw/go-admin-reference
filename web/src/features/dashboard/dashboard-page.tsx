@@ -26,6 +26,7 @@ import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
 import type { Dashboard, KPI } from '@/lib/api'
 import { compact, int, money, timeAgo } from '@/lib/format'
+import { useMe } from '@/lib/auth'
 import { useDashboard } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { GoRuntimeCard, LiveTraffic } from './live-traffic'
@@ -35,10 +36,11 @@ const RANGES = [7, 30, 90] as const
 export function DashboardPage() {
   const [range, setRange] = useState<number>(30)
   const { data, isPending } = useDashboard(range)
+  const me = useMe()
 
   return (
     <>
-      <PageHeader title={greeting() + ', Anna'} description="Here’s what’s happening across your store today.">
+      <PageHeader title={`${greeting()}, ${me.user.name.split(' ')[0]}`} description="Here’s what’s happening across your store today.">
         <Segmented value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: `${r}d` }))} />
         <Button>
           <Download />
@@ -186,7 +188,7 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
         {data.topProducts.map((p, i) => (
           <div key={p.id} className="flex items-center gap-3 border-b border-dashed border-line py-2.5 last:border-0">
             <span className="num w-4 text-[11px] text-dim">0{i + 1}</span>
-            <ProductThumb category={p.category} hue={p.hue} size={34} />
+            <ProductThumb category={p.category} hue={p.hue} src={p.imageUrl} size={34} />
             <div className="min-w-0 flex-1">
               <b className="block truncate font-medium">{p.name}</b>
               <div className="mt-1.5 h-1 overflow-hidden rounded bg-panel-3">

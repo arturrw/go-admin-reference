@@ -27,6 +27,7 @@ import { CATEGORY_ICON, ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
 import { CATEGORIES, type Category, type Product, type ProductStats } from '@/lib/api'
 import { int, money } from '@/lib/format'
+import { useCan } from '@/lib/auth'
 import { useBulkProducts, useProducts } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { ProductSheet } from './product-sheet'
@@ -41,7 +42,7 @@ const SORTS = [
 ] as const
 
 export function ProductsPage() {
-  const { edit } = useSearch({ from: '/products' })
+  const { edit } = useSearch({ from: '/app/products' })
   const navigate = useNavigate({ from: '/products' })
   const [q, setQ] = useState('')
   const [category, setCategory] = useState<Category | 'all'>('all')
@@ -50,14 +51,14 @@ export function ProductsPage() {
   const [view, setView] = useState<'grid' | 'table'>('grid')
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
+  const canWrite = useCan('products:write')
   const filters = { q: useDeferredValue(q), category, status, sort }
   const { data, isPending } = useProducts(filters)
   const items = data?.items ?? []
 
   // The sheet is URL-driven (?edit=new | ?edit=<id>) so it can be deep-linked
   // and opened from the command menu.
-  const editing = typeof edit === 'number' ? items.find((p) => p.id === edit) : undefined
-  const sheetOpen = edit === 'new' || !!editing
+  const sheetOpen = edit === 'new' ? canWrite : edit !== undefined
   const openSheet = (id: number | 'new') => navigate({ search: { edit: id } })
   const closeSheet = () => navigate({ search: {} })
 
@@ -72,14 +73,18 @@ export function ProductsPage() {
   return (
     <>
       <PageHeader title="Products" description={data ? `${data.stats.total} products across ${CATEGORIES.length} categories` : ' '}>
-        <Button>
-          <Upload />
-          Import CSV
-        </Button>
-        <Button variant="primary" onClick={() => openSheet('new')}>
-          <Plus />
-          Add product
-        </Button>
+        {canWrite && (
+          <>
+            <Button>
+              <Upload />
+              Import CSV
+            </Button>
+            <Button variant="primary" onClick={() => openSheet('new')}>
+              <Plus />
+              Add product
+            </Button>
+          </>
+        )}
       </PageHeader>
 
       {data ? <Stats stats={data.stats} /> : <Skeleton className="mb-4 h-19" />}
@@ -142,12 +147,18 @@ export function ProductsPage() {
           ))}
         </div>
       ) : (
-        <ProductTable items={items} selected={selected} onToggle={toggle} onToggleAll={setSelected} onOpen={openSheet} />
+        <ProductTable items={items} selectable={canWrite} selected={selected} onToggle={toggle} onToggleAll={setSelected} onOpen={openSheet} />
       )}
 
       <BulkBar selected={selected} onClear={() => setSelected(new Set())} />
 
-      <ProductSheet key={edit === 'new' ? 'new' : editing ? `p${editing.id}` : 'closed'} product={editing} open={sheetOpen} onClose={closeSheet} />
+      <ProductSheet
+        key={String(edit ?? 'closed')}
+        productId={typeof edit === 'number' ? edit : undefined}
+        open={sheetOpen}
+        onClose={closeSheet}
+        onCreated={(p) => navigate({ search: { edit: p.id }, replace: true })}
+      />
     </>
   )
 }
@@ -205,6 +216,8 @@ function ProductCard({ product: p, onOpen }: { product: Product; onOpen: () => v
       <ProductThumb
         category={p.category}
         hue={p.hue}
+        src={p.images[0]?.url}
+        alt={p.images[0]?.alt}
         size={null}
         className="h-37.5 rounded-none border-0 border-b border-b-line"
         iconClassName="relative size-11.5 stroke-[1.25] drop-shadow-[0_8px_18px_currentColor]"
@@ -214,8 +227,9 @@ function ProductCard({ product: p, onOpen }: { product: Product; onOpen: () => v
         <span className="absolute top-2.5 left-2.5 z-10">
           <StatusPill status={p.status} />
         </span>
-        <span className="num absolute top-2.5 right-2.5 z-10 rounded-md bg-black/35 px-1.5 py-0.5 text-[11px] text-muted backdrop-blur-sm">
+        <span className="num absolute top-2.5 right-2.5 z-10 rounded-md bg-black/45 px-1.5 py-0.5 text-[11px] text-fg/80 backdrop-blur-sm">
           ★ {p.rating.toFixed(1)}
+          {p.images.length > 1 && ` · ${p.images.length} photos`}
         </span>
       </ProductThumb>
       <div className="p-3.5">
@@ -224,7 +238,10 @@ function ProductCard({ product: p, onOpen }: { product: Product; onOpen: () => v
           {p.sku} · {p.category}
         </div>
         <div className="mt-3 flex items-end justify-between">
-          <div className="num text-lg font-semibold tracking-[-0.02em]">{money(p.priceCents, 2)}</div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="num text-lg font-semibold tracking-[-0.02em]">{money(p.priceCents, 2)}</span>
+            {p.compareAtCents > 0 && <s className="num text-xs text-dim">{money(p.compareAtCents, 2)}</s>}
+          </div>
           <Sparkline data={p.trend} color={`hsl(${p.hue} 85% 68%)`} />
         </div>
         <div className="mt-3 flex justify-between text-[11.5px] text-muted">
@@ -239,12 +256,14 @@ function ProductCard({ product: p, onOpen }: { product: Product; onOpen: () => v
 
 function ProductTable({
   items,
+  selectable,
   selected,
   onToggle,
   onToggleAll,
   onOpen,
 }: {
   items: Product[]
+  selectable: boolean
   selected: Set<number>
   onToggle: (id: number) => void
   onToggleAll: (s: Set<number>) => void
@@ -257,14 +276,16 @@ function ProductTable({
       <table className="data-table">
         <thead>
           <tr>
-            <th className="w-8">
-              <Checkbox
-                label="Select all"
-                checked={all}
-                indeterminate={some}
-                onChange={() => onToggleAll(all ? new Set() : new Set(items.map((p) => p.id)))}
-              />
-            </th>
+            {selectable && (
+              <th className="w-8">
+                <Checkbox
+                  label="Select all"
+                  checked={all}
+                  indeterminate={some}
+                  onChange={() => onToggleAll(all ? new Set() : new Set(items.map((p) => p.id)))}
+                />
+              </th>
+            )}
             <th>Product</th>
             <th>Category</th>
             <th className="num">Price</th>
@@ -279,12 +300,14 @@ function ProductTable({
         <tbody>
           {items.map((p) => (
             <tr key={p.id} className={cn(selected.has(p.id) && 'bg-accent/5')}>
-              <td>
-                <Checkbox label={`Select ${p.name}`} checked={selected.has(p.id)} onChange={() => onToggle(p.id)} />
-              </td>
+              {selectable && (
+                <td>
+                  <Checkbox label={`Select ${p.name}`} checked={selected.has(p.id)} onChange={() => onToggle(p.id)} />
+                </td>
+              )}
               <td>
                 <div className="flex items-center gap-2.5">
-                  <ProductThumb category={p.category} hue={p.hue} size={36} />
+                  <ProductThumb category={p.category} hue={p.hue} src={p.images[0]?.url} size={36} />
                   <div>
                     <b className="block font-medium">{p.name}</b>
                     <small className="num block text-xs text-dim">{p.sku}</small>
@@ -308,8 +331,8 @@ function ProductTable({
                 <StatusPill status={p.status} />
               </td>
               <td className="num">
-                <Button variant="ghost" size="icon-sm" aria-label={`Edit ${p.name}`} onClick={() => onOpen(p.id)}>
-                  <Pencil />
+                <Button variant="ghost" size="icon-sm" aria-label={`${selectable ? 'Edit' : 'View'} ${p.name}`} onClick={() => onOpen(p.id)}>
+                  {selectable ? <Pencil /> : <Eye />}
                 </Button>
               </td>
             </tr>

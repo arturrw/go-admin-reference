@@ -1,62 +1,61 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Check, Pencil, Send, ShieldCheck, ShieldOff, Trash2, UserPlus } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { Check, Minus, Pencil, Send, ShieldCheck, ShieldOff, Trash2, UserPlus } from 'lucide-react'
+import { type FormEvent, Fragment, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, TableCard } from '@/components/ui/card'
+import { TableCard } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { Avatar, PageHeader, Skeleton } from '@/components/ui/misc'
-import { Pill, STATUS_TONE, StatusPill } from '@/components/ui/pill'
+import { StatusPill } from '@/components/ui/pill'
 import { Segmented } from '@/components/ui/segmented'
 import { Sheet } from '@/components/ui/sheet'
 import { ApiError, type Member, type Role } from '@/lib/api'
+import { useCan, useMe } from '@/lib/auth'
 import { capitalize, timeAgo } from '@/lib/format'
-import { useDeleteMember, useSaveMember, useTeam } from '@/lib/queries'
+import { useDeleteMember, useRoles, useSaveMember, useTeam } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
 const ROLE_INFO: Record<Role, string> = {
-  owner: 'Full access, billing, can delete workspace',
-  admin: 'Manage everything except billing',
-  editor: 'Create & edit products and orders',
-  support: 'View orders, issue refunds',
-  viewer: 'Read-only access to dashboards',
+  owner: 'Full access, billing, danger zone',
+  admin: 'Manage everything except the danger zone',
+  editor: 'Catalogue and order fulfilment',
+  support: 'Orders, refunds and customer notes',
+  viewer: 'Read-only dashboards and lists',
 }
 const ROLES = Object.keys(ROLE_INFO) as Role[]
 
 export function TeamPage() {
-  const { edit } = useSearch({ from: '/team' })
+  const { edit } = useSearch({ from: '/app/team' })
   const navigate = useNavigate({ from: '/team' })
+  const me = useMe()
+  const canWrite = useCan('team:write')
   const [role, setRole] = useState<Role | 'all'>('all')
   const { data, isPending } = useTeam(role)
   const { data: everyone } = useTeam('all')
   const remove = useDeleteMember()
 
+  // Mirrors the server rules: the owner is untouchable, only the owner manages admins, nobody removes themselves.
+  const canManage = (m: Member) => canWrite && m.role !== 'owner' && (m.role !== 'admin' || me.user.role === 'owner')
+
   const editing = typeof edit === 'number' ? everyone?.items.find((m) => m.id === edit) : undefined
-  const sheetOpen = edit === 'new' || !!editing
+  const sheetOpen = canWrite && (edit === 'new' || !!editing)
   const close = () => navigate({ search: {} })
 
   return (
     <>
-      <PageHeader title="Team & roles" description="Who can access this admin and what they can do.">
-        <Button variant="primary" onClick={() => navigate({ search: { edit: 'new' } })}>
-          <UserPlus />
-          Invite member
-        </Button>
+      <PageHeader title="Team & roles" description="Who can access this admin and what each role is allowed to do.">
+        {canWrite && (
+          <Button variant="primary" onClick={() => navigate({ search: { edit: 'new' } })}>
+            <UserPlus />
+            Invite member
+          </Button>
+        )}
       </PageHeader>
 
-      <div className="mb-3.5 grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        {(['owner', 'admin', 'editor', 'viewer'] as const).map((r) => (
-          <Card key={r}>
-            <div className="flex items-center gap-2">
-              <Pill tone={STATUS_TONE[r]}>{r}</Pill>
-              <span className="num ml-auto text-xs text-dim">{everyone?.items.filter((m) => m.role === r).length ?? '—'} members</span>
-            </div>
-            <p className="mt-2.5 text-[12.5px] text-muted">{ROLE_INFO[r]}</p>
-          </Card>
-        ))}
-      </div>
+      <PermissionMatrix myRole={me.user.role} counts={Object.fromEntries(ROLES.map((r) => [r, everyone?.items.filter((m) => m.role === r).length ?? 0]))} />
 
-      <div className="mb-3.5">
-        <Segmented value={role} onChange={setRole} options={(['all', ...ROLES] as const).map((r) => ({ value: r, label: capitalize(r) }))} />
+      <div className="mt-6 mb-3.5 flex items-center gap-3">
+        <h2 className="text-[15px] font-medium">Members</h2>
+        <Segmented className="ml-auto" value={role} onChange={setRole} options={(['all', ...ROLES] as const).map((r) => ({ value: r, label: capitalize(r) }))} />
       </div>
 
       {isPending ? (
@@ -76,12 +75,15 @@ export function TeamPage() {
             </thead>
             <tbody>
               {data?.items.map((m) => (
-                <tr key={m.id}>
+                <tr key={m.id} className={cn(m.id === me.user.id && 'bg-accent/4')}>
                   <td>
                     <div className="flex items-center gap-2.5">
                       <Avatar name={m.name} />
                       <div>
-                        <b className="block font-medium">{m.name}</b>
+                        <b className="block font-medium">
+                          {m.name}
+                          {m.id === me.user.id && <span className="ml-1.5 text-xs font-normal text-dim">(you)</span>}
+                        </b>
                         <small className="block text-xs text-dim">{m.email}</small>
                       </div>
                     </div>
@@ -93,7 +95,7 @@ export function TeamPage() {
                   <td>{m.mfa ? <ShieldCheck className="size-4 text-accent" /> : <ShieldOff className="size-4 text-dim" />}</td>
                   <td className="num text-muted">{m.lastActiveAt ? timeAgo(m.lastActiveAt) : '—'}</td>
                   <td className="num">
-                    {m.role !== 'owner' && (
+                    {canManage(m) && m.id !== me.user.id && (
                       <>
                         <Button variant="ghost" size="icon-sm" aria-label={`Edit ${m.name}`} onClick={() => navigate({ search: { edit: m.id } })}>
                           <Pencil />
@@ -111,17 +113,83 @@ export function TeamPage() {
         </TableCard>
       )}
 
-      <MemberSheet key={edit === 'new' ? 'new' : editing ? `m${editing.id}` : 'closed'} member={editing} open={sheetOpen} onClose={close} />
+      <MemberSheet key={String(edit ?? 'closed')} member={editing} open={sheetOpen} onClose={close} />
     </>
   )
 }
 
+/** Roles × permissions, straight from GET /api/v1/roles — the same matrix the API enforces. */
+function PermissionMatrix({ myRole, counts }: { myRole: Role; counts: Record<string, number> }) {
+  const { data } = useRoles()
+  if (!data) return <Skeleton className="h-96" />
+  let lastGroup = ''
+  return (
+    <TableCard>
+      <table className="data-table" data-testid="permission-matrix">
+        <thead>
+          <tr>
+            <th className="min-w-55">Permission</th>
+            {data.roles.map((r) => (
+              <th key={r} className={cn('text-center!', r === myRole && 'bg-accent/8! text-accent!')}>
+                <div className="flex flex-col items-center gap-0.5">
+                  {r}
+                  <span className="text-[10px] tracking-normal normal-case opacity-70">{counts[r] ?? 0} members</span>
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.permissions.map((p) => {
+            const header = p.group !== lastGroup
+            lastGroup = p.group
+            return (
+              <Fragment key={p.key}>
+                {header && (
+                  <tr className="hover:bg-transparent!">
+                    <td colSpan={data.roles.length + 1} className="eyebrow bg-white/[.015] py-1.5!">
+                      {p.group}
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  <td>
+                    <b className="block font-medium">{p.label}</b>
+                    <small className="block text-xs whitespace-normal text-dim">{p.description}</small>
+                  </td>
+                  {data.roles.map((r) => (
+                    <td key={r} className={cn('text-center', r === myRole && 'bg-accent/4')}>
+                      {data.matrix[r].includes(p.key) ? (
+                        <Check className="inline size-4 text-accent" aria-label={`${r}: allowed`} />
+                      ) : (
+                        <Minus className="inline size-4 text-dim/60" aria-label={`${r}: not allowed`} />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              </Fragment>
+            )
+          })}
+          <tr className="hover:bg-transparent!">
+            <td className="text-xs whitespace-normal text-dim" colSpan={data.roles.length + 1}>
+              Extra rules: the owner can’t be edited or removed, only the owner can grant or manage the admin role, and nobody can remove themselves. Your role is
+              highlighted.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TableCard>
+  )
+}
+
 function MemberSheet({ member, open, onClose }: { member?: Member; open: boolean; onClose: () => void }) {
+  const me = useMe()
   const [name, setName] = useState(member?.name ?? '')
   const [email, setEmail] = useState(member?.email ?? '')
   const [role, setRole] = useState<Role>(member?.role ?? 'viewer')
   const save = useSaveMember()
   const errors = save.error instanceof ApiError ? save.error.fields : undefined
+  const assignable = ROLES.filter((r) => r !== 'owner' && (r !== 'admin' || me.user.role === 'owner'))
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -152,7 +220,7 @@ function MemberSheet({ member, open, onClose }: { member?: Member; open: boolean
         </Field>
         <Field label="Role" error={errors?.role}>
           <div role="radiogroup" className="flex flex-col gap-2">
-            {ROLES.filter((r) => r !== 'owner').map((r) => (
+            {assignable.map((r) => (
               <button
                 key={r}
                 type="button"
@@ -175,7 +243,6 @@ function MemberSheet({ member, open, onClose }: { member?: Member; open: boolean
             ))}
           </div>
         </Field>
-        {save.error && !errors && <p className="text-[13px] text-danger">{save.error.message}</p>}
       </form>
     </Sheet>
   )

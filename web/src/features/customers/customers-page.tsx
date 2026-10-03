@@ -1,4 +1,5 @@
-import { Crown, type LucideIcon, Mail, Sparkles, TriangleAlert, User, UserPlus, UserX, X } from 'lucide-react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { ChevronRight, Crown, type LucideIcon, Mail, Sparkles, TriangleAlert, User, UserPlus, UserX, X } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import type { Segment } from '@/lib/api'
 import { int, money, monthYear, timeAgo } from '@/lib/format'
 import { useCustomers } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { CustomerSheet } from './customer-sheet'
 
 const SEGMENTS: [Segment, LucideIcon][] = [
   ['VIP', Crown],
@@ -19,6 +21,8 @@ const SEGMENTS: [Segment, LucideIcon][] = [
 ]
 
 export function CustomersPage() {
+  const { view } = useSearch({ from: '/app/customers' })
+  const navigate = useNavigate({ from: '/customers' })
   const [q, setQ] = useState('')
   const [segment, setSegment] = useState<Segment | ''>('')
   const { data, isPending } = useCustomers({ q: useDeferredValue(q), segment })
@@ -92,11 +96,12 @@ export function CustomersPage() {
                 <th>Lifetime value</th>
                 <th>Customer since</th>
                 <th className="num">Last seen</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {data.items.map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id} className="cursor-pointer" onClick={() => navigate({ search: { view: c.id } })}>
                   <td>
                     <div className="flex items-center gap-2.5">
                       <Avatar name={c.name} />
@@ -123,12 +128,16 @@ export function CustomersPage() {
                   </td>
                   <td className="text-muted">{monthYear(c.createdAt)}</td>
                   <td className="num text-muted">{timeAgo(c.lastSeenAt)}</td>
+                  <td className="num">
+                    <ChevronRight className="inline size-4 text-dim" />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </TableCard>
       )}
+      {view !== undefined && <CustomerSheet key={view} customerId={view} onClose={() => navigate({ search: {} })} />}
     </>
   )
 }
