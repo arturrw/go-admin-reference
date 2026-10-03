@@ -10,6 +10,13 @@ node_modules/
 web/dist/*
 !web/dist/.gitkeep
 
+# Runtime data (uploads)
+/data/
+
+# Playwright
+web/test-results/
+web/playwright-report/
+
 # Local
 .env
 .env.local
