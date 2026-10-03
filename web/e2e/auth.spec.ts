@@ -36,3 +36,18 @@ test('sign out ends the session', async ({ page }) => {
   const res = await page.request.get('/api/v1/auth/me')
   expect(res.status()).toBe(401)
 })
+
+test('an expired session redirects to login without crashing the page', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await loginAs(page, 'owner', '/products')
+  await expect(page.getByRole('heading', { name: 'Products' })).toBeVisible()
+
+  // Kill the session server-side, then trigger a client-side fetch.
+  await page.request.post('/api/v1/auth/logout')
+  await page.locator('aside nav').getByRole('link', { name: 'Orders' }).click()
+
+  await expect(page).toHaveURL(/\/login\?redirect=/)
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  expect(errors).toEqual([])
+})

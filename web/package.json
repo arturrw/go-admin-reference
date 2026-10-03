@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build && node scripts/keep-dist.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "e2e": "npm run build && playwright test"
+    "e2e": "npm run build && playwright test",
+    "e2e:pg": "npm run build && node scripts/e2e-pg.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

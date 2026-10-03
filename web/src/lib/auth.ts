@@ -38,9 +38,9 @@ export function useLogout() {
   const navigate = useNavigate()
   return useMutation({
     mutationFn: api.logout,
-    onSettled: () => {
+    onSettled: async () => {
+      await navigate({ to: '/login' })
       qc.clear()
-      navigate({ to: '/login' })
     },
   })
 }

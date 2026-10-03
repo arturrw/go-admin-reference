@@ -27,7 +27,9 @@ export default defineConfig({
     command: 'go run ./cmd/server',
     cwd: '..',
     url: `http://localhost:${PORT}/healthz`,
-    env: { ADDR: `:${PORT}`, UPLOAD_DIR: 'data/e2e-uploads', LOG_LEVEL: 'warn' },
+    // E2E_DATABASE_URL runs the suite against Postgres (see `npm run e2e:pg`);
+    // without it the server uses the in-memory store.
+    env: { ADDR: `:${PORT}`, UPLOAD_DIR: 'data/e2e-uploads', LOG_LEVEL: 'warn', DATABASE_URL: process.env.E2E_DATABASE_URL ?? '' },
     reuseExistingServer: false,
     timeout: 120_000,
   },

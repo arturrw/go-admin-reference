@@ -11,17 +11,19 @@ import { createAppRouter } from './router'
 
 restoreAccent()
 
-// A 401 anywhere means the session expired: drop cached data and go to login.
-const onAuthError = (err: unknown) => {
-  if (err instanceof ApiError && err.status === 401 && location.pathname !== '/login') {
-    queryClient.clear()
-    router.navigate({ to: '/login', search: { redirect: location.pathname + location.search } })
-  }
+// A 401 anywhere means the session expired: go to login, then drop the data
+// of the pages we left. (A 401 on `me` itself is handled by the route guard.)
+const onAuthError = (err: unknown, key?: readonly unknown[]) => {
+  if (!(err instanceof ApiError && err.status === 401) || key?.[0] === 'me' || location.pathname === '/login') return
+  router
+    .navigate({ to: '/login', search: { redirect: location.pathname + location.search } })
+    // Only queries nobody renders any more — the login page's own queries stay.
+    .then(() => queryClient.removeQueries({ predicate: (q) => q.getObserversCount() === 0 }))
 }
 
 const queryClient = new QueryClient({
-  queryCache: new QueryCache({ onError: onAuthError }),
-  mutationCache: new MutationCache({ onError: onAuthError }),
+  queryCache: new QueryCache({ onError: (err, query) => onAuthError(err, query.queryKey) }),
+  mutationCache: new MutationCache({ onError: (err) => onAuthError(err) }),
   defaultOptions: {
     queries: {
       staleTime: 15_000,
