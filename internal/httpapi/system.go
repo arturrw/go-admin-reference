@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/arturrw/go-admin-reference/internal/domain"
+	"github.com/arturrw/go-admin-reference/internal/media"
 	"github.com/arturrw/go-admin-reference/internal/reqlog"
 )
 
@@ -96,47 +96,46 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dash)
 }
 
-type requestStats struct {
-	Total       int     `json:"total"`
-	SuccessRate float64 `json:"successRate"`
-	P95Ms       float64 `json:"p95Ms"`
-	Client4xx   int     `json:"client4xx"`
-	Server5xx   int     `json:"server5xx"`
-}
-
-// listRequests supports ?limit=, ?class=2|4|5 and ?q= (substring of method, path or status).
+// listRequests supports ?limit=, ?class=2|4|5, ?method=, ?actor= and ?q=
+// (substring of method, path, status or actor).
 func (s *server) listRequests(w http.ResponseWriter, r *http.Request) {
+	qv := r.URL.Query()
 	limit := min(max(queryInt(r, "limit", 120), 1), 500)
-	class := r.URL.Query().Get("class")
-	q := strings.ToLower(r.URL.Query().Get("q"))
+	class, method, actor := qv.Get("class"), strings.ToUpper(qv.Get("method")), qv.Get("actor")
+	q := strings.ToLower(qv.Get("q"))
 
-	all := s.requests.Recent(500, nil)
 	items := s.requests.Recent(limit, func(e reqlog.Entry) bool {
 		status := strconv.Itoa(e.Status)
-		if class != "" && !strings.HasPrefix(status, class) {
+		switch {
+		case class != "" && !strings.HasPrefix(status, class),
+			method != "" && e.Method != method,
+			actor != "" && e.Actor != actor:
 			return false
 		}
-		return q == "" || strings.Contains(strings.ToLower(e.Method+" "+e.Path+" "+status), q)
+		return q == "" || strings.Contains(strings.ToLower(e.Method+" "+e.Path+" "+status+" "+e.Actor), q)
 	})
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "stats": s.requests.Stats(time.Now())})
+}
 
-	st := requestStats{Total: len(all)}
-	durations := make([]float64, 0, len(all))
-	ok := 0
-	for _, e := range all {
-		durations = append(durations, e.DurationMs)
-		switch {
-		case e.Status < 400:
-			ok++
-		case e.Status < 500:
-			st.Client4xx++
-		default:
-			st.Server5xx++
-		}
+func (s *server) getRequest(w http.ResponseWriter, r *http.Request) {
+	e, ok := s.requests.Get(r.PathValue("id"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "request not found (the log keeps the last 500)")
+		return
 	}
-	if len(all) > 0 {
-		slices.Sort(durations)
-		st.SuccessRate = math.Round(float64(ok)/float64(len(all))*1000) / 10
-		st.P95Ms = durations[int(float64(len(durations)-1)*.95)]
+	writeJSON(w, http.StatusOK, e)
+}
+
+// generatedImage renders seed product artwork: /media/generated/{product}/{n}.svg?c=Category&h=hue
+func (s *server) generatedImage(w http.ResponseWriter, r *http.Request) {
+	variant, err := strconv.Atoi(strings.TrimSuffix(r.PathValue("file"), ".svg"))
+	hue, herr := strconv.Atoi(r.URL.Query().Get("h"))
+	if err != nil || herr != nil || variant < 0 || variant >= media.ShotCount() || hue < -360 || hue > 720 {
+		http.NotFound(w, r)
+		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "stats": st})
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+	_, _ = w.Write(media.ProductSVG(r.URL.Query().Get("c"), hue, variant))
 }

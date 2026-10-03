@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -12,6 +13,9 @@ type Config struct {
 	Env      string     // "development" or "production".
 	LogLevel slog.Level // debug | info | warn | error.
 	Version  string     // Reported by /api/v1/meta.
+
+	UploadDir  string        // Where uploaded product images are written.
+	SessionTTL time.Duration // Idle lifetime of a login session.
 }
 
 func Load() Config {
@@ -19,7 +23,10 @@ func Load() Config {
 		Addr:     getenv("ADDR", ":8080"),
 		Env:      getenv("APP_ENV", "development"),
 		LogLevel: parseLevel(getenv("LOG_LEVEL", "info")),
-		Version:  getenv("APP_VERSION", "v0.1.0"),
+		Version:  getenv("APP_VERSION", "v0.2.0"),
+
+		UploadDir:  getenv("UPLOAD_DIR", "data/uploads"),
+		SessionTTL: parseDuration(getenv("SESSION_TTL", "12h"), 12*time.Hour),
 	}
 }
 
@@ -38,4 +45,11 @@ func parseLevel(s string) slog.Level {
 		return slog.LevelInfo
 	}
 	return l
+}
+
+func parseDuration(s string, fallback time.Duration) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil && d > 0 {
+		return d
+	}
+	return fallback
 }

@@ -12,8 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arturrw/go-admin-reference/internal/auth"
 	"github.com/arturrw/go-admin-reference/internal/config"
 	"github.com/arturrw/go-admin-reference/internal/httpapi"
+	"github.com/arturrw/go-admin-reference/internal/media"
 	"github.com/arturrw/go-admin-reference/internal/reqlog"
 	"github.com/arturrw/go-admin-reference/internal/store/memory"
 	"github.com/arturrw/go-admin-reference/web"
@@ -34,6 +36,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	uploads, err := media.NewStorage(cfg.UploadDir)
+	if err != nil {
+		return err
+	}
+
 	now := time.Now()
 	requests := reqlog.New(500)
 	requests.Seed(now, 120)
@@ -44,10 +51,14 @@ func run() error {
 			Logger:    logger,
 			Store:     memory.New(now),
 			Requests:  requests,
+			Sessions:  auth.NewSessions(cfg.SessionTTL),
+			Media:     uploads,
 			SPA:       web.Handler(),
 			Version:   cfg.Version,
 			Env:       cfg.Env,
 			StartedAt: now,
+			// Seeded accounts all share this password; shown on the dev login page.
+			DemoPassword: memory.DemoPassword,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

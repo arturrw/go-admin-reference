@@ -8,91 +8,136 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/arturrw/go-admin-reference/internal/domain"
+	"github.com/arturrw/go-admin-reference/internal/auth"
+	d "github.com/arturrw/go-admin-reference/internal/domain"
+	"github.com/arturrw/go-admin-reference/internal/media"
 	"github.com/arturrw/go-admin-reference/internal/reqlog"
 )
 
 // Store is everything the API needs from persistence. The in-memory store
 // implements it today; a Postgres implementation can be swapped in later.
 type Store interface {
-	ListProducts(ctx context.Context, f domain.ProductFilter) ([]domain.Product, error)
-	ProductStats(ctx context.Context) (domain.ProductStats, error)
-	GetProduct(ctx context.Context, id int64) (domain.Product, error)
-	CreateProduct(ctx context.Context, in domain.ProductInput) (domain.Product, error)
-	UpdateProduct(ctx context.Context, id int64, in domain.ProductInput) (domain.Product, error)
-	DeleteProduct(ctx context.Context, id int64) error
-	BulkProducts(ctx context.Context, ids []int64, action domain.BulkAction) (int, error)
+	ListProducts(ctx context.Context, f d.ProductFilter) ([]d.Product, error)
+	ProductStats(ctx context.Context) (d.ProductStats, error)
+	GetProduct(ctx context.Context, id int64) (d.Product, error)
+	CreateProduct(ctx context.Context, in d.ProductInput) (d.Product, error)
+	UpdateProduct(ctx context.Context, id int64, in d.ProductInput) (d.Product, error)
+	DeleteProduct(ctx context.Context, id int64) (d.Product, error)
+	BulkProducts(ctx context.Context, ids []int64, action d.BulkAction) ([]d.Product, error)
+	AddProductImage(ctx context.Context, productID int64, img d.ProductImage) (d.Product, error)
+	DeleteProductImage(ctx context.Context, productID int64, imageID string) (d.Product, d.ProductImage, error)
+	SetPrimaryImage(ctx context.Context, productID int64, imageID string) (d.Product, error)
 
-	ListOrders(ctx context.Context, f domain.OrderFilter) ([]domain.Order, error)
-	OrderCounts(ctx context.Context) (map[domain.OrderStatus]int, error)
-	GetOrder(ctx context.Context, id int64) (domain.Order, error)
-	UpdateOrderStatus(ctx context.Context, id int64, status domain.OrderStatus) (domain.Order, error)
+	ListOrders(ctx context.Context, f d.OrderFilter) ([]d.Order, int, error)
+	OrderCounts(ctx context.Context) (map[d.OrderStatus]int, error)
+	GetOrder(ctx context.Context, id int64) (d.Order, error)
+	UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus) (d.Order, error)
 
-	ListCustomers(ctx context.Context, f domain.CustomerFilter) ([]domain.Customer, error)
-	CustomerSegments(ctx context.Context) (map[string]domain.SegmentSummary, error)
+	ListCustomers(ctx context.Context, f d.CustomerFilter) ([]d.Customer, error)
+	CustomerSegments(ctx context.Context) (map[string]d.SegmentSummary, error)
+	GetCustomer(ctx context.Context, id int64) (d.CustomerDetail, error)
+	AddCustomerNote(ctx context.Context, customerID int64, author, text string) (d.CustomerNote, error)
 
-	ListMembers(ctx context.Context, role domain.Role) ([]domain.Member, error)
-	CreateMember(ctx context.Context, in domain.MemberInput) (domain.Member, error)
-	UpdateMember(ctx context.Context, id int64, in domain.MemberInput) (domain.Member, error)
+	ListMembers(ctx context.Context, role d.Role) ([]d.Member, error)
+	GetMember(ctx context.Context, id int64) (d.Member, error)
+	MemberByEmail(ctx context.Context, email string) (d.Member, error)
+	TouchMember(ctx context.Context, id int64)
+	CreateMember(ctx context.Context, in d.MemberInput) (d.Member, error)
+	UpdateMember(ctx context.Context, id int64, in d.MemberInput) (d.Member, error)
 	DeleteMember(ctx context.Context, id int64) error
 
-	Dashboard(ctx context.Context, days int) (domain.Dashboard, error)
+	Dashboard(ctx context.Context, days int) (d.Dashboard, error)
 }
 
 type Deps struct {
 	Logger    *slog.Logger
 	Store     Store
 	Requests  *reqlog.Log
+	Sessions  *auth.Sessions
+	Media     *media.Storage
 	SPA       http.Handler // serves the built frontend
 	Version   string
 	Env       string
 	StartedAt time.Time
+	// DemoPassword is shown on the login page in development; empty disables it.
+	DemoPassword string
 }
 
 type server struct {
 	log      *slog.Logger
 	store    Store
 	requests *reqlog.Log
+	sessions *auth.Sessions
+	media    *media.Storage
 	version  string
 	env      string
 	started  time.Time
+
+	demoPassword string
 }
+
+func (s *server) isDev() bool { return s.env != "production" }
 
 func New(deps Deps) http.Handler {
 	s := &server{
-		log: deps.Logger, store: deps.Store, requests: deps.Requests,
-		version: deps.Version, env: deps.Env, started: deps.StartedAt,
+		log: deps.Logger, store: deps.Store, requests: deps.Requests, sessions: deps.Sessions,
+		media: deps.Media, version: deps.Version, env: deps.Env, started: deps.StartedAt,
+		demoPassword: deps.DemoPassword,
 	}
 
 	mux := http.NewServeMux()
+	// route registers a handler guarded by a permission ("" = any signed-in member).
+	route := func(pattern string, perm d.Permission, h http.HandlerFunc) {
+		mux.Handle(pattern, s.authorize(perm, h))
+	}
+
 	mux.HandleFunc("GET /healthz", s.health)
-	mux.HandleFunc("GET /api/v1/meta", s.meta)
-	mux.HandleFunc("GET /api/v1/runtime", s.runtime)
-	mux.HandleFunc("GET /api/v1/dashboard", s.dashboard)
 
-	mux.HandleFunc("GET /api/v1/products", s.listProducts)
-	mux.HandleFunc("POST /api/v1/products", s.createProduct)
-	mux.HandleFunc("POST /api/v1/products/bulk", s.bulkProducts)
-	mux.HandleFunc("GET /api/v1/products/{id}", s.getProduct)
-	mux.HandleFunc("PUT /api/v1/products/{id}", s.updateProduct)
-	mux.HandleFunc("DELETE /api/v1/products/{id}", s.deleteProduct)
+	mux.HandleFunc("POST /api/v1/auth/login", s.login)
+	mux.HandleFunc("POST /api/v1/auth/logout", s.logout)
+	mux.HandleFunc("GET /api/v1/auth/demo-accounts", s.demoAccounts)
+	route("GET /api/v1/auth/me", "", s.me)
+	route("GET /api/v1/roles", "", s.roles)
 
-	mux.HandleFunc("GET /api/v1/orders", s.listOrders)
-	mux.HandleFunc("GET /api/v1/orders/{id}", s.getOrder)
-	mux.HandleFunc("PATCH /api/v1/orders/{id}/status", s.updateOrderStatus)
+	route("GET /api/v1/meta", "", s.meta)
+	route("GET /api/v1/runtime", d.PermDashboard, s.runtime)
+	route("GET /api/v1/dashboard", d.PermDashboard, s.dashboard)
 
-	mux.HandleFunc("GET /api/v1/customers", s.listCustomers)
+	route("GET /api/v1/products", d.PermProductsRead, s.listProducts)
+	route("POST /api/v1/products", d.PermProductsWrite, s.createProduct)
+	route("POST /api/v1/products/bulk", d.PermProductsWrite, s.bulkProducts)
+	route("GET /api/v1/products/{id}", d.PermProductsRead, s.getProduct)
+	route("PUT /api/v1/products/{id}", d.PermProductsWrite, s.updateProduct)
+	route("DELETE /api/v1/products/{id}", d.PermProductsWrite, s.deleteProduct)
+	route("POST /api/v1/products/{id}/images", d.PermProductsWrite, s.uploadProductImage)
+	route("DELETE /api/v1/products/{id}/images/{imageId}", d.PermProductsWrite, s.deleteProductImage)
+	route("POST /api/v1/products/{id}/images/{imageId}/primary", d.PermProductsWrite, s.setPrimaryImage)
 
-	mux.HandleFunc("GET /api/v1/team", s.listMembers)
-	mux.HandleFunc("POST /api/v1/team", s.createMember)
-	mux.HandleFunc("PUT /api/v1/team/{id}", s.updateMember)
-	mux.HandleFunc("DELETE /api/v1/team/{id}", s.deleteMember)
+	route("GET /api/v1/orders", d.PermOrdersRead, s.listOrders)
+	route("GET /api/v1/orders/{id}", d.PermOrdersRead, s.getOrder)
+	route("PATCH /api/v1/orders/{id}/status", d.PermOrdersWrite, s.updateOrderStatus)
 
-	mux.HandleFunc("GET /api/v1/requests", s.listRequests)
+	route("GET /api/v1/customers", d.PermCustomersRead, s.listCustomers)
+	route("GET /api/v1/customers/{id}", d.PermCustomersRead, s.getCustomer)
+	route("POST /api/v1/customers/{id}/notes", d.PermCustomersWrite, s.addCustomerNote)
+
+	route("GET /api/v1/team", d.PermTeamRead, s.listMembers)
+	route("POST /api/v1/team", d.PermTeamWrite, s.createMember)
+	route("PUT /api/v1/team/{id}", d.PermTeamWrite, s.updateMember)
+	route("DELETE /api/v1/team/{id}", d.PermTeamWrite, s.deleteMember)
+
+	route("GET /api/v1/requests", d.PermRequestsRead, s.listRequests)
+	route("GET /api/v1/requests/{id}", d.PermRequestsRead, s.getRequest)
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no such endpoint")
 	})
+
+	// Product images are public, like a storefront CDN would serve them.
+	mux.HandleFunc("GET /media/generated/{product}/{file}", s.generatedImage)
+	if s.media != nil {
+		mux.Handle("GET /media/uploads/", http.StripPrefix("/media/uploads/", s.media.Handler()))
+	}
 	if deps.SPA != nil {
 		mux.Handle("/", deps.SPA)
 	}
