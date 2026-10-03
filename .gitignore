@@ -1,1 +1,19 @@
 *.zip
+
+# Go
+/bin/
+*.exe
+coverage.out
+
+# Frontend
+node_modules/
+web/dist/*
+!web/dist/.gitkeep
+
+# Local
+.env
+.env.local
+.DS_Store
+
+# Editor / agent tooling
+.claude/
