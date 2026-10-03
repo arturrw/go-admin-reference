@@ -442,6 +442,6 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	s.sessions.DeleteMember(id)
+	s.sessions.DeleteMember(r.Context(), id)
 	w.WriteHeader(http.StatusNoContent)
 }

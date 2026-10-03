@@ -1,4 +1,5 @@
-package memory
+// Package seed generates the deterministic fake dataset used by every store.
+package seed
 
 import (
 	"cmp"
@@ -98,7 +99,26 @@ func generatedImages(p d.Product) []d.ProductImage {
 	return imgs
 }
 
-func seed(s *Store, now time.Time) {
+// Dataset is everything a fresh store starts with.
+type Dataset struct {
+	Products  []d.Product
+	Customers []d.Customer
+	Orders    []d.Order // newest first
+	Members   []d.Member
+	Revenue   []d.RevenuePoint
+	Heatmap   [7][24]int
+	Activity  []d.Activity
+}
+
+// Markets is the static revenue split shown on the dashboard.
+func Markets() []d.Market { return slices.Clone(markets[:7]) }
+
+// CategoryHue is the base artwork hue of a category.
+func CategoryHue(c d.Category) int { return catalog[c].hue }
+
+// Generate builds the dataset; timestamps are relative to now.
+func Generate(now time.Time) *Dataset {
+	s := &Dataset{}
 	r := rand.New(rand.NewPCG(2025, 1003))
 
 	// ── Products ──
@@ -152,10 +172,9 @@ func seed(s *Store, now time.Time) {
 			}
 			p.Description = strings.Replace(p.Description, "the studio", p.Vendor, 1)
 			p.Images = generatedImages(p)
-			s.products = append(s.products, p)
+			s.Products = append(s.Products, p)
 		}
 	}
-	s.nextProductID = id + 1
 
 	// ── Customers ──
 	marketWeights := make([]weighted[string], len(markets))
@@ -209,14 +228,13 @@ func seed(s *Store, now time.Time) {
 		if c.Notes == nil {
 			c.Notes = []d.CustomerNote{}
 		}
-		s.customers = append(s.customers, c)
+		s.Customers = append(s.Customers, c)
 	}
-	s.nextNoteID = noteID + 1
 
 	// ── Orders: each customer gets a purchase history; timestamps are
 	// assigned newest-first with gaps that grow into the past. ──
 	var owners []int
-	for i := range s.customers {
+	for i := range s.Customers {
 		n := pickWeighted(r, []weighted[int]{{1, 18}, {2, 18}, {3, 16}, {5, 18}, {8, 16}, {13, 10}, {18, 4}})
 		for range n {
 			owners = append(owners, i)
@@ -224,7 +242,7 @@ func seed(s *Store, now time.Time) {
 	}
 	r.Shuffle(len(owners), func(i, j int) { owners[i], owners[j] = owners[j], owners[i] })
 	for i, ci := range owners {
-		c := s.customers[ci]
+		c := s.Customers[ci]
 		placed := now.Add(-time.Duration(math.Pow(float64(i), 1.75)*7+2) * time.Minute)
 		age := now.Sub(placed)
 		var status d.OrderStatus
@@ -240,19 +258,19 @@ func seed(s *Store, now time.Time) {
 		}
 		o := d.Order{ID: int64(10000 + len(owners) - i), Status: status, Payment: pick(r, payments), PlacedAt: placed}
 		for range between(r, 1, 4) {
-			p := s.products[r.IntN(len(s.products))]
+			p := s.Products[r.IntN(len(s.Products))]
 			qty := pickWeighted(r, []weighted[int]{{1, 8}, {2, 2}, {3, 1}})
 			o.Items = append(o.Items, d.OrderItem{ProductID: p.ID, Name: p.Name, SKU: p.SKU, Category: p.Category, Hue: p.Hue, ImageURL: p.ImageURL(), Qty: qty, PriceCents: p.PriceCents})
 			o.TotalCents += p.PriceCents * int64(qty)
 		}
 		o.Customer = c.Ref() // refreshed after segments are computed
-		s.orders = append(s.orders, o)
+		s.Orders = append(s.Orders, o)
 	}
-	for i := range s.customers {
-		s.recomputeCustomer(i, now)
-		c := &s.customers[i]
+	for i := range s.Customers {
+		c := &s.Customers[i]
+		d.DeriveCustomer(c, s.Orders, now)
 		c.CreatedAt = c.LastOrderAt
-		for _, o := range s.orders {
+		for _, o := range s.Orders {
 			if o.Customer.ID == c.ID && o.PlacedAt.Before(c.CreatedAt) {
 				c.CreatedAt = o.PlacedAt
 			}
@@ -261,12 +279,12 @@ func seed(s *Store, now time.Time) {
 		if c.LastSeenAt.Before(c.LastOrderAt) {
 			c.LastSeenAt = c.LastOrderAt
 		}
-		s.recomputeCustomer(i, now) // segment depends on CreatedAt
+		d.DeriveCustomer(c, s.Orders, now) // segment depends on CreatedAt
 	}
-	for i := range s.orders {
-		s.orders[i].Customer = s.customers[s.customerIndex(s.orders[i].Customer.ID)].Ref()
+	for i := range s.Orders {
+		s.Orders[i].Customer = s.Customers[s.Orders[i].Customer.ID-1].Ref()
 	}
-	slices.SortFunc(s.orders, func(a, b d.Order) int { return cmp.Compare(b.ID, a.ID) })
+	slices.SortFunc(s.Orders, func(a, b d.Order) int { return cmp.Compare(b.ID, a.ID) })
 
 	// ── Team ──
 	hash, err := auth.HashPassword(DemoPassword)
@@ -274,7 +292,7 @@ func seed(s *Store, now time.Time) {
 		panic(err)
 	}
 	ago := func(m int) *time.Time { t := now.Add(-time.Duration(m) * time.Minute); return &t }
-	s.members = []d.Member{
+	s.Members = []d.Member{
 		{ID: 1, Name: "Artur DCS", Email: "artur@acme.io", Role: d.RoleOwner, Status: d.MemberActive, MFA: true, LastActiveAt: ago(0)},
 		{ID: 2, Name: "Mark Liu", Email: "mark@acme.io", Role: d.RoleAdmin, Status: d.MemberActive, MFA: true, LastActiveAt: ago(12)},
 		{ID: 3, Name: "Sofia Rossi", Email: "sofia@acme.io", Role: d.RoleEditor, Status: d.MemberInvited, MFA: false, LastActiveAt: nil},
@@ -285,13 +303,12 @@ func seed(s *Store, now time.Time) {
 		{ID: 8, Name: "Diego Vega", Email: "diego@acme.io", Role: d.RoleSupport, Status: d.MemberActive, MFA: false, LastActiveAt: ago(26 * 60)},
 		{ID: 9, Name: "Priya Shah", Email: "priya@acme.io", Role: d.RoleSupport, Status: d.MemberActive, MFA: true, LastActiveAt: ago(5)},
 	}
-	for i := range s.members {
-		if s.members[i].Status != d.MemberInvited {
+	for i := range s.Members {
+		if s.Members[i].Status != d.MemberInvited {
 			// One shared hash keeps boot fast; real members get their own salt.
-			s.members[i].PasswordHash = hash
+			s.Members[i].PasswordHash = hash
 		}
 	}
-	s.nextMemberID = 10
 
 	// ── Revenue for the last 90 days plus the preceding period ──
 	const days = 90
@@ -305,7 +322,7 @@ func seed(s *Store, now time.Time) {
 			v += 600
 		}
 		prev := v*.82 + math.Sin(float64(i)/5)*700 + (r.Float64()-.5)*1400
-		s.revenue = append(s.revenue, d.RevenuePoint{Date: day.Format(time.DateOnly), Current: int64(v * 100), Previous: int64(prev * 100)})
+		s.Revenue = append(s.Revenue, d.RevenuePoint{Date: day.Format(time.DateOnly), Current: int64(v * 100), Previous: int64(prev * 100)})
 	}
 
 	// ── Orders heatmap: midday peak plus an evening bump, quieter weekends ──
@@ -316,15 +333,16 @@ func seed(s *Store, now time.Time) {
 				x *= .7
 			}
 			x = math.Max(0, math.Min(1, x+(r.Float64()-.5)*.22))
-			s.heatmap[day][h] = int(x * 140)
+			s.Heatmap[day][h] = int(x * 140)
 		}
 	}
 
-	s.activity = []d.Activity{
+	s.Activity = []d.Activity{
 		{Kind: "role", Actor: "Mark Liu", Message: "changed Sofia Rossi's role to editor", At: now.Add(-14 * time.Minute)},
 		{Kind: "publish", Actor: "Yuki Tanaka", Message: "published Pulse Watch Ultra", At: now.Add(-38 * time.Minute)},
 		{Kind: "deploy", Actor: "CI", Message: "rolled out v1.4.2 to 3/3 pods", At: now.Add(-2 * time.Hour)},
 		{Kind: "stock", Actor: "Inventory", Message: "Glow Strip 5m dropped below 10 units", At: now.Add(-3 * time.Hour)},
 		{Kind: "refund", Actor: "Priya Shah", Message: "issued a $129.99 refund", At: now.Add(-5 * time.Hour)},
 	}
+	return s
 }

@@ -1,11 +1,12 @@
 // Package auth provides password hashing and server-side sessions.
 //
 // Passwords use PBKDF2-HMAC-SHA256 from the standard library. Sessions are
-// opaque random tokens stored server-side (in memory here; swap for Redis or a
-// sessions table in production) and sent to the browser as an HttpOnly cookie.
+// opaque random tokens sent to the browser as an HttpOnly cookie; the server
+// keeps them in memory (MemorySessions) or in Postgres (postgres.Sessions).
 package auth
 
 import (
+	"context"
 	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
@@ -61,31 +62,47 @@ func CheckPassword(encoded, password string) bool {
 
 var ErrNoSession = errors.New("no session")
 
+// NewToken returns a random session token for the cookie.
+func NewToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// HashToken is what gets persisted: a database leak can't be replayed as cookies.
+func HashToken(token string) []byte {
+	h := sha256.Sum256([]byte(token))
+	return h[:]
+}
+
+// MemorySessions keeps sessions in process memory; they vanish on restart.
+// The Postgres store provides a persistent implementation.
 type session struct {
 	memberID int64
 	expires  time.Time
 }
 
-type Sessions struct {
+type MemorySessions struct {
 	mu  sync.Mutex
 	m   map[string]session
 	ttl time.Duration
 	now func() time.Time
 }
 
-func NewSessions(ttl time.Duration) *Sessions {
-	return &Sessions{m: map[string]session{}, ttl: ttl, now: time.Now}
+func NewMemorySessions(ttl time.Duration) *MemorySessions {
+	return &MemorySessions{m: map[string]session{}, ttl: ttl, now: time.Now}
 }
 
-func (s *Sessions) TTL() time.Duration { return s.ttl }
+func (s *MemorySessions) TTL() time.Duration { return s.ttl }
 
 // Create starts a session and returns its token.
-func (s *Sessions) Create(memberID int64) (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+func (s *MemorySessions) Create(_ context.Context, memberID int64) (string, error) {
+	token, err := NewToken()
+	if err != nil {
 		return "", err
 	}
-	token := base64.RawURLEncoding.EncodeToString(b)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.m[token] = session{memberID: memberID, expires: s.now().Add(s.ttl)}
@@ -93,7 +110,7 @@ func (s *Sessions) Create(memberID int64) (string, error) {
 }
 
 // Lookup returns the member for a valid token and extends its lifetime.
-func (s *Sessions) Lookup(token string) (int64, error) {
+func (s *MemorySessions) Lookup(_ context.Context, token string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sess, ok := s.m[token]
@@ -110,14 +127,14 @@ func (s *Sessions) Lookup(token string) (int64, error) {
 	return sess.memberID, nil
 }
 
-func (s *Sessions) Delete(token string) {
+func (s *MemorySessions) Delete(_ context.Context, token string) {
 	s.mu.Lock()
 	delete(s.m, token)
 	s.mu.Unlock()
 }
 
 // DeleteMember ends every session of a member (e.g. after removal or suspension).
-func (s *Sessions) DeleteMember(memberID int64) {
+func (s *MemorySessions) DeleteMember(_ context.Context, memberID int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for t, sess := range s.m {

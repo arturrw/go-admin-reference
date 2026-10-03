@@ -28,7 +28,7 @@ func (s *server) authorize(perm d.Permission, next http.HandlerFunc) http.Handle
 			writeError(w, http.StatusUnauthorized, "authentication required")
 			return
 		}
-		id, err := s.sessions.Lookup(c.Value)
+		id, err := s.sessions.Lookup(r.Context(), c.Value)
 		if err != nil {
 			s.clearCookie(w)
 			writeError(w, http.StatusUnauthorized, "session expired")
@@ -36,7 +36,7 @@ func (s *server) authorize(perm d.Permission, next http.HandlerFunc) http.Handle
 		}
 		m, err := s.store.GetMember(r.Context(), id)
 		if err != nil || m.Status != d.MemberActive {
-			s.sessions.Delete(c.Value)
+			s.sessions.Delete(r.Context(), c.Value)
 			s.clearCookie(w)
 			writeError(w, http.StatusUnauthorized, "account is not active")
 			return
@@ -125,7 +125,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "this account is "+string(m.Status))
 		return
 	}
-	token, err := s.sessions.Create(m.ID)
+	token, err := s.sessions.Create(r.Context(), m.ID)
 	if err != nil {
 		s.writeDomainError(w, r, err)
 		return
@@ -140,7 +140,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(auth.CookieName); err == nil {
-		s.sessions.Delete(c.Value)
+		s.sessions.Delete(r.Context(), c.Value)
 	}
 	s.clearCookie(w)
 	w.WriteHeader(http.StatusNoContent)

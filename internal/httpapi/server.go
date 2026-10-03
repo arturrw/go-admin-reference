@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/arturrw/go-admin-reference/internal/auth"
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 	"github.com/arturrw/go-admin-reference/internal/media"
 	"github.com/arturrw/go-admin-reference/internal/reqlog"
@@ -49,11 +48,25 @@ type Store interface {
 	Dashboard(ctx context.Context, days int) (d.Dashboard, error)
 }
 
+// SessionStore persists login sessions (auth.MemorySessions or postgres.Sessions).
+type SessionStore interface {
+	Create(ctx context.Context, memberID int64) (token string, err error)
+	Lookup(ctx context.Context, token string) (memberID int64, err error)
+	Delete(ctx context.Context, token string)
+	DeleteMember(ctx context.Context, memberID int64)
+	TTL() time.Duration
+}
+
+// Pinger is implemented by stores backed by a database, for /healthz.
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
 type Deps struct {
 	Logger    *slog.Logger
 	Store     Store
 	Requests  *reqlog.Log
-	Sessions  *auth.Sessions
+	Sessions  SessionStore
 	Media     *media.Storage
 	SPA       http.Handler // serves the built frontend
 	Version   string
@@ -67,7 +80,7 @@ type server struct {
 	log      *slog.Logger
 	store    Store
 	requests *reqlog.Log
-	sessions *auth.Sessions
+	sessions SessionStore
 	media    *media.Storage
 	version  string
 	env      string

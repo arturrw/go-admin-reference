@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 type RevenuePoint struct {
 	Date     string `json:"date"` // YYYY-MM-DD
@@ -65,4 +68,81 @@ type Dashboard struct {
 	Activity         []Activity      `json:"activity"`
 	Markets          []Market        `json:"markets"`
 	Target           Target          `json:"target"`
+}
+
+// Synthetic storefront metrics: there is no real storefront behind this
+// reference app, so conversion and AOV are fixed and orders are derived from
+// revenue. Shared by every store so dashboards look identical.
+const avgOrderCents = 8640
+
+// BuildDashboard fills the revenue-derived parts of the dashboard (totals,
+// KPIs, target, markets) from a daily revenue series.
+func BuildDashboard(series []RevenuePoint, markets []Market) Dashboard {
+	var cur, prev int64
+	for _, p := range series {
+		cur += p.Current
+		prev += p.Previous
+	}
+	orders := float64(cur) / avgOrderCents
+	prevOrders := float64(prev) / avgOrderCents
+	trend := bucket(series, 16)
+	return Dashboard{
+		RangeDays:        len(series),
+		RevenueCents:     cur,
+		PrevRevenueCents: prev,
+		Revenue:          series,
+		Markets:          markets,
+		Categories:       []CategoryShare{},
+		TopProducts:      []TopProduct{},
+		Activity:         []Activity{},
+		KPIs: []KPI{
+			{Key: "orders", Label: "Orders", Value: math.Round(orders), Unit: "count", DeltaPct: pct(orders, prevOrders), Trend: trend},
+			{Key: "customers", Label: "New customers", Value: math.Round(orders * .62), Unit: "count", DeltaPct: pct(orders, prevOrders) * .55, Trend: wobble(trend, 1)},
+			{Key: "conversion", Label: "Conversion", Value: 3.84, Unit: "percent", DeltaPct: -0.6, Trend: wobble(reversed(trend), 2)},
+			{Key: "aov", Label: "Avg. order value", Value: avgOrderCents, Unit: "cents", DeltaPct: 2.1, Trend: wobble(trend, 3)},
+		},
+		Target: Target{Label: "Q4 target", BookedCents: 34_128_000, GoalCents: 120_000_000, PacePct: 6.2},
+	}
+}
+
+func pct(cur, prev float64) float64 {
+	if prev == 0 {
+		return 0
+	}
+	return math.Round((cur/prev-1)*1000) / 10
+}
+
+// bucket downsamples the revenue series to n averaged points.
+func bucket(series []RevenuePoint, n int) []float64 {
+	out := make([]float64, n)
+	if len(series) == 0 {
+		return out
+	}
+	for i := range n {
+		lo, hi := i*len(series)/n, max((i+1)*len(series)/n, i*len(series)/n+1)
+		hi = min(hi, len(series))
+		var sum float64
+		for _, p := range series[lo:hi] {
+			sum += float64(p.Current)
+		}
+		out[i] = sum / float64(max(hi-lo, 1))
+	}
+	return out
+}
+
+// wobble derives a differently-shaped but stable trend from another one.
+func wobble(src []float64, k int) []float64 {
+	out := make([]float64, len(src))
+	for i, v := range src {
+		out[i] = v * (1 + .12*math.Sin(float64(i*k)+float64(k)))
+	}
+	return out
+}
+
+func reversed(src []float64) []float64 {
+	out := make([]float64, len(src))
+	for i, v := range src {
+		out[len(src)-1-i] = v
+	}
+	return out
 }

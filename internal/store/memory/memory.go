@@ -6,7 +6,6 @@ package memory
 import (
 	"cmp"
 	"context"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	d "github.com/arturrw/go-admin-reference/internal/domain"
+	"github.com/arturrw/go-admin-reference/internal/seed"
 )
 
 type Store struct {
@@ -32,8 +32,22 @@ type Store struct {
 }
 
 func New(now time.Time) *Store {
-	s := &Store{now: time.Now}
-	seed(s, now)
+	ds := seed.Generate(now)
+	s := &Store{
+		products: ds.Products, orders: ds.Orders, customers: ds.Customers, members: ds.Members,
+		revenue: ds.Revenue, heatmap: ds.Heatmap, activity: ds.Activity, now: time.Now,
+	}
+	for _, p := range s.products {
+		s.nextProductID = max(s.nextProductID, p.ID+1)
+	}
+	for _, m := range s.members {
+		s.nextMemberID = max(s.nextMemberID, m.ID+1)
+	}
+	for _, c := range s.customers {
+		for _, n := range c.Notes {
+			s.nextNoteID = max(s.nextNoteID, n.ID+1)
+		}
+	}
 	return s
 }
 
@@ -261,7 +275,7 @@ func cloneProduct(p d.Product) d.Product {
 	return p
 }
 
-func categoryHue(c d.Category) int { return catalog[c].hue }
+func categoryHue(c d.Category) int { return seed.CategoryHue(c) }
 
 // ── Orders ──────────────────────────────────────────────────────────────────
 
@@ -358,68 +372,13 @@ func (s *Store) GetCustomer(_ context.Context, id int64) (d.CustomerDetail, erro
 	}
 	c := s.customers[ci]
 	c.Notes = slices.Clone(c.Notes)
-	slices.SortFunc(c.Notes, func(a, b d.CustomerNote) int { return b.At.Compare(a.At) })
-
-	det := d.CustomerDetail{Customer: c, Orders: []d.Order{}}
-	products := map[int64]*d.PurchasedProduct{}
-	categories := map[d.Category]int64{}
-	monthly := map[string]int64{}
+	var orders []d.Order
 	for _, o := range s.orders {
-		if o.Customer.ID != id {
-			continue
-		}
-		det.Orders = append(det.Orders, o)
-		if o.Status == d.OrderRefunded {
-			det.Stats.Refunds++
-		}
-		if !o.Status.Billable() {
-			continue
-		}
-		det.Stats.TotalSpentCents += o.TotalCents
-		det.Stats.Orders++
-		monthly[o.PlacedAt.Format("2006-01")] += o.TotalCents
-		for _, it := range o.Items {
-			det.Stats.ItemsBought += it.Qty
-			categories[it.Category] += it.PriceCents * int64(it.Qty)
-			pp, ok := products[it.ProductID]
-			if !ok {
-				pp = &d.PurchasedProduct{ProductID: it.ProductID, Name: it.Name, Category: it.Category, Hue: it.Hue, ImageURL: it.ImageURL}
-				products[it.ProductID] = pp
-			}
-			pp.Qty += it.Qty
-			pp.SpentCents += it.PriceCents * int64(it.Qty)
+		if o.Customer.ID == id {
+			orders = append(orders, o)
 		}
 	}
-	if n := len(det.Orders); n > 0 {
-		det.Stats.LastOrderAt = det.Orders[0].PlacedAt
-		det.Stats.FirstOrderAt = det.Orders[n-1].PlacedAt
-	}
-	if det.Stats.Orders > 0 {
-		det.Stats.AvgOrderCents = det.Stats.TotalSpentCents / int64(det.Stats.Orders)
-	}
-
-	det.Products = make([]d.PurchasedProduct, 0, len(products))
-	for _, p := range products {
-		det.Products = append(det.Products, *p)
-	}
-	slices.SortFunc(det.Products, func(a, b d.PurchasedProduct) int { return cmp.Compare(b.SpentCents, a.SpentCents) })
-
-	det.Categories = []d.CategoryShare{}
-	for _, cat := range d.Categories {
-		if v := categories[cat]; v > 0 {
-			det.Categories = append(det.Categories, d.CategoryShare{Category: cat, SalesCents: v})
-		}
-	}
-	slices.SortFunc(det.Categories, func(a, b d.CategoryShare) int { return cmp.Compare(b.SalesCents, a.SalesCents) })
-
-	// Last 6 calendar months, oldest first, zero-filled.
-	now := s.now()
-	first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	for k := 5; k >= 0; k-- {
-		m := first.AddDate(0, -k, 0).Format("2006-01")
-		det.Monthly = append(det.Monthly, d.MonthlySpend{Month: m, Cents: monthly[m]})
-	}
-	return det, nil
+	return d.BuildCustomerDetail(c, orders, s.now()), nil
 }
 
 func (s *Store) AddCustomerNote(_ context.Context, customerID int64, author, text string) (d.CustomerNote, error) {
@@ -439,33 +398,9 @@ func (s *Store) customerIndex(id int64) int {
 	return slices.IndexFunc(s.customers, func(c d.Customer) bool { return c.ID == id })
 }
 
-// recomputeCustomer derives order count, LTV, last order and segment from
-// the customer's orders. Caller holds the write lock.
+// recomputeCustomer refreshes derived customer fields. Caller holds the write lock.
 func (s *Store) recomputeCustomer(ci int, now time.Time) {
-	c := &s.customers[ci]
-	c.Orders, c.LTVCents, c.LastOrderAt = 0, 0, time.Time{}
-	for _, o := range s.orders {
-		if o.Customer.ID != c.ID {
-			continue
-		}
-		if o.PlacedAt.After(c.LastOrderAt) {
-			c.LastOrderAt = o.PlacedAt
-		}
-		if o.Status.Billable() {
-			c.Orders++
-			c.LTVCents += o.TotalCents
-		}
-	}
-	switch {
-	case !c.LastOrderAt.IsZero() && now.Sub(c.LastOrderAt) > 45*24*time.Hour:
-		c.Segment = "At risk"
-	case c.LTVCents >= 150_000 || c.Orders >= 8:
-		c.Segment = "VIP"
-	case c.Orders <= 1 || (!c.CreatedAt.IsZero() && now.Sub(c.CreatedAt) < 30*24*time.Hour):
-		c.Segment = "New"
-	default:
-		c.Segment = "Regular"
-	}
+	d.DeriveCustomer(&s.customers[ci], s.orders, now)
 }
 
 // ── Team ────────────────────────────────────────────────────────────────────
@@ -556,39 +491,14 @@ func (s *Store) DeleteMember(_ context.Context, id int64) error {
 
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
-const avgOrderCents = 8640
-
 func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	days = min(max(days, 7), len(s.revenue))
-	series := slices.Clone(s.revenue[len(s.revenue)-days:])
-	var cur, prev int64
-	for _, p := range series {
-		cur += p.Current
-		prev += p.Previous
-	}
-
-	orders := float64(cur) / avgOrderCents
-	prevOrders := float64(prev) / avgOrderCents
-	revenueTrend := bucket(series, 16)
-	dash := d.Dashboard{
-		RangeDays:        days,
-		RevenueCents:     cur,
-		PrevRevenueCents: prev,
-		Revenue:          series,
-		OrdersHeatmap:    s.heatmap,
-		Activity:         s.activity,
-		Markets:          markets[:7],
-		KPIs: []d.KPI{
-			{Key: "orders", Label: "Orders", Value: math.Round(orders), Unit: "count", DeltaPct: pct(orders, prevOrders), Trend: revenueTrend},
-			{Key: "customers", Label: "New customers", Value: math.Round(orders * .62), Unit: "count", DeltaPct: pct(orders, prevOrders) * .55, Trend: wobble(revenueTrend, 1)},
-			{Key: "conversion", Label: "Conversion", Value: 3.84, Unit: "percent", DeltaPct: -0.6, Trend: wobble(reverse(revenueTrend), 2)},
-			{Key: "aov", Label: "Avg. order value", Value: avgOrderCents, Unit: "cents", DeltaPct: 2.1, Trend: wobble(revenueTrend, 3)},
-		},
-		Target: d.Target{Label: "Q4 target", BookedCents: 34_128_000, GoalCents: 120_000_000, PacePct: 6.2},
-	}
+	dash := d.BuildDashboard(slices.Clone(s.revenue[len(s.revenue)-days:]), seed.Markets())
+	dash.OrdersHeatmap = s.heatmap
+	dash.Activity = slices.Clone(s.activity)
 
 	sales := map[d.Category]int64{}
 	for _, p := range s.products {
@@ -600,46 +510,12 @@ func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	slices.SortFunc(dash.Categories, func(a, b d.CategoryShare) int { return cmp.Compare(b.SalesCents, a.SalesCents) })
 
 	top := slices.Clone(s.products)
-	slices.SortFunc(top, func(a, b d.Product) int { return cmp.Compare(b.Revenue30dCents(), a.Revenue30dCents()) })
+	slices.SortFunc(top, func(a, b d.Product) int {
+		return cmp.Or(cmp.Compare(b.Revenue30dCents(), a.Revenue30dCents()), cmp.Compare(a.ID, b.ID))
+	})
 	for _, p := range top[:min(5, len(top))] {
 		dash.TopProducts = append(dash.TopProducts, d.TopProduct{ID: p.ID, Name: p.Name, Category: p.Category, Hue: p.Hue, ImageURL: p.ImageURL(), Sold: p.Sold30d, RevenueCents: p.Revenue30dCents()})
 	}
 	dash.RecentOrders = slices.Clone(s.orders[:min(6, len(s.orders))])
 	return dash, nil
-}
-
-func pct(cur, prev float64) float64 {
-	if prev == 0 {
-		return 0
-	}
-	return math.Round((cur/prev-1)*1000) / 10
-}
-
-// bucket downsamples the revenue series to n averaged points.
-func bucket(series []d.RevenuePoint, n int) []float64 {
-	out := make([]float64, n)
-	for i := range n {
-		lo, hi := i*len(series)/n, max((i+1)*len(series)/n, i*len(series)/n+1)
-		var sum float64
-		for _, p := range series[lo:min(hi, len(series))] {
-			sum += float64(p.Current)
-		}
-		out[i] = sum / float64(hi-lo)
-	}
-	return out
-}
-
-// wobble derives a differently-shaped but stable trend from another one.
-func wobble(src []float64, k int) []float64 {
-	out := make([]float64, len(src))
-	for i, v := range src {
-		out[i] = v * (1 + .12*math.Sin(float64(i*k)+float64(k)))
-	}
-	return out
-}
-
-func reverse(src []float64) []float64 {
-	out := slices.Clone(src)
-	slices.Reverse(out)
-	return out
 }

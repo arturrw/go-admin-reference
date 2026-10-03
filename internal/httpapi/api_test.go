@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,11 +19,39 @@ import (
 	"github.com/arturrw/go-admin-reference/internal/httpapi"
 	"github.com/arturrw/go-admin-reference/internal/media"
 	"github.com/arturrw/go-admin-reference/internal/reqlog"
+	"github.com/arturrw/go-admin-reference/internal/seed"
 	"github.com/arturrw/go-admin-reference/internal/store/memory"
+	"github.com/arturrw/go-admin-reference/internal/store/postgres"
 )
 
 // A 1×1 transparent PNG.
 var tinyPNG = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
+
+// newStore returns the in-memory store, or a freshly migrated and seeded
+// Postgres database when TEST_DATABASE_URL is set (see `make test-pg`).
+func newStore(t *testing.T, now time.Time) (httpapi.Store, httpapi.SessionStore) {
+	t.Helper()
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		return memory.New(now), auth.NewMemorySessions(time.Hour)
+	}
+	ctx := context.Background()
+	pool, err := postgres.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := postgres.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := postgres.SeedIfEmpty(ctx, pool, now); err != nil {
+		t.Fatal(err)
+	}
+	return postgres.New(pool), postgres.NewSessions(pool, time.Hour)
+}
 
 func newServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -30,15 +60,16 @@ func newServer(t *testing.T) *httptest.Server {
 		t.Fatal(err)
 	}
 	now := time.Now()
+	store, sessions := newStore(t, now)
 	h := httpapi.New(httpapi.Deps{
 		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Store:        memory.New(now),
+		Store:        store,
 		Requests:     reqlog.New(500),
-		Sessions:     auth.NewSessions(time.Hour),
+		Sessions:     sessions,
 		Media:        uploads,
 		Env:          "development",
 		StartedAt:    now,
-		DemoPassword: memory.DemoPassword,
+		DemoPassword: seed.DemoPassword,
 	})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
@@ -79,7 +110,7 @@ func (c *client) do(method, path string, body any) (int, map[string]any) {
 
 func (c *client) login(email string) {
 	c.t.Helper()
-	if code, body := c.do("POST", "/api/v1/auth/login", map[string]string{"email": email, "password": memory.DemoPassword}); code != 200 {
+	if code, body := c.do("POST", "/api/v1/auth/login", map[string]string{"email": email, "password": seed.DemoPassword}); code != 200 {
 		c.t.Fatalf("login %s: %d %v", email, code, body)
 	}
 }
@@ -93,7 +124,7 @@ func TestAuthRequired(t *testing.T) {
 	if code, _ := c.do("POST", "/api/v1/auth/login", map[string]string{"email": "artur@acme.io", "password": "nope"}); code != http.StatusUnauthorized {
 		t.Fatalf("want 401 for wrong password, got %d", code)
 	}
-	if code, _ := c.do("POST", "/api/v1/auth/login", map[string]string{"email": "lena@acme.io", "password": memory.DemoPassword}); code != http.StatusForbidden {
+	if code, _ := c.do("POST", "/api/v1/auth/login", map[string]string{"email": "lena@acme.io", "password": seed.DemoPassword}); code != http.StatusForbidden {
 		t.Fatalf("suspended member must not sign in, got %d", code)
 	}
 	c.login("artur@acme.io")

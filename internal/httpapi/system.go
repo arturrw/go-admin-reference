@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -15,7 +16,17 @@ import (
 	"github.com/arturrw/go-admin-reference/internal/reqlog"
 )
 
-func (s *server) health(w http.ResponseWriter, _ *http.Request) {
+func (s *server) health(w http.ResponseWriter, r *http.Request) {
+	if p, ok := s.store.(Pinger); ok {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := p.Ping(ctx); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable", "database": "down"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "database": "ok"})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

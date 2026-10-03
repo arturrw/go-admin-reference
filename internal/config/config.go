@@ -14,6 +14,9 @@ type Config struct {
 	LogLevel slog.Level // debug | info | warn | error.
 	Version  string     // Reported by /api/v1/meta.
 
+	DatabaseURL string // Postgres DSN; empty = in-memory store.
+	Seed        bool   // Load demo data into an empty database.
+
 	UploadDir  string        // Where uploaded product images are written.
 	SessionTTL time.Duration // Idle lifetime of a login session.
 }
@@ -24,6 +27,9 @@ func Load() Config {
 		Env:      getenv("APP_ENV", "development"),
 		LogLevel: parseLevel(getenv("LOG_LEVEL", "info")),
 		Version:  getenv("APP_VERSION", "v0.2.0"),
+
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		Seed:        getenv("SEED", "true") == "true",
 
 		UploadDir:  getenv("UPLOAD_DIR", "data/uploads"),
 		SessionTTL: parseDuration(getenv("SESSION_TTL", "12h"), 12*time.Hour),
