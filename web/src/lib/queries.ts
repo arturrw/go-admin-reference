@@ -161,6 +161,18 @@ export function useAddCustomerNote() {
   })
 }
 
+export function useDeleteCustomerNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, noteId }: { id: number; noteId: number }) => api.deleteCustomerNote(id, noteId),
+    onSuccess: (_, { id }) => {
+      toast.success('Note deleted')
+      return qc.invalidateQueries({ queryKey: keys.customer(id) })
+    },
+    onError,
+  })
+}
+
 export function useDeleteProduct() {
   const invalidate = useInvalidate('products', 'product', 'dashboard', 'meta')
   return useMutation({

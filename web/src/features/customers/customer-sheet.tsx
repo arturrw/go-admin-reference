@@ -1,19 +1,20 @@
-import { BellOff, BellRing, ChevronRight, Copy, Mail, MapPin, MessageSquarePlus, Phone, Undo2, X } from 'lucide-react'
+import { BellOff, BellRing, ChevronRight, Copy, Mail, MapPin, MessageSquarePlus, Phone, Trash2, Undo2, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { Donut, SERIES_COLORS } from '@/components/charts/donut'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/input'
 import { Avatar, Skeleton } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Sheet } from '@/components/ui/sheet'
 import { Tabs } from '@/components/ui/tabs'
-import type { Category, CustomerDetail, OrderStatus } from '@/lib/api'
+import type { Category, CustomerDetail, CustomerNote, OrderStatus } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { compact, int, money, monthYear, shortDate, timeAgo } from '@/lib/format'
 import { PeekButton } from '@/lib/peek'
-import { useAddCustomerNote, useCustomer } from '@/lib/queries'
+import { useAddCustomerNote, useCustomer, useDeleteCustomerNote } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
 type Tab = 'overview' | 'orders' | 'products' | 'notes'
@@ -338,7 +339,9 @@ function ProductsTab({ data, category, onClear }: { data: CustomerDetail; catego
 function NotesTab({ data }: { data: CustomerDetail }) {
   const canWrite = useCan('customers:write')
   const add = useAddCustomerNote()
+  const remove = useDeleteCustomerNote()
   const [text, setText] = useState('')
+  const [deleting, setDeleting] = useState<CustomerNote | null>(null)
   const submit = (e: FormEvent) => {
     e.preventDefault()
     add.mutate({ id: data.customer.id, text }, { onSuccess: () => setText('') })
@@ -356,14 +359,41 @@ function NotesTab({ data }: { data: CustomerDetail }) {
       )}
       {data.customer.notes.length === 0 && <p className="py-6 text-center text-muted">No notes yet.</p>}
       {data.customer.notes.map((n) => (
-        <div key={n.id} className="card p-3.5">
+        <div key={n.id} className="group card p-3.5" data-testid="note">
           <div className="mb-1.5 flex items-center gap-2 text-xs text-dim">
             <Avatar name={n.author} size={20} />
             <b className="font-medium text-muted">{n.author}</b>· {timeAgo(n.at)}
+            {canWrite && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Delete note"
+                className="-my-1 ml-auto opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-danger"
+                onClick={() => setDeleting(n)}
+              >
+                <Trash2 />
+              </Button>
+            )}
           </div>
           <p className="text-[13px] whitespace-pre-wrap">{n.text}</p>
         </div>
       ))}
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(v) => !v && setDeleting(null)}
+        title="Delete this note?"
+        description={
+          deleting && (
+            <>
+              {deleting.author}’s note “{deleting.text.length > 140 ? deleting.text.slice(0, 140) + '…' : deleting.text}” will be removed for everyone. The deletion is
+              recorded in the activity log.
+            </>
+          )
+        }
+        confirmLabel="Delete note"
+        pending={remove.isPending}
+        onConfirm={() => deleting && remove.mutate({ id: data.customer.id, noteId: deleting.id }, { onSuccess: () => setDeleting(null) })}
+      />
     </div>
   )
 }

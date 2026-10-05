@@ -63,6 +63,28 @@ func (q *Queries) CustomerSegments(ctx context.Context) ([]CustomerSegmentsRow, 
 	return items, nil
 }
 
+const deleteCustomerNote = `-- name: DeleteCustomerNote :one
+DELETE FROM customer_notes WHERE id = $1 AND customer_id = $2 RETURNING id, customer_id, author, body, created_at
+`
+
+type DeleteCustomerNoteParams struct {
+	ID         int64
+	CustomerID int64
+}
+
+func (q *Queries) DeleteCustomerNote(ctx context.Context, arg DeleteCustomerNoteParams) (CustomerNote, error) {
+	row := q.db.QueryRow(ctx, deleteCustomerNote, arg.ID, arg.CustomerID)
+	var i CustomerNote
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.Author,
+		&i.Body,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCustomer = `-- name: GetCustomer :one
 SELECT id, name, email, phone, country, address_line1, city, postal_code, tags, accepts_marketing, source, last_seen_at, created_at, orders, ltv_cents, last_order_at, segment FROM customers_v WHERE id = $1
 `

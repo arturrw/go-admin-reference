@@ -16,3 +16,6 @@ SELECT * FROM customer_notes WHERE customer_id = ANY(sqlc.arg(customer_ids)::big
 
 -- name: AddCustomerNote :one
 INSERT INTO customer_notes (customer_id, author, body) VALUES ($1, $2, $3) RETURNING *;
+
+-- name: DeleteCustomerNote :one
+DELETE FROM customer_notes WHERE id = sqlc.arg(id) AND customer_id = sqlc.arg(customer_id) RETURNING *;

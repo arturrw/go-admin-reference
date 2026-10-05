@@ -31,6 +31,26 @@ test('support can add an internal note', async ({ page }) => {
   await sheet.getByRole('button', { name: 'Add note' }).click()
   await expect(sheet.getByText('Called about a late delivery.')).toBeVisible()
   await expect(sheet.getByText('Priya Shah').first()).toBeVisible()
+
+  // Deleting asks for confirmation; cancelling keeps the note.
+  const note = sheet.getByTestId('note').filter({ hasText: 'Called about a late delivery.' })
+  await note.hover()
+  await note.getByRole('button', { name: 'Delete note' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Delete this note?' })
+  await expect(confirm).toContainText('Called about a late delivery.')
+  await confirm.getByRole('button', { name: 'Cancel' }).click()
+  await expect(note).toBeVisible()
+
+  await note.hover()
+  await note.getByRole('button', { name: 'Delete note' }).click()
+  await confirm.getByRole('button', { name: 'Delete note' }).click()
+  await expect(page.getByText('Note deleted')).toBeVisible()
+  await expect(note).toHaveCount(0)
+
+  // …and the deletion is in the dashboard's activity feed.
+  await page.goto('/')
+  const feed = page.locator('.card', { has: page.getByRole('heading', { name: 'Activity' }) })
+  await expect(feed.getByTestId('activity-item').first()).toContainText("deleted Priya Shah's note")
 })
 
 test('overview widgets drill into filtered orders and products', async ({ page }) => {

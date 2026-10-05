@@ -419,6 +419,23 @@ func (s *Store) AddCustomerNote(_ context.Context, customerID int64, author, tex
 	return n, nil
 }
 
+func (s *Store) DeleteCustomerNote(_ context.Context, customerID, noteID int64) (d.CustomerNote, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ci := s.customerIndex(customerID)
+	if ci < 0 {
+		return d.CustomerNote{}, d.ErrNotFound
+	}
+	notes := s.customers[ci].Notes
+	i := slices.IndexFunc(notes, func(n d.CustomerNote) bool { return n.ID == noteID })
+	if i < 0 {
+		return d.CustomerNote{}, d.ErrNotFound
+	}
+	n := notes[i]
+	s.customers[ci].Notes = slices.Delete(slices.Clone(notes), i, i+1)
+	return n, nil
+}
+
 func (s *Store) customerIndex(id int64) int {
 	return slices.IndexFunc(s.customers, func(c d.Customer) bool { return c.ID == id })
 }

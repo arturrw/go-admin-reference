@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -57,5 +58,45 @@ func TestActivityRecordsChanges(t *testing.T) {
 	}
 	if code, _ := c.do("GET", "/api/v1/activity?kind=nope", nil); code != http.StatusBadRequest {
 		t.Fatalf("bad kind: got %d, want 400", code)
+	}
+}
+
+// Deleting a customer note is allowed to note writers and leaves a trace.
+func TestDeleteCustomerNote(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	code, note := c.do("POST", "/api/v1/customers/4/notes", map[string]any{"text": "Temporary note to delete"})
+	if code != http.StatusCreated {
+		t.Fatalf("add note: %d", code)
+	}
+	path := fmt.Sprintf("/api/v1/customers/4/notes/%v", note["id"])
+
+	v := newClient(t, srv)
+	v.login("jon@acme.io")
+	if code, _ := v.do("DELETE", path, nil); code != http.StatusForbidden {
+		t.Fatalf("viewer delete: got %d, want 403", code)
+	}
+	if code, _ := c.do("DELETE", fmt.Sprintf("/api/v1/customers/5/notes/%v", note["id"]), nil); code != http.StatusNotFound {
+		t.Fatalf("note of another customer: got %d, want 404", code)
+	}
+	if code, _ := c.do("DELETE", path, nil); code != http.StatusNoContent {
+		t.Fatalf("delete: got %d, want 204", code)
+	}
+	if code, _ := c.do("DELETE", path, nil); code != http.StatusNotFound {
+		t.Fatalf("second delete: got %d, want 404", code)
+	}
+
+	_, det := c.do("GET", "/api/v1/customers/4", nil)
+	for _, n := range det["customer"].(map[string]any)["notes"].([]any) {
+		if n.(map[string]any)["id"] == note["id"] {
+			t.Fatal("note still listed")
+		}
+	}
+	_, dash := c.do("GET", "/api/v1/dashboard", nil)
+	msg := dash["activity"].([]any)[0].(map[string]any)["message"].(string)
+	if !strings.HasPrefix(msg, "deleted Priya Shah's note on ") || !strings.HasSuffix(msg, "“Temporary note to delete”") {
+		t.Fatalf("activity message = %q", msg)
 	}
 }

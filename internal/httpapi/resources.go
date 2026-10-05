@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -389,6 +390,34 @@ func (s *server) addCustomerNote(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r.Context(), d.ActNote, "customer", id, "added a note on %s", s.customerName(r.Context(), id))
 	writeJSON(w, http.StatusCreated, note)
+}
+
+func (s *server) deleteCustomerNote(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	noteID, err := strconv.ParseInt(r.PathValue("noteId"), 10, 64)
+	if err != nil || noteID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid note id")
+		return
+	}
+	note, err := s.store.DeleteCustomerNote(r.Context(), id, noteID)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	s.audit(r.Context(), d.ActNote, "customer", id, "deleted %s's note on %s: “%s”", note.Author, s.customerName(r.Context(), id), excerpt(note.Text, 60))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// excerpt shortens text for log messages, on a rune boundary.
+func excerpt(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > n {
+		return strings.TrimSpace(string(r[:n])) + "…"
+	}
+	return s
 }
 
 // ── Team ────────────────────────────────────────────────────────────────────

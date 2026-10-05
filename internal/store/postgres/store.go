@@ -416,6 +416,14 @@ func (s *Store) AddCustomerNote(ctx context.Context, customerID int64, author, t
 	return d.CustomerNote{ID: n.ID, Author: n.Author, Text: n.Body, At: n.CreatedAt}, nil
 }
 
+func (s *Store) DeleteCustomerNote(ctx context.Context, customerID, noteID int64) (d.CustomerNote, error) {
+	n, err := s.q.DeleteCustomerNote(ctx, db.DeleteCustomerNoteParams{ID: noteID, CustomerID: customerID})
+	if err != nil {
+		return d.CustomerNote{}, mapErr(err) // no row → not found
+	}
+	return d.CustomerNote{ID: n.ID, Author: n.Author, Text: n.Body, At: n.CreatedAt}, nil
+}
+
 // ── Team ────────────────────────────────────────────────────────────────────
 
 func toMember(m db.Member) d.Member {

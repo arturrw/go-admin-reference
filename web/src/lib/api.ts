@@ -415,6 +415,7 @@ export const api = {
     request<{ items: Customer[]; segments: Partial<Record<Segment, { count: number; ltvCents: number }>> }>(`/customers${qs(f)}`),
   customer: (id: number) => request<CustomerDetail>(`/customers/${id}`),
   addCustomerNote: (id: number, text: string) => request<CustomerNote>(`/customers/${id}/notes`, json('POST', { text })),
+  deleteCustomerNote: (id: number, noteId: number) => request<void>(`/customers/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
   team: (role?: string) => request<{ items: Member[] }>(`/team${qs({ role })}`),
   createMember: (in_: MemberInput) => request<Member>('/team', json('POST', in_)),
