@@ -1,4 +1,6 @@
-# Local development database. `docker compose up -d` then run the server with
+# `docker compose up -d --build` starts Postgres and the app (UI + API) on
+# http://localhost:8080. For local development run only the database:
+# `docker compose up -d postgres`, then the server with
 # DATABASE_URL=postgres://goadmin:goadmin@localhost:5433/goadmin?sslmode=disable
 services:
   postgres:
@@ -19,5 +21,23 @@ services:
       timeout: 3s
       retries: 30
 
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://goadmin:goadmin@postgres:5432/goadmin?sslmode=disable
+      SEED: "true"
+      # development keeps plain-HTTP cookies and the demo-login buttons; use
+      # production only behind HTTPS.
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  uploads:

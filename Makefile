@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-reset dev-api dev-api-mem dev-web web build run sqlc test test-pg e2e e2e-pg lint clean
+.PHONY: up down db-up db-down db-reset dev-api dev-api-mem dev-web web build run sqlc test test-pg e2e e2e-pg lint clean
 
 DATABASE_URL ?= postgres://goadmin:goadmin@localhost:5433/goadmin?sslmode=disable
 TEST_DATABASE_URL ?= postgres://goadmin:goadmin@localhost:5433/goadmin_test?sslmode=disable
@@ -6,10 +6,16 @@ SQLC_VERSION ?= 1.29.0
 
 # Postgres in Docker on :5433 (creates goadmin and goadmin_test).
 db-up:
-	docker compose up -d --wait
+	docker compose up -d --wait postgres
 
 db-down:
 	docker compose down
+
+# Postgres + the app (UI + API) in Docker on http://localhost:8080.
+up:
+	docker compose up -d --build --wait
+
+down: db-down
 
 # Drops all data; the server re-migrates and re-seeds on next start.
 db-reset:

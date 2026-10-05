@@ -21,9 +21,21 @@ is in [`design/admin-prototype.html`](design/admin-prototype.html).
 
 ## Run it
 
+Everything in Docker (Postgres + UI + API on http://localhost:8080):
+
+```bash
+docker compose up -d --build --wait     # or: make up
+```
+
+The `app` image is a multi-stage build ([`Dockerfile`](Dockerfile)): it builds `web/dist`, embeds
+it into a static Go binary and runs on Alpine. Uploads live in the `uploads` volume. `APP_PORT`
+changes the host port; `APP_ENV` defaults to `development` (plain-HTTP cookies, demo-login buttons).
+
+For development:
+
 ```bash
 # 1. Postgres in Docker on :5433 (also creates goadmin_test)
-docker compose up -d --wait
+docker compose up -d --wait postgres
 
 # 2. API on :8080. Applies migrations and seeds an empty database on boot.
 DATABASE_URL='postgres://goadmin:goadmin@localhost:5433/goadmin?sslmode=disable' go run ./cmd/server
