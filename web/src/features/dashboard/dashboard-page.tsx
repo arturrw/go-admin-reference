@@ -7,7 +7,7 @@ import { Heatmap, HeatmapScale } from '@/components/charts/heatmap'
 import { Sparkline } from '@/components/charts/sparkline'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader } from '@/components/ui/card'
-import { Avatar, Delta, PageHeader, Skeleton } from '@/components/ui/misc'
+import { Avatar, Delta, IconTile, PageHeader, Skeleton } from '@/components/ui/misc'
 import { StatusPill, type Tone, toneColor } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
@@ -161,9 +161,7 @@ function KpiCard({ kpi, onOpen }: { kpi: KPI; onOpen: () => void }) {
       className="group flex cursor-pointer flex-col gap-1.5 p-4 transition-colors hover:border-line-2"
     >
       <div className="flex items-center gap-2 text-[12.5px] text-muted">
-        <span className="grid size-6.5 place-items-center rounded-lg bg-panel-3">
-          <Icon className="size-3.5" />
-        </span>
+        <IconTile icon={Icon} color={color} />
         {kpi.label}
         <ChevronRight className="ml-auto size-3.5 text-dim opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
@@ -356,9 +354,7 @@ function ActivityCard({ data, className }: { data: Dashboard; className?: string
           const c = toneColor(tone)
           return (
             <div key={i} className="relative flex gap-3 py-2 not-last:after:absolute not-last:after:top-9 not-last:after:-bottom-1.5 not-last:after:left-[13px] not-last:after:w-px not-last:after:bg-line-2">
-              <span className="grid size-[27px] shrink-0 place-items-center rounded-lg" style={{ color: c, background: `color-mix(in srgb, ${c} 13%, transparent)` }}>
-                <Icon className="size-3.5" />
-              </span>
+              <IconTile icon={Icon} color={c} size={27} />
               <div>
                 <p className="text-[13px] text-muted">
                   <b className="font-medium text-fg">{a.actor}</b> {a.message}

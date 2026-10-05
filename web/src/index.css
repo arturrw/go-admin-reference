@@ -130,6 +130,25 @@
     background: var(--c);
   }
 
+  /* Tinted icon square (KPIs, activity, segments). It outlines itself in its
+     own colour on hover, or while the card it sits in is hovered. */
+  .icon-tile {
+    display: grid;
+    flex: none;
+    place-items: center;
+    color: var(--tile);
+    background: color-mix(in srgb, var(--tile) 14%, transparent);
+    box-shadow: 0 0 0 0 transparent;
+    transition: box-shadow 0.18s ease, background-color 0.18s ease;
+  }
+  .icon-tile:hover,
+  .group:hover .icon-tile {
+    background: color-mix(in srgb, var(--tile) 20%, transparent);
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--tile) 75%, transparent),
+      0 0 16px -4px color-mix(in srgb, var(--tile) 60%, transparent);
+  }
+
   .live-dot {
     width: 8px;
     height: 8px;

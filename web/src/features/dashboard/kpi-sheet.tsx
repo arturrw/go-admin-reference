@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AreaChart } from '@/components/charts/area-chart'
-import { Delta } from '@/components/ui/misc'
+import { Delta, IconTile } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { Tabs } from '@/components/ui/tabs'
 import type { KPI } from '@/lib/api'
@@ -30,9 +30,7 @@ export function KpiSheet({ kpis, initial, rangeDays, onClose }: { kpis: KPI[]; i
       <Tabs value={k.key} onChange={setKey} tabs={kpis.map((x) => ({ value: x.key, label: x.label }))} />
 
       <div className="flex flex-wrap items-end gap-3.5">
-        <span className="grid size-10 place-items-center rounded-xl" style={{ color, background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
-          <Icon className="size-5" />
-        </span>
+        <IconTile icon={Icon} color={color} size={40} className="rounded-xl" />
         <div>
           <div className="eyebrow">{isAdditive(k) ? 'Total' : 'Current'}</div>
           <div className="num text-[32px] leading-none font-semibold tracking-[-0.04em]">{formatKpi(k)}</div>

@@ -20,6 +20,16 @@ export function Delta({ value, className }: { value: number; className?: string 
   )
 }
 
+/** Tinted square holding an icon; outlines itself on hover (see .icon-tile). */
+export function IconTile({ icon: Icon, color, size = 26, className }: { icon: LucideIcon; color: string; size?: number; className?: string }) {
+  const icon = Math.round(size * 0.52)
+  return (
+    <span className={cn('icon-tile rounded-lg', className)} style={{ '--tile': color, width: size, height: size } as CSSProperties}>
+      <Icon style={{ width: icon, height: icon }} />
+    </span>
+  )
+}
+
 export function Avatar({ name, size = 30 }: { name: string; size?: number }) {
   const h = hueOf(name)
   const style: CSSProperties = {

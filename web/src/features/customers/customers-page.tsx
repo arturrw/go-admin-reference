@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, TableCard } from '@/components/ui/card'
 import { SearchInput } from '@/components/ui/input'
-import { Avatar, EmptyState, PageHeader, Skeleton } from '@/components/ui/misc'
+import { Avatar, EmptyState, IconTile, PageHeader, Skeleton } from '@/components/ui/misc'
 import { STATUS_TONE, StatusPill, toneColor } from '@/components/ui/pill'
 import { exportUrl, type Segment } from '@/lib/api'
 import { downloadUrl } from '@/lib/download'
@@ -58,13 +58,11 @@ export function CustomersPage() {
             <button
               key={s}
               onClick={() => setSegment(on ? '' : s)}
-              className={cn('card text-left transition-colors hover:border-line-2')}
+              className={cn('group card text-left transition-colors hover:border-line-2')}
               style={on ? { borderColor: `color-mix(in srgb, ${c} 45%, transparent)` } : undefined}
             >
               <div className="flex items-center gap-2 text-[12.5px] text-muted">
-                <span className="grid size-6.5 place-items-center rounded-lg" style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}>
-                  <Icon className="size-3.5" />
-                </span>
+                <IconTile icon={Icon} color={c} />
                 {s}
               </div>
               <div className="num mt-2.5 text-2xl font-semibold tracking-[-0.03em]">{segs[s]?.count ?? '—'}</div>
