@@ -57,6 +57,7 @@ type OrderFilter struct {
 	Query      string
 	Status     OrderStatus
 	CustomerID int64
+	From, To   time.Time // placed_at in [From, To); zero = unbounded
 	Limit      int
 	Offset     int
 }

@@ -232,10 +232,20 @@ func (s *server) removeFiles(r *http.Request, imgs ...d.ProductImage) {
 func (s *server) listOrders(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit := min(max(queryInt(r, "limit", 25), 1), 100)
+	from, ok := queryTime(w, r, "from")
+	if !ok {
+		return
+	}
+	to, ok := queryTime(w, r, "to")
+	if !ok {
+		return
+	}
 	items, total, err := s.store.ListOrders(r.Context(), d.OrderFilter{
 		Query:      q.Get("q"),
 		Status:     d.OrderStatus(q.Get("status")),
 		CustomerID: int64(queryInt(r, "customer", 0)),
+		From:       from,
+		To:         to,
 		Limit:      limit,
 		Offset:     max(queryInt(r, "offset", 0), 0),
 	})

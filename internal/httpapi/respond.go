@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/arturrw/go-admin-reference/internal/domain"
 )
@@ -81,6 +82,21 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+// queryTime parses an optional RFC 3339 timestamp; ok is false when it is
+// present but malformed (a 400 has been written).
+func queryTime(w http.ResponseWriter, r *http.Request, key string) (time.Time, bool) {
+	v := r.URL.Query().Get(key)
+	if v == "" {
+		return time.Time{}, true
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, key+" must be an RFC 3339 timestamp")
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 func queryInt(r *http.Request, key string, fallback int) int {

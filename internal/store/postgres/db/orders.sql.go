@@ -18,19 +18,29 @@ FROM orders o
 JOIN customers c ON c.id = o.customer_id
 WHERE ($1::text = '' OR o.status = $1::text)
   AND ($2::bigint = 0 OR o.customer_id = $2::bigint)
-  AND ($3::text = ''
-       OR (c.name || ' ' || c.email) ILIKE '%' || $3::text || '%'
-       OR ('#' || o.id::text) ILIKE '%' || $3::text || '%')
+  AND ($3::timestamptz IS NULL OR o.placed_at >= $3::timestamptz)
+  AND ($4::timestamptz IS NULL OR o.placed_at < $4::timestamptz)
+  AND ($5::text = ''
+       OR (c.name || ' ' || c.email) ILIKE '%' || $5::text || '%'
+       OR ('#' || o.id::text) ILIKE '%' || $5::text || '%')
 `
 
 type CountOrdersParams struct {
 	Status     string
 	CustomerID int64
+	PlacedFrom *time.Time
+	PlacedTo   *time.Time
 	Q          string
 }
 
 func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int32, error) {
-	row := q.db.QueryRow(ctx, countOrders, arg.Status, arg.CustomerID, arg.Q)
+	row := q.db.QueryRow(ctx, countOrders,
+		arg.Status,
+		arg.CustomerID,
+		arg.PlacedFrom,
+		arg.PlacedTo,
+		arg.Q,
+	)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -142,16 +152,20 @@ FROM orders o
 JOIN customers_v c ON c.id = o.customer_id
 WHERE ($1::text = '' OR o.status = $1::text)
   AND ($2::bigint = 0 OR o.customer_id = $2::bigint)
-  AND ($3::text = ''
-       OR (c.name || ' ' || c.email) ILIKE '%' || $3::text || '%'
-       OR ('#' || o.id::text) ILIKE '%' || $3::text || '%')
+  AND ($3::timestamptz IS NULL OR o.placed_at >= $3::timestamptz)
+  AND ($4::timestamptz IS NULL OR o.placed_at < $4::timestamptz)
+  AND ($5::text = ''
+       OR (c.name || ' ' || c.email) ILIKE '%' || $5::text || '%'
+       OR ('#' || o.id::text) ILIKE '%' || $5::text || '%')
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $5::int OFFSET $4::int
+LIMIT $7::int OFFSET $6::int
 `
 
 type ListOrdersParams struct {
 	Status     string
 	CustomerID int64
+	PlacedFrom *time.Time
+	PlacedTo   *time.Time
 	Q          string
 	Off        int32
 	Lim        int32
@@ -174,6 +188,8 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListO
 	rows, err := q.db.Query(ctx, listOrders,
 		arg.Status,
 		arg.CustomerID,
+		arg.PlacedFrom,
+		arg.PlacedTo,
 		arg.Q,
 		arg.Off,
 		arg.Lim,

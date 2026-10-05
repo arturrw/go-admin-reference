@@ -60,8 +60,8 @@ export const useDashboard = (range: number) =>
 export const useProducts = (f: Parameters<typeof api.products>[0]) =>
   useQuery({ queryKey: keys.products(f), queryFn: () => api.products(f), placeholderData: keepPreviousData })
 
-export const useOrders = (f: Parameters<typeof api.orders>[0]) =>
-  useQuery({ queryKey: keys.orders(f), queryFn: () => api.orders(f), placeholderData: keepPreviousData })
+export const useOrders = (f: Parameters<typeof api.orders>[0], enabled = true) =>
+  useQuery({ queryKey: keys.orders(f), queryFn: () => api.orders(f), placeholderData: keepPreviousData, enabled })
 
 export const useProduct = (id: number | undefined) =>
   useQuery({ queryKey: keys.product(id ?? 0), queryFn: () => api.product(id!), enabled: !!id })

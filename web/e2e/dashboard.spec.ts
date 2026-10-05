@@ -38,6 +38,17 @@ test('KPI cards open a detailed chart', async ({ page }) => {
   await sheet.getByRole('tab', { name: 'Conversion' }).click()
   await expect(sheet.getByRole('img', { name: 'Conversion over time' })).toBeVisible()
   await expect(sheet.getByText('Period average')).toBeVisible()
+
+  // Every tab's day rows open that day in detail: all metrics plus its orders.
+  await sheet.locator('tbody tr').nth(1).click()
+  await expect(sheet.getByTestId('day-metrics').getByText('Net revenue')).toBeVisible()
+  await expect(sheet.getByTestId('day-metrics').getByText('Avg. order value')).toBeVisible()
+  await expect(sheet.getByText('Orders placed this day')).toBeVisible()
+  const order = sheet.getByRole('button', { name: /^Open order #\d+$/ }).first()
+  await expect(order).toBeVisible()
+  await sheet.getByRole('button', { name: 'Previous day' }).click()
+  await sheet.getByRole('button', { name: 'All days' }).click()
+  await expect(sheet.locator('tbody tr')).toHaveCount(30)
 })
 
 test('live card opens live details with the hottest product', async ({ page }) => {

@@ -303,6 +303,8 @@ func (s *Store) ListOrders(_ context.Context, f d.OrderFilter) ([]d.Order, int, 
 	for _, o := range s.orders {
 		if (f.Status == "" || o.Status == f.Status) &&
 			(f.CustomerID == 0 || o.Customer.ID == f.CustomerID) &&
+			(f.From.IsZero() || !o.PlacedAt.Before(f.From)) &&
+			(f.To.IsZero() || o.PlacedAt.Before(f.To)) &&
 			(contains(o.Customer.Name+" "+o.Customer.Email, f.Query) || contains("#"+strconv.FormatInt(o.ID, 10), f.Query)) {
 			matched = append(matched, o)
 		}

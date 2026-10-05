@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 )
 
 // Order items show the product's current cover, not the one at purchase time.
@@ -56,5 +58,34 @@ func TestOrderItemsFollowProductCover(t *testing.T) {
 	_, list = c.do("GET", "/api/v1/orders?limit=1", nil)
 	if got := cover(list["items"].([]any)[0].(map[string]any)); got != up["url"] {
 		t.Fatalf("order list image = %q, want new cover %q", got, up["url"])
+	}
+}
+
+// from/to restrict orders to a time window, as the dashboard's day view uses.
+func TestOrdersByDateRange(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("mark@acme.io")
+
+	_, all := c.do("GET", "/api/v1/orders?limit=100", nil)
+	items := all["items"].([]any)
+	newest := items[0].(map[string]any)["placedAt"].(string)
+	at, _ := time.Parse(time.RFC3339, newest)
+	from, to := at.Add(-6*time.Hour), at.Add(time.Second)
+
+	want := 0
+	for _, it := range items {
+		p, _ := time.Parse(time.RFC3339, it.(map[string]any)["placedAt"].(string))
+		if !p.Before(from) && p.Before(to) {
+			want++
+		}
+	}
+	q := url.Values{"from": {from.Format(time.RFC3339)}, "to": {to.Format(time.RFC3339)}, "limit": {"100"}}
+	code, got := c.do("GET", "/api/v1/orders?"+q.Encode(), nil)
+	if code != 200 || int(got["total"].(float64)) != want || want == 0 {
+		t.Fatalf("orders in window: code %d, total %v, want %d", code, got["total"], want)
+	}
+	if code, _ := c.do("GET", "/api/v1/orders?from=yesterday", nil); code != http.StatusBadRequest {
+		t.Fatalf("bad from: got %d, want 400", code)
 	}
 }

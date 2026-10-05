@@ -6,6 +6,8 @@ FROM orders o
 JOIN customers_v c ON c.id = o.customer_id
 WHERE (sqlc.arg(status)::text = '' OR o.status = sqlc.arg(status)::text)
   AND (sqlc.arg(customer_id)::bigint = 0 OR o.customer_id = sqlc.arg(customer_id)::bigint)
+  AND (sqlc.narg(placed_from)::timestamptz IS NULL OR o.placed_at >= sqlc.narg(placed_from)::timestamptz)
+  AND (sqlc.narg(placed_to)::timestamptz IS NULL OR o.placed_at < sqlc.narg(placed_to)::timestamptz)
   AND (sqlc.arg(q)::text = ''
        OR (c.name || ' ' || c.email) ILIKE '%' || sqlc.arg(q)::text || '%'
        OR ('#' || o.id::text) ILIKE '%' || sqlc.arg(q)::text || '%')
@@ -18,6 +20,8 @@ FROM orders o
 JOIN customers c ON c.id = o.customer_id
 WHERE (sqlc.arg(status)::text = '' OR o.status = sqlc.arg(status)::text)
   AND (sqlc.arg(customer_id)::bigint = 0 OR o.customer_id = sqlc.arg(customer_id)::bigint)
+  AND (sqlc.narg(placed_from)::timestamptz IS NULL OR o.placed_at >= sqlc.narg(placed_from)::timestamptz)
+  AND (sqlc.narg(placed_to)::timestamptz IS NULL OR o.placed_at < sqlc.narg(placed_to)::timestamptz)
   AND (sqlc.arg(q)::text = ''
        OR (c.name || ' ' || c.email) ILIKE '%' || sqlc.arg(q)::text || '%'
        OR ('#' || o.id::text) ILIKE '%' || sqlc.arg(q)::text || '%');

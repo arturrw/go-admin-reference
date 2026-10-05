@@ -112,7 +112,7 @@ function Bento({ data }: { data: Dashboard }) {
       <MarketsCard data={data} className="col-span-12 md:col-span-6 xl:col-span-4" />
       <TargetCard data={data} className="col-span-12 xl:col-span-4" />
 
-      {kpi && <KpiSheet kpis={data.kpis} initial={kpi} rangeDays={data.rangeDays} onClose={() => setKpi(null)} />}
+      {kpi && <KpiSheet dashboard={data} initial={kpi} onClose={() => setKpi(null)} />}
       {live && <LiveSheet onClose={() => setLive(false)} />}
     </div>
   )

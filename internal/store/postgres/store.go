@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"math"
 	"slices"
+	"time"
 
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 	"github.com/arturrw/go-admin-reference/internal/seed"
@@ -272,13 +273,15 @@ func (s *Store) ListOrders(ctx context.Context, f d.OrderFilter) ([]d.Order, int
 		limit = math.MaxInt32
 	}
 	q := escapeLike(f.Query)
+	from, to := timePtr(f.From), timePtr(f.To)
 	rows, err := s.q.ListOrders(ctx, db.ListOrdersParams{
-		Status: string(f.Status), CustomerID: f.CustomerID, Q: q, Lim: int32(min(limit, math.MaxInt32)), Off: int32(max(f.Offset, 0)),
+		Status: string(f.Status), CustomerID: f.CustomerID, PlacedFrom: from, PlacedTo: to, Q: q,
+		Lim: int32(min(limit, math.MaxInt32)), Off: int32(max(f.Offset, 0)),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.q.CountOrders(ctx, db.CountOrdersParams{Status: string(f.Status), CustomerID: f.CustomerID, Q: q})
+	total, err := s.q.CountOrders(ctx, db.CountOrdersParams{Status: string(f.Status), CustomerID: f.CustomerID, PlacedFrom: from, PlacedTo: to, Q: q})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -530,6 +533,14 @@ func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
 		dash.Activity = append(dash.Activity, d.Activity{Kind: a.Kind, Actor: a.Actor, Message: a.Message, At: a.At})
 	}
 	return dash, nil
+}
+
+// timePtr maps the zero time to NULL for optional query arguments.
+func timePtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }
 
 func nonNil[T any](s []T) []T {

@@ -366,7 +366,7 @@ export const api = {
   setPrimaryImage: (id: number, imageId: string) =>
     request<Product>(`/products/${id}/images/${encodeURIComponent(imageId)}/primary`, { method: 'POST' }),
 
-  orders: (f: { q?: string; status?: string; limit?: number; offset?: number; customer?: number }) =>
+  orders: (f: { q?: string; status?: string; limit?: number; offset?: number; customer?: number; from?: string; to?: string }) =>
     request<{ items: Order[]; counts: Partial<Record<OrderStatus, number>>; total: number }>(`/orders${qs(f)}`),
   order: (id: number) => request<Order>(`/orders/${id}`),
   updateOrderStatus: (id: number, status: OrderStatus) => request<Order>(`/orders/${id}/status`, json('PATCH', { status })),
