@@ -78,8 +78,7 @@ Screenshots are full pages captured from the demo data by
 | Tests    | Go API tests on both stores, Playwright e2e (desktop + mobile) on both stores |
 
 The design is dark graphite with a white accent. Lime and four other accents
-are one click away in Settings → Appearance. The original clickable mockup is
-[`design/admin-prototype.html`](design/admin-prototype.html).
+are one click away in Settings → Appearance.
 
 ## Run it
 

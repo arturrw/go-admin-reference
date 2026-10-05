@@ -276,7 +276,6 @@ web/                     Vite app; embed.go serves dist/ (gzip, SPA fallback)
   e2e/                     Playwright specs (desktop + mobile)
   scripts/                 e2e on Postgres, README screenshots
 docs/                    architecture, API reference, screenshots
-design/                  original HTML prototype
 ```
 
 ## Patterns worth copying
