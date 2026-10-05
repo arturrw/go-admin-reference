@@ -37,9 +37,9 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 
 	var rows [][]any
 	for _, m := range ds.Members {
-		rows = append(rows, []any{m.ID, m.Name, m.Email, string(m.Role), string(m.Status), m.MFA, m.PasswordHash, m.LastActiveAt})
+		rows = append(rows, []any{m.ID, m.Name, m.Email, string(m.Role), string(m.Status), m.MFA, m.PasswordHash, m.LastActiveAt, fromPerms(m.Granted), fromPerms(m.Revoked)})
 	}
-	if err := copyRows("members", []string{"id", "name", "email", "role", "status", "mfa", "password_hash", "last_active_at"}, rows); err != nil {
+	if err := copyRows("members", []string{"id", "name", "email", "role", "status", "mfa", "password_hash", "last_active_at", "granted", "revoked"}, rows); err != nil {
 		return err
 	}
 

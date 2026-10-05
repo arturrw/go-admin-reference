@@ -41,7 +41,7 @@ test('editor manages products but not the team', async ({ page }) => {
 test('admin cannot edit or remove the owner', async ({ page }) => {
   await loginAs(page, 'admin', '/team')
   const ownerRow = page.locator('tr', { hasText: 'Artur DCS' })
-  await expect(ownerRow.getByRole('button')).toHaveCount(0)
+  await expect(ownerRow.getByRole('button', { name: /^(Edit|Remove) / })).toHaveCount(0)
   const res = await page.request.delete('/api/v1/team/1')
   expect(res.status()).toBe(403)
 })

@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { api, ApiError, type MemberInput, type OrderStatus, type Product, type ProductInput } from './api'
+import { api, ApiError, type MemberInput, type OrderStatus, type Permission, type Product, type ProductInput } from './api'
 
 // Query keys are grouped by resource so a mutation can invalidate everything
 // that depends on it with a single prefix.
@@ -21,6 +21,7 @@ export const keys = {
   customer: (id: number) => ['customer', id] as const,
   roles: ['roles'] as const,
   activity: (f: object) => ['activity', f] as const,
+  member: (id: number) => ['member', id] as const,
 }
 
 export const useMeta = () => useQuery({ queryKey: keys.meta, queryFn: api.meta, staleTime: 30_000 })
@@ -84,8 +85,8 @@ export const useActivity = (f: Parameters<typeof api.activity>[0], enabled = tru
 export const useCustomers = (f: Parameters<typeof api.customers>[0]) =>
   useQuery({ queryKey: keys.customers(f), queryFn: () => api.customers(f), placeholderData: keepPreviousData })
 
-export const useTeam = (role: string) =>
-  useQuery({ queryKey: keys.team(role), queryFn: () => api.team(role), placeholderData: keepPreviousData })
+export const useTeam = (role: string, enabled = true) =>
+  useQuery({ queryKey: keys.team(role), queryFn: () => api.team(role), placeholderData: keepPreviousData, enabled })
 
 export const useRequests = (f: Parameters<typeof api.requests>[0], live: boolean) =>
   useQuery({
@@ -210,7 +211,7 @@ export function useUpdateOrderStatus() {
 }
 
 export function useSaveMember() {
-  const invalidate = useInvalidate('team')
+  const invalidate = useInvalidate('team', 'member')
   return useMutation({
     mutationFn: ({ id, input }: { id?: number; input: MemberInput }) => (id ? api.updateMember(id, input) : api.createMember(input)),
     onSuccess: (m, { id }) => {
@@ -218,6 +219,34 @@ export function useSaveMember() {
       return invalidate()
     },
     onError: onFormError,
+  })
+}
+
+export const useMember = (id: number) => useQuery({ queryKey: keys.member(id), queryFn: () => api.member(id), refetchInterval: 30_000 })
+
+export function useSetMemberAccess() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...access }: { id: number; granted: Permission[]; revoked: Permission[] }) => api.setMemberAccess(id, access),
+    onSuccess: (d) => {
+      qc.setQueryData(keys.member(d.member.id), d)
+      toast.success(`Access updated for ${d.member.name}`)
+      return qc.invalidateQueries({ queryKey: ['team'] })
+    },
+    onError,
+  })
+}
+
+export function useSetMemberStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number; status: 'active' | 'suspended' }) => api.setMemberStatus(id, status),
+    onSuccess: (d) => {
+      qc.setQueryData(keys.member(d.member.id), d)
+      toast.success(d.member.status === 'suspended' ? `Suspended ${d.member.name}` : `Reactivated ${d.member.name}`)
+      return qc.invalidateQueries({ queryKey: ['team'] })
+    },
+    onError,
   })
 }
 

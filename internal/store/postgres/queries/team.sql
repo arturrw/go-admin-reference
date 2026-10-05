@@ -16,6 +16,12 @@ INSERT INTO members (name, email, role) VALUES ($1, $2, $3) RETURNING *;
 -- name: UpdateMember :one
 UPDATE members SET name = $2, email = $3, role = $4 WHERE id = $1 RETURNING *;
 
+-- name: SetMemberAccess :one
+UPDATE members SET granted = sqlc.arg(granted)::text[], revoked = sqlc.arg(revoked)::text[] WHERE id = sqlc.arg(id) RETURNING *;
+
+-- name: SetMemberStatus :one
+UPDATE members SET status = $2 WHERE id = $1 RETURNING *;
+
 -- name: DeleteMember :execrows
 DELETE FROM members WHERE id = $1;
 

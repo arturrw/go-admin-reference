@@ -36,6 +36,62 @@ type Member struct {
 	MFA          bool         `json:"mfa"`
 	LastActiveAt *time.Time   `json:"lastActiveAt"`
 	PasswordHash string       `json:"-"`
+	// Exceptions to the role, set by the owner (see Permissions).
+	Granted []Permission `json:"granted"`
+	Revoked []Permission `json:"revoked"`
+}
+
+// OnlineWithin is how recently a member must have made a request to count as online.
+const OnlineWithin = 5 * time.Minute
+
+// Permissions is what the member may do: the role's permissions plus granted
+// minus revoked, in display order. The owner always has everything.
+func (m Member) Permissions() []Permission {
+	role := RolePermissions[m.Role]
+	out := []Permission{}
+	for _, p := range Permissions {
+		has := slices.Contains(role, p.Key)
+		if m.Role != RoleOwner {
+			has = (has || slices.Contains(m.Granted, p.Key)) && !slices.Contains(m.Revoked, p.Key)
+		}
+		if has {
+			out = append(out, p.Key)
+		}
+	}
+	return out
+}
+
+func (m Member) Can(p Permission) bool { return slices.Contains(m.Permissions(), p) }
+
+// MemberAccess is a request to change a member's exceptions.
+type MemberAccess struct {
+	Granted []Permission `json:"granted"`
+	Revoked []Permission `json:"revoked"`
+}
+
+// Normalize validates the exceptions against the member's role and drops the
+// ones that change nothing (granting what the role has, revoking what it lacks).
+func (a MemberAccess) Normalize(role Role) (MemberAccess, error) {
+	known := func(p Permission) bool {
+		return slices.ContainsFunc(Permissions, func(i PermissionInfo) bool { return i.Key == p })
+	}
+	v := validator{}
+	out := MemberAccess{Granted: []Permission{}, Revoked: []Permission{}}
+	for _, p := range a.Granted {
+		v.check(known(p), "granted", "unknown permission "+string(p))
+		v.check(p != PermWorkspaceManage, "granted", "the danger zone stays with the owner")
+		if known(p) && !role.Can(p) && !slices.Contains(out.Granted, p) {
+			out.Granted = append(out.Granted, p)
+		}
+	}
+	for _, p := range a.Revoked {
+		v.check(known(p), "revoked", "unknown permission "+string(p))
+		v.check(!slices.Contains(a.Granted, p), "revoked", "cannot grant and revoke "+string(p))
+		if known(p) && role.Can(p) && !slices.Contains(out.Revoked, p) {
+			out.Revoked = append(out.Revoked, p)
+		}
+	}
+	return out, v.err()
 }
 
 type MemberInput struct {

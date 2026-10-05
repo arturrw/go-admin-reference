@@ -7,7 +7,9 @@ import { StatusPill } from '@/components/ui/pill'
 import { Sheet } from '@/components/ui/sheet'
 import { Tabs } from '@/components/ui/tabs'
 import type { RequestEntry } from '@/lib/api'
-import { useRequestEntry } from '@/lib/queries'
+import { useCan } from '@/lib/auth'
+import { PeekButton } from '@/lib/peek'
+import { useRequestEntry, useTeam } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { fmtMs, METHOD_COLOR, STATUS_COLOR } from './requests-page'
 
@@ -63,7 +65,7 @@ export function RequestSheet({ id, onClose }: { id: string; onClose: () => void 
               <dd>
                 {e.actor ? (
                   <span className="inline-flex items-center gap-2">
-                    {e.actor} {e.actorRole && <StatusPill status={e.actorRole} />}
+                    <ActorLink email={e.actor} /> {e.actorRole && <StatusPill status={e.actorRole} />}
                   </span>
                 ) : (
                   <span className="text-dim">anonymous</span>
@@ -171,4 +173,17 @@ function copyCurl(e: RequestEntry) {
   for (const [k, v] of Object.entries(e.requestHeaders ?? {})) if (v !== '[redacted]' && k !== 'Content-Length') parts.push(`-H '${k}: ${v}'`)
   if (e.requestBody && !e.requestBody.startsWith('[')) parts.push(`--data '${e.requestBody}'`)
   navigator.clipboard?.writeText(parts.join(' \\\n  ')).then(() => toast('Copied as curl'))
+}
+
+/** The signed-in member behind a request; opens their profile when the viewer can see the team. */
+function ActorLink({ email }: { email: string }) {
+  const canTeam = useCan('team:read')
+  const { data } = useTeam('all', canTeam)
+  const member = data?.items.find((m) => m.email === email)
+  if (!member) return <>{email}</>
+  return (
+    <PeekButton kind="member" id={member.id} label={`Open ${member.name}`} className="underline-offset-2 hover:text-accent hover:underline">
+      {email}
+    </PeekButton>
+  )
 }

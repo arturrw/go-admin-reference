@@ -7,20 +7,19 @@ import { Field, Input } from '@/components/ui/input'
 import { Avatar, PageHeader, Skeleton } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
 import { Segmented } from '@/components/ui/segmented'
+import { ConfirmDialog } from '@/components/ui/dialog'
 import { Sheet } from '@/components/ui/sheet'
 import { ApiError, type Member, type Role } from '@/lib/api'
 import { useCan, useMe } from '@/lib/auth'
 import { capitalize, timeAgo } from '@/lib/format'
+import { usePeek } from '@/lib/peek'
 import { useDeleteMember, useRoles, useSaveMember, useTeam } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { ROLE_INFO } from './member-detail-sheet'
 
-const ROLE_INFO: Record<Role, string> = {
-  owner: 'Full access, billing, danger zone',
-  admin: 'Manage everything except the danger zone',
-  editor: 'Catalogue and order fulfilment',
-  support: 'Orders, refunds and customer notes',
-  viewer: 'Read-only dashboards and lists',
-}
+/** Matches domain.OnlineWithin: a request in the last five minutes. */
+const isOnline = (m: Member) => m.status === 'active' && !!m.lastActiveAt && Date.now() - new Date(m.lastActiveAt).getTime() < 5 * 60_000
+
 const ROLES = Object.keys(ROLE_INFO) as Role[]
 
 export function TeamPage() {
@@ -32,6 +31,8 @@ export function TeamPage() {
   const { data, isPending } = useTeam(role)
   const { data: everyone } = useTeam('all')
   const remove = useDeleteMember()
+  const peek = usePeek()
+  const [removing, setRemoving] = useState<Member | null>(null)
 
   // Mirrors the server rules: the owner is untouchable, only the owner manages admins, nobody removes themselves.
   const canManage = (m: Member) => canWrite && m.role !== 'owner' && (m.role !== 'admin' || me.user.role === 'owner')
@@ -75,10 +76,21 @@ export function TeamPage() {
             </thead>
             <tbody>
               {data?.items.map((m) => (
-                <tr key={m.id} className={cn(m.id === me.user.id && 'bg-accent/4')}>
+                <tr
+                  key={m.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${m.name}`}
+                  onClick={() => peek('member', m.id)}
+                  onKeyDown={(e) => e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), peek('member', m.id))}
+                  className={cn('cursor-pointer', m.id === me.user.id && 'bg-accent/4')}
+                >
                   <td>
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={m.name} />
+                      <div className="relative">
+                        <Avatar name={m.name} />
+                        {isOnline(m) && <span className="absolute -right-px -bottom-px size-2.5 rounded-full border-2 border-panel bg-accent" title="Online" />}
+                      </div>
                       <div>
                         <b className="block font-medium">
                           {m.name}
@@ -93,14 +105,14 @@ export function TeamPage() {
                   </td>
                   <td>{m.status === 'active' ? <span className="text-muted">Active</span> : <StatusPill status={m.status} />}</td>
                   <td>{m.mfa ? <ShieldCheck className="size-4 text-accent" /> : <ShieldOff className="size-4 text-dim" />}</td>
-                  <td className="num text-muted">{m.lastActiveAt ? timeAgo(m.lastActiveAt) : '—'}</td>
-                  <td className="num">
+                  <td className="num text-muted">{isOnline(m) ? <span className="text-accent">online</span> : m.lastActiveAt ? timeAgo(m.lastActiveAt) : '—'}</td>
+                  <td className="num" onClick={(e) => e.stopPropagation()}>
                     {canManage(m) && m.id !== me.user.id && (
                       <>
                         <Button variant="ghost" size="icon-sm" aria-label={`Edit ${m.name}`} onClick={() => navigate({ search: { edit: m.id } })}>
                           <Pencil />
                         </Button>
-                        <Button variant="ghost" size="icon-sm" aria-label={`Remove ${m.name}`} disabled={remove.isPending} onClick={() => remove.mutate(m.id)}>
+                        <Button variant="ghost" size="icon-sm" aria-label={`Remove ${m.name}`} disabled={remove.isPending} onClick={() => setRemoving(m)}>
                           <Trash2 />
                         </Button>
                       </>
@@ -114,6 +126,15 @@ export function TeamPage() {
       )}
 
       <MemberSheet key={String(edit ?? 'closed')} member={editing} open={sheetOpen} onClose={close} />
+      <ConfirmDialog
+        open={!!removing}
+        onOpenChange={(v) => !v && setRemoving(null)}
+        title={`Remove ${removing?.name ?? 'member'}?`}
+        description="They lose access immediately and are signed out everywhere. Their activity stays in the log."
+        confirmLabel="Remove"
+        pending={remove.isPending}
+        onConfirm={() => removing && remove.mutate(removing.id, { onSuccess: () => setRemoving(null) })}
+      />
     </>
   )
 }

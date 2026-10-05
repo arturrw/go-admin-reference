@@ -1,11 +1,11 @@
 import { useRouterState } from '@tanstack/react-router'
 import { createContext, lazy, type ReactNode, Suspense, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
-// "Peek" opens a customer, order or product sheet on top of whatever page is
+// "Peek" opens a customer, order, product or team member sheet on top of whatever page is
 // showing, without navigating away. Sheets opened from inside a peek stack:
 // closing one goes back to the previous.
 
-export type PeekKind = 'customer' | 'order' | 'product'
+export type PeekKind = 'customer' | 'order' | 'product' | 'member'
 export interface PeekTarget {
   kind: PeekKind
   id: number
@@ -21,6 +21,7 @@ const PeekContext = createContext<PeekApi | null>(null)
 const CustomerSheet = lazy(() => import('@/features/customers/customer-sheet').then((m) => ({ default: m.CustomerSheet })))
 const OrderSheet = lazy(() => import('@/features/orders/order-sheet').then((m) => ({ default: m.OrderSheet })))
 const ProductSheet = lazy(() => import('@/features/products/product-sheet').then((m) => ({ default: m.ProductSheet })))
+const MemberDetailSheet = lazy(() => import('@/features/team/member-detail-sheet').then((m) => ({ default: m.MemberDetailSheet })))
 
 export function PeekProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<PeekTarget[]>([])
@@ -48,6 +49,7 @@ export function PeekProvider({ children }: { children: ReactNode }) {
         {top?.kind === 'customer' && <CustomerSheet key={`c${top.id}`} customerId={top.id} onClose={close} />}
         {top?.kind === 'order' && <OrderSheet key={`o${top.id}`} orderId={top.id} onClose={close} />}
         {top?.kind === 'product' && <ProductSheet key={`p${top.id}`} productId={top.id} open onClose={close} onCreated={close} />}
+        {top?.kind === 'member' && <MemberDetailSheet key={`m${top.id}`} memberId={top.id} onClose={close} />}
       </Suspense>
     </PeekContext.Provider>
   )

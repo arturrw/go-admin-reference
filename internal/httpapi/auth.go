@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/arturrw/go-admin-reference/internal/auth"
 	d "github.com/arturrw/go-admin-reference/internal/domain"
@@ -48,7 +49,11 @@ func (s *server) authorize(perm d.Permission, next http.HandlerFunc) http.Handle
 			writeError(w, http.StatusForbidden, "cross-origin request rejected")
 			return
 		}
-		if perm != "" && !m.Role.Can(perm) {
+		// Presence for the team page: at most one write a minute per member.
+		if m.LastActiveAt == nil || time.Since(*m.LastActiveAt) > time.Minute {
+			s.store.TouchMember(r.Context(), m.ID)
+		}
+		if perm != "" && !m.Can(perm) {
 			writeError(w, http.StatusForbidden, "you don't have permission to do this")
 			return
 		}
@@ -85,11 +90,7 @@ type meResponse struct {
 }
 
 func newMe(m d.Member) meResponse {
-	perms := d.RolePermissions[m.Role]
-	if perms == nil {
-		perms = []d.Permission{}
-	}
-	return meResponse{User: m, Permissions: perms}
+	return meResponse{User: m, Permissions: m.Permissions()}
 }
 
 // A valid hash of an unguessable password, checked when the email is unknown

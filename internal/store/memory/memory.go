@@ -453,7 +453,7 @@ func (s *Store) ListMembers(_ context.Context, role d.Role) ([]d.Member, error) 
 	out := []d.Member{}
 	for _, m := range s.members {
 		if role == "" || m.Role == role {
-			out = append(out, m)
+			out = append(out, cloneMember(m))
 		}
 	}
 	return out, nil
@@ -466,7 +466,7 @@ func (s *Store) GetMember(_ context.Context, id int64) (d.Member, error) {
 	if i < 0 {
 		return d.Member{}, d.ErrNotFound
 	}
-	return s.members[i], nil
+	return cloneMember(s.members[i]), nil
 }
 
 func (s *Store) MemberByEmail(_ context.Context, email string) (d.Member, error) {
@@ -476,7 +476,7 @@ func (s *Store) MemberByEmail(_ context.Context, email string) (d.Member, error)
 	if i < 0 {
 		return d.Member{}, d.ErrNotFound
 	}
-	return s.members[i], nil
+	return cloneMember(s.members[i]), nil
 }
 
 func (s *Store) TouchMember(_ context.Context, id int64) {
@@ -497,7 +497,7 @@ func (s *Store) CreateMember(_ context.Context, in d.MemberInput) (d.Member, err
 	m := d.Member{ID: s.nextMemberID, Name: in.Name, Email: in.Email, Role: in.Role, Status: d.MemberInvited}
 	s.nextMemberID++
 	s.members = append(s.members, m)
-	return m, nil
+	return cloneMember(m), nil
 }
 
 func (s *Store) UpdateMember(_ context.Context, id int64, in d.MemberInput) (d.Member, error) {
@@ -514,7 +514,35 @@ func (s *Store) UpdateMember(_ context.Context, id int64, in d.MemberInput) (d.M
 		return d.Member{}, d.NewValidationError("email", "is already a member")
 	}
 	s.members[i].Name, s.members[i].Email, s.members[i].Role = in.Name, in.Email, in.Role
-	return s.members[i], nil
+	return cloneMember(s.members[i]), nil
+}
+
+func (s *Store) SetMemberAccess(_ context.Context, id int64, a d.MemberAccess) (d.Member, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.members, func(m d.Member) bool { return m.ID == id })
+	if i < 0 {
+		return d.Member{}, d.ErrNotFound
+	}
+	s.members[i].Granted, s.members[i].Revoked = slices.Clone(a.Granted), slices.Clone(a.Revoked)
+	return cloneMember(s.members[i]), nil
+}
+
+func (s *Store) SetMemberStatus(_ context.Context, id int64, status d.MemberStatus) (d.Member, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.members, func(m d.Member) bool { return m.ID == id })
+	if i < 0 {
+		return d.Member{}, d.ErrNotFound
+	}
+	s.members[i].Status = status
+	return cloneMember(s.members[i]), nil
+}
+
+// cloneMember copies the permission slices so callers cannot mutate store state.
+func cloneMember(m d.Member) d.Member {
+	m.Granted, m.Revoked = append([]d.Permission{}, m.Granted...), append([]d.Permission{}, m.Revoked...)
+	return m
 }
 
 func (s *Store) DeleteMember(_ context.Context, id int64) error {

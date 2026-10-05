@@ -152,6 +152,16 @@ export interface Member {
   status: MemberStatus
   mfa: boolean
   lastActiveAt: string | null
+  /** Owner-set exceptions to the role. */
+  granted: Permission[]
+  revoked: Permission[]
+}
+
+export interface MemberDetail {
+  member: Member
+  /** Effective: role + granted − revoked. */
+  permissions: Permission[]
+  online: boolean
 }
 
 export type MemberInput = Pick<Member, 'name' | 'email' | 'role'>
@@ -421,6 +431,10 @@ export const api = {
   createMember: (in_: MemberInput) => request<Member>('/team', json('POST', in_)),
   updateMember: (id: number, in_: MemberInput) => request<Member>(`/team/${id}`, json('PUT', in_)),
   deleteMember: (id: number) => request<void>(`/team/${id}`, { method: 'DELETE' }),
+  member: (id: number) => request<MemberDetail>(`/team/${id}`),
+  setMemberAccess: (id: number, access: { granted: Permission[]; revoked: Permission[] }) =>
+    request<MemberDetail>(`/team/${id}/access`, json('PUT', access)),
+  setMemberStatus: (id: number, status: 'active' | 'suspended') => request<MemberDetail>(`/team/${id}/status`, json('PUT', { status })),
 
   activity: (f: { actor?: number; kind?: string; q?: string; limit?: number; offset?: number }) =>
     request<{ items: Activity[]; total: number; kinds: ActivityKind[] }>(`/activity${qs(f)}`),

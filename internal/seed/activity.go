@@ -92,6 +92,8 @@ func seedActivity(s *Dataset, now time.Time) []d.Activity {
 	add(ago(2*24*time.Hour+3*time.Hour), d.ActTeam, "Artur DCS", "invited Sofia Rossi as viewer", "member", 3)
 	add(ago(4*24*time.Hour), d.ActTarget, "Artur DCS", "set the Q4 target to $1,200,000.00", "", 0)
 	add(ago(6*24*time.Hour), d.ActTeam, "Mark Liu", "suspended Lena Kraft", "member", 5)
+	add(ago(5*24*time.Hour+2*time.Hour), d.ActRole, "Artur DCS", "changed Diego Vega's access: granted Edit products", "member", 8)
+	add(ago(6*24*time.Hour+5*time.Hour), d.ActRole, "Artur DCS", "changed Omar Haddad's access: revoked Edit settings", "member", 6)
 	add(ago(3*24*time.Hour), d.ActSettings, "Mark Liu", "set the log level to debug", "", 0)
 	add(ago(3*24*time.Hour-40*time.Minute), d.ActSettings, "Mark Liu", "set the log level to info", "", 0)
 	add(ago(30*time.Hour), d.ActDeploy, "CI", "rolled out v1.4.1 to 3/3 pods", "", 0)

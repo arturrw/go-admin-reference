@@ -75,6 +75,8 @@ type Member struct {
 	PasswordHash string
 	LastActiveAt *time.Time
 	CreatedAt    time.Time
+	Granted      []string
+	Revoked      []string
 }
 
 type Order struct {

@@ -45,6 +45,7 @@ const OPENS: Record<string, { kind: PeekKind; perm: Permission }> = {
   product: { kind: 'product', perm: 'products:read' },
   order: { kind: 'order', perm: 'orders:read' },
   customer: { kind: 'customer', perm: 'customers:read' },
+  member: { kind: 'member', perm: 'team:read' },
 }
 
 /** One audit entry. Clicking it opens the record it touched, in place. */

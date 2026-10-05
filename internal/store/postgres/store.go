@@ -430,7 +430,34 @@ func toMember(m db.Member) d.Member {
 	return d.Member{
 		ID: m.ID, Name: m.Name, Email: m.Email, Role: d.Role(m.Role), Status: d.MemberStatus(m.Status),
 		MFA: m.Mfa, LastActiveAt: m.LastActiveAt, PasswordHash: m.PasswordHash,
+		Granted: toPerms(m.Granted), Revoked: toPerms(m.Revoked),
 	}
+}
+
+func toPerms(ss []string) []d.Permission {
+	out := make([]d.Permission, len(ss))
+	for i, s := range ss {
+		out[i] = d.Permission(s)
+	}
+	return out
+}
+
+func fromPerms(ps []d.Permission) []string {
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = string(p)
+	}
+	return out
+}
+
+func (s *Store) SetMemberAccess(ctx context.Context, id int64, a d.MemberAccess) (d.Member, error) {
+	m, err := s.q.SetMemberAccess(ctx, db.SetMemberAccessParams{ID: id, Granted: fromPerms(a.Granted), Revoked: fromPerms(a.Revoked)})
+	return toMember(m), mapErr(err)
+}
+
+func (s *Store) SetMemberStatus(ctx context.Context, id int64, status d.MemberStatus) (d.Member, error) {
+	m, err := s.q.SetMemberStatus(ctx, db.SetMemberStatusParams{ID: id, Status: string(status)})
+	return toMember(m), mapErr(err)
 }
 
 func (s *Store) ListMembers(ctx context.Context, role d.Role) ([]d.Member, error) {

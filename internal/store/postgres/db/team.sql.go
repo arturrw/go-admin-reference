@@ -11,7 +11,7 @@ import (
 )
 
 const createMember = `-- name: CreateMember :one
-INSERT INTO members (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at
+INSERT INTO members (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked
 `
 
 type CreateMemberParams struct {
@@ -33,6 +33,8 @@ func (q *Queries) CreateMember(ctx context.Context, arg CreateMemberParams) (Mem
 		&i.PasswordHash,
 		&i.LastActiveAt,
 		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
 	)
 	return i, err
 }
@@ -95,7 +97,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
 }
 
 const getMember = `-- name: GetMember :one
-SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at FROM members WHERE id = $1
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked FROM members WHERE id = $1
 `
 
 func (q *Queries) GetMember(ctx context.Context, id int64) (Member, error) {
@@ -111,12 +113,14 @@ func (q *Queries) GetMember(ctx context.Context, id int64) (Member, error) {
 		&i.PasswordHash,
 		&i.LastActiveAt,
 		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
 	)
 	return i, err
 }
 
 const listMembers = `-- name: ListMembers :many
-SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at FROM members WHERE ($1::text = '' OR role = $1::text) ORDER BY id
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked FROM members WHERE ($1::text = '' OR role = $1::text) ORDER BY id
 `
 
 func (q *Queries) ListMembers(ctx context.Context, role string) ([]Member, error) {
@@ -138,6 +142,8 @@ func (q *Queries) ListMembers(ctx context.Context, role string) ([]Member, error
 			&i.PasswordHash,
 			&i.LastActiveAt,
 			&i.CreatedAt,
+			&i.Granted,
+			&i.Revoked,
 		); err != nil {
 			return nil, err
 		}
@@ -150,7 +156,7 @@ func (q *Queries) ListMembers(ctx context.Context, role string) ([]Member, error
 }
 
 const memberByEmail = `-- name: MemberByEmail :one
-SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at FROM members WHERE lower(email) = lower($1::text)
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked FROM members WHERE lower(email) = lower($1::text)
 `
 
 func (q *Queries) MemberByEmail(ctx context.Context, email string) (Member, error) {
@@ -166,6 +172,65 @@ func (q *Queries) MemberByEmail(ctx context.Context, email string) (Member, erro
 		&i.PasswordHash,
 		&i.LastActiveAt,
 		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
+	)
+	return i, err
+}
+
+const setMemberAccess = `-- name: SetMemberAccess :one
+UPDATE members SET granted = $1::text[], revoked = $2::text[] WHERE id = $3 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked
+`
+
+type SetMemberAccessParams struct {
+	Granted []string
+	Revoked []string
+	ID      int64
+}
+
+func (q *Queries) SetMemberAccess(ctx context.Context, arg SetMemberAccessParams) (Member, error) {
+	row := q.db.QueryRow(ctx, setMemberAccess, arg.Granted, arg.Revoked, arg.ID)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.Mfa,
+		&i.PasswordHash,
+		&i.LastActiveAt,
+		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
+	)
+	return i, err
+}
+
+const setMemberStatus = `-- name: SetMemberStatus :one
+UPDATE members SET status = $2 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked
+`
+
+type SetMemberStatusParams struct {
+	ID     int64
+	Status string
+}
+
+func (q *Queries) SetMemberStatus(ctx context.Context, arg SetMemberStatusParams) (Member, error) {
+	row := q.db.QueryRow(ctx, setMemberStatus, arg.ID, arg.Status)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.Mfa,
+		&i.PasswordHash,
+		&i.LastActiveAt,
+		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
 	)
 	return i, err
 }
@@ -199,7 +264,7 @@ func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) (int
 }
 
 const updateMember = `-- name: UpdateMember :one
-UPDATE members SET name = $2, email = $3, role = $4 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at
+UPDATE members SET name = $2, email = $3, role = $4 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked
 `
 
 type UpdateMemberParams struct {
@@ -227,6 +292,8 @@ func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) (Mem
 		&i.PasswordHash,
 		&i.LastActiveAt,
 		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
 	)
 	return i, err
 }

@@ -310,12 +310,21 @@ func Generate(now time.Time) *Dataset {
 		{ID: 3, Name: "Sofia Rossi", Email: "sofia@acme.io", Role: d.RoleEditor, Status: d.MemberInvited, MFA: false, LastActiveAt: nil},
 		{ID: 4, Name: "Jon Berg", Email: "jon@acme.io", Role: d.RoleViewer, Status: d.MemberActive, MFA: true, LastActiveAt: ago(180)},
 		{ID: 5, Name: "Lena Kraft", Email: "lena@acme.io", Role: d.RoleViewer, Status: d.MemberSuspended, MFA: false, LastActiveAt: ago(14 * 24 * 60)},
-		{ID: 6, Name: "Omar Haddad", Email: "omar@acme.io", Role: d.RoleAdmin, Status: d.MemberActive, MFA: true, LastActiveAt: ago(60)},
+		{ID: 6, Name: "Omar Haddad", Email: "omar@acme.io", Role: d.RoleAdmin, Status: d.MemberActive, MFA: true, LastActiveAt: ago(60),
+			Revoked: []d.Permission{d.PermSettingsWrite}},
 		{ID: 7, Name: "Yuki Tanaka", Email: "yuki@acme.io", Role: d.RoleEditor, Status: d.MemberActive, MFA: true, LastActiveAt: ago(22)},
-		{ID: 8, Name: "Diego Vega", Email: "diego@acme.io", Role: d.RoleSupport, Status: d.MemberActive, MFA: false, LastActiveAt: ago(26 * 60)},
+		{ID: 8, Name: "Diego Vega", Email: "diego@acme.io", Role: d.RoleSupport, Status: d.MemberActive, MFA: false, LastActiveAt: ago(26 * 60),
+			Granted: []d.Permission{d.PermProductsWrite}},
 		{ID: 9, Name: "Priya Shah", Email: "priya@acme.io", Role: d.RoleSupport, Status: d.MemberActive, MFA: true, LastActiveAt: ago(5)},
 	}
 	for i := range s.Members {
+		m := &s.Members[i]
+		if m.Granted == nil {
+			m.Granted = []d.Permission{}
+		}
+		if m.Revoked == nil {
+			m.Revoked = []d.Permission{}
+		}
 		if s.Members[i].Status != d.MemberInvited {
 			// One shared hash keeps boot fast; real members get their own salt.
 			s.Members[i].PasswordHash = hash
