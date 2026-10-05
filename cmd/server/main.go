@@ -32,7 +32,10 @@ func main() {
 
 func run() error {
 	cfg := config.Load()
-	logger := newLogger(cfg)
+	// A LevelVar lets admins change the level at runtime from Settings.
+	level := new(slog.LevelVar)
+	level.Set(cfg.LogLevel)
+	logger := newLogger(cfg, level)
 	slog.SetDefault(logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -57,6 +60,7 @@ func run() error {
 		Addr: cfg.Addr,
 		Handler: httpapi.New(httpapi.Deps{
 			Logger:    logger,
+			LogLevel:  level,
 			Store:     store,
 			Requests:  requests,
 			Sessions:  sessions,
@@ -150,8 +154,8 @@ func openStore(ctx context.Context, cfg config.Config, logger *slog.Logger, now 
 	return postgres.New(pool), sessions, pool.Close, nil
 }
 
-func newLogger(cfg config.Config) *slog.Logger {
-	opts := &slog.HandlerOptions{Level: cfg.LogLevel}
+func newLogger(cfg config.Config, level slog.Leveler) *slog.Logger {
+	opts := &slog.HandlerOptions{Level: level}
 	if cfg.IsDev() {
 		return slog.New(slog.NewTextHandler(os.Stdout, opts))
 	}

@@ -119,7 +119,7 @@ func (s *server) withRecover(next http.Handler) http.Handler {
 
 // Polling endpoints are excluded from the request log so the UI does not
 // fill it with its own heartbeats.
-var unloggedPaths = map[string]bool{"/api/v1/requests": true, "/api/v1/runtime": true, "/api/v1/auth/me": true}
+var unloggedPaths = map[string]bool{"/api/v1/requests": true, "/api/v1/runtime": true, "/api/v1/live": true, "/api/v1/auth/me": true}
 
 const maxLoggedBody = 4096
 
@@ -180,8 +180,11 @@ func (s *server) withAccessLog(next http.Handler) http.Handler {
 			}
 			s.requests.Add(e)
 		}
-		if rec.status >= 500 {
+		switch {
+		case rec.status >= 500:
 			level = slog.LevelError
+		case rec.status >= 400 && record:
+			level = slog.LevelWarn
 		}
 		s.log.Log(r.Context(), level, "http",
 			"method", r.Method, "path", r.URL.Path, "status", rec.status, "duration", dur,

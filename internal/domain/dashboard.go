@@ -12,12 +12,19 @@ type RevenuePoint struct {
 }
 
 type KPI struct {
-	Key      string    `json:"key"`
-	Label    string    `json:"label"`
-	Value    float64   `json:"value"`
-	Unit     string    `json:"unit"` // count | percent | cents
-	DeltaPct float64   `json:"deltaPct"`
-	Trend    []float64 `json:"trend"`
+	Key      string     `json:"key"`
+	Label    string     `json:"label"`
+	Value    float64    `json:"value"`
+	Unit     string     `json:"unit"` // count | percent | cents
+	DeltaPct float64    `json:"deltaPct"`
+	Trend    []float64  `json:"trend"`  // downsampled, for sparklines
+	Series   []KPIPoint `json:"series"` // one point per day, for the detail chart
+}
+
+type KPIPoint struct {
+	Date     string  `json:"date"` // YYYY-MM-DD
+	Current  float64 `json:"current"`
+	Previous float64 `json:"previous"`
 }
 
 type CategoryShare struct {
@@ -86,6 +93,14 @@ func BuildDashboard(series []RevenuePoint, markets []Market) Dashboard {
 	orders := float64(cur) / avgOrderCents
 	prevOrders := float64(prev) / avgOrderCents
 	trend := bucket(series, 16)
+	daily := func(f func(i int, rev float64) float64) []KPIPoint {
+		out := make([]KPIPoint, len(series))
+		for i, p := range series {
+			out[i] = KPIPoint{Date: p.Date, Current: f(i, float64(p.Current)), Previous: f(i+len(series), float64(p.Previous))}
+		}
+		return out
+	}
+	ordersOf := func(_ int, rev float64) float64 { return math.Round(rev / avgOrderCents) }
 	return Dashboard{
 		RangeDays:        len(series),
 		RevenueCents:     cur,
@@ -96,10 +111,20 @@ func BuildDashboard(series []RevenuePoint, markets []Market) Dashboard {
 		TopProducts:      []TopProduct{},
 		Activity:         []Activity{},
 		KPIs: []KPI{
-			{Key: "orders", Label: "Orders", Value: math.Round(orders), Unit: "count", DeltaPct: pct(orders, prevOrders), Trend: trend},
-			{Key: "customers", Label: "New customers", Value: math.Round(orders * .62), Unit: "count", DeltaPct: pct(orders, prevOrders) * .55, Trend: wobble(trend, 1)},
-			{Key: "conversion", Label: "Conversion", Value: 3.84, Unit: "percent", DeltaPct: -0.6, Trend: wobble(reversed(trend), 2)},
-			{Key: "aov", Label: "Avg. order value", Value: avgOrderCents, Unit: "cents", DeltaPct: 2.1, Trend: wobble(trend, 3)},
+			{Key: "orders", Label: "Orders", Value: math.Round(orders), Unit: "count", DeltaPct: pct(orders, prevOrders), Trend: trend,
+				Series: daily(ordersOf)},
+			{Key: "customers", Label: "New customers", Value: math.Round(orders * .62), Unit: "count", DeltaPct: pct(orders, prevOrders) * .55, Trend: wobble(trend, 1),
+				Series: daily(func(i int, rev float64) float64 {
+					return math.Round(ordersOf(i, rev) * .62 * (1 + .12*math.Sin(float64(i)+1)))
+				})},
+			{Key: "conversion", Label: "Conversion", Value: 3.84, Unit: "percent", DeltaPct: -0.6, Trend: wobble(reversed(trend), 2),
+				Series: daily(func(i int, _ float64) float64 {
+					return math.Round(3.84*(1+.07*math.Sin(float64(i)*.9)+.03*math.Sin(float64(i)*2.3))*100) / 100
+				})},
+			{Key: "aov", Label: "Avg. order value", Value: avgOrderCents, Unit: "cents", DeltaPct: 2.1, Trend: wobble(trend, 3),
+				Series: daily(func(i int, _ float64) float64 {
+					return math.Round(avgOrderCents * (1 + .06*math.Sin(float64(i)*1.3) + .03*math.Sin(float64(i)*.4)))
+				})},
 		},
 		Target: Target{Label: "Q4 target", BookedCents: 34_128_000, GoalCents: 120_000_000, PacePct: 6.2},
 	}

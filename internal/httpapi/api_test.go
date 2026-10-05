@@ -63,6 +63,7 @@ func newServer(t *testing.T) *httptest.Server {
 	store, sessions := newStore(t, now)
 	h := httpapi.New(httpapi.Deps{
 		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		LogLevel:     new(slog.LevelVar),
 		Store:        store,
 		Requests:     reqlog.New(500),
 		Sessions:     sessions,

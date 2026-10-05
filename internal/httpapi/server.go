@@ -64,6 +64,7 @@ type Pinger interface {
 
 type Deps struct {
 	Logger    *slog.Logger
+	LogLevel  *slog.LevelVar // optional; enables GET/PUT /api/v1/settings/log-level
 	Store     Store
 	Requests  *reqlog.Log
 	Sessions  SessionStore
@@ -78,6 +79,7 @@ type Deps struct {
 
 type server struct {
 	log      *slog.Logger
+	level    *slog.LevelVar
 	store    Store
 	requests *reqlog.Log
 	sessions SessionStore
@@ -93,7 +95,7 @@ func (s *server) isDev() bool { return s.env != "production" }
 
 func New(deps Deps) http.Handler {
 	s := &server{
-		log: deps.Logger, store: deps.Store, requests: deps.Requests, sessions: deps.Sessions,
+		log: deps.Logger, level: deps.LogLevel, store: deps.Store, requests: deps.Requests, sessions: deps.Sessions,
 		media: deps.Media, version: deps.Version, env: deps.Env, started: deps.StartedAt,
 		demoPassword: deps.DemoPassword,
 	}
@@ -114,11 +116,14 @@ func New(deps Deps) http.Handler {
 
 	route("GET /api/v1/meta", "", s.meta)
 	route("GET /api/v1/runtime", d.PermDashboard, s.runtime)
+	route("GET /api/v1/live", d.PermDashboard, s.live)
 	route("GET /api/v1/dashboard", d.PermDashboard, s.dashboard)
 
 	route("GET /api/v1/products", d.PermProductsRead, s.listProducts)
 	route("POST /api/v1/products", d.PermProductsWrite, s.createProduct)
 	route("POST /api/v1/products/bulk", d.PermProductsWrite, s.bulkProducts)
+	route("GET /api/v1/products/export", d.PermProductsRead, s.exportProducts)
+	route("POST /api/v1/products/import", d.PermProductsWrite, s.importProducts)
 	route("GET /api/v1/products/{id}", d.PermProductsRead, s.getProduct)
 	route("PUT /api/v1/products/{id}", d.PermProductsWrite, s.updateProduct)
 	route("DELETE /api/v1/products/{id}", d.PermProductsWrite, s.deleteProduct)
@@ -127,10 +132,12 @@ func New(deps Deps) http.Handler {
 	route("POST /api/v1/products/{id}/images/{imageId}/primary", d.PermProductsWrite, s.setPrimaryImage)
 
 	route("GET /api/v1/orders", d.PermOrdersRead, s.listOrders)
+	route("GET /api/v1/orders/export", d.PermOrdersRead, s.exportOrders)
 	route("GET /api/v1/orders/{id}", d.PermOrdersRead, s.getOrder)
 	route("PATCH /api/v1/orders/{id}/status", d.PermOrdersWrite, s.updateOrderStatus)
 
 	route("GET /api/v1/customers", d.PermCustomersRead, s.listCustomers)
+	route("GET /api/v1/customers/export", d.PermCustomersRead, s.exportCustomers)
 	route("GET /api/v1/customers/{id}", d.PermCustomersRead, s.getCustomer)
 	route("POST /api/v1/customers/{id}/notes", d.PermCustomersWrite, s.addCustomerNote)
 
@@ -138,6 +145,9 @@ func New(deps Deps) http.Handler {
 	route("POST /api/v1/team", d.PermTeamWrite, s.createMember)
 	route("PUT /api/v1/team/{id}", d.PermTeamWrite, s.updateMember)
 	route("DELETE /api/v1/team/{id}", d.PermTeamWrite, s.deleteMember)
+
+	route("GET /api/v1/settings/log-level", "", s.getLogLevel)
+	route("PUT /api/v1/settings/log-level", d.PermSettingsWrite, s.setLogLevel)
 
 	route("GET /api/v1/requests", d.PermRequestsRead, s.listRequests)
 	route("GET /api/v1/requests/{id}", d.PermRequestsRead, s.getRequest)

@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"math"
-	"math/rand/v2"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -61,8 +60,7 @@ type runtimeStats struct {
 	GoVersion     string  `json:"goVersion"`
 	Platform      string  `json:"platform"`
 	Revision      string  `json:"revision"`
-	// Simulated storefront traffic — there is no real storefront behind
-	// this reference project.
+	// Simulated storefront traffic (see live.go).
 	RequestsPerSec int `json:"requestsPerSec"`
 	OnlineUsers    int `json:"onlineUsers"`
 }
@@ -93,8 +91,8 @@ func (s *server) runtime(w http.ResponseWriter, _ *http.Request) {
 		GoVersion:      runtime.Version(),
 		Platform:       runtime.GOOS + "/" + runtime.GOARCH,
 		Revision:       rev,
-		RequestsPerSec: 1100 + rand.IntN(380),
-		OnlineUsers:    290 + rand.IntN(50),
+		RequestsPerSec: liveRPS(slotOf(time.Now())),
+		OnlineUsers:    liveOnline(slotOf(time.Now())),
 	})
 }
 

@@ -67,7 +67,8 @@ Sign in with any demo account. The password is `goadmin`, and in development the
 | jon@acme.io | viewer |
 
 Environment variables: `ADDR` (default `:8080`), `APP_ENV` (`development` | `production`;
-production switches logs to JSON, sets `Secure` cookies and hides the demo accounts), `LOG_LEVEL`,
+production switches logs to JSON, sets `Secure` cookies and hides the demo accounts), `LOG_LEVEL` (start-up level;
+owners and admins can change it at runtime in Settings),
 `APP_VERSION`, `DATABASE_URL` (empty = in-memory), `SEED` (default `true`: load demo data into an empty
 database), `UPLOAD_DIR` (default `data/uploads`), `SESSION_TTL` (default `12h`). See `.env.example`.
 
@@ -110,8 +111,11 @@ Requests without a session get 401, and requests the role doesn't allow get 403.
 | GET | `/roles` | role × permission matrix (what the API enforces) |
 | GET | `/meta` | version, env, sidebar counters |
 | GET | `/runtime` | real Go runtime stats (goroutines, heap, GC); req/s is simulated |
+| GET | `/live` | simulated storefront traffic (2-minute history) + live numbers for the best-selling product |
 | GET | `/dashboard?range=7\|30\|90` | everything the dashboard renders |
 | GET/POST | `/products` | `?q&category&status&sort`; list also returns stats |
+| GET | `/products/export` · `/orders/export` · `/customers/export` | CSV with the same filters as the list |
+| POST | `/products/import` | CSV (multipart `file` or `text/csv` body), upsert by SKU; all-or-nothing, 422 lists row errors |
 | GET/PUT/DELETE | `/products/{id}` | |
 | POST | `/products/bulk` | `{ids, action: publish\|archive\|delete}` |
 | POST | `/products/{id}/images` | multipart `file`; JPEG/PNG/WebP/GIF ≤ 5 MB (sniffed, SVG rejected) |
@@ -127,8 +131,10 @@ Requests without a session get 401, and requests the role doesn't allow get 403.
 | PUT/DELETE | `/team/{id}` | the owner cannot be edited or removed (403) |
 | GET | `/requests` | `?q&class=2\|4\|5&method&actor&limit`; list + analytics (p50/p95/p99, per-minute, top endpoints) |
 | GET | `/requests/{id}` | headers, bodies (redacted), user, route, timing |
+| GET/PUT | `/settings/log-level` | `{level: debug\|info\|warn\|error}`; PUT needs `settings:write`, applies until restart |
 
-Plus `GET /healthz` and the public `GET /media/...` image files.
+Plus `GET /healthz` and the public `GET /media/...` image files. Seed products use photos from
+[Unsplash](https://unsplash.com/license) (`internal/seed/photos.go`); databases seeded earlier get them on the next start.
 
 ## Roles
 
