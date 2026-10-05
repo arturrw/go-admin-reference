@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Command } from 'cmdk'
 import { Plus, Search, UserPlus } from 'lucide-react'
-import { type ReactNode, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { CATEGORY_ICON } from '@/components/ui/product-thumb'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -21,17 +21,6 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
   const canInvite = useCan('team:write')
   const { data } = useQuery({ queryKey: ['products', {}], queryFn: () => api.products({}), enabled: open && canProducts })
   const pages = visibleNav(me.permissions).flatMap((g) => g.items)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        onOpenChange(!open)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onOpenChange])
 
   const run = (fn: () => void) => () => {
     onOpenChange(false)

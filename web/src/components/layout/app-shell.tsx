@@ -1,16 +1,35 @@
 import { Outlet, useRouterState } from '@tanstack/react-router'
 import { Bell, ChevronRight, CircleHelp, PanelLeft, Search } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { NAV_ITEMS } from '@/lib/nav'
 import { PeekProvider } from '@/lib/peek'
-import { CommandMenu } from './command-menu'
 import { Sidebar } from './sidebar'
+
+// cmdk is only needed once the menu is opened, so it is its own chunk.
+const CommandMenu = lazy(() => import('./command-menu').then((m) => ({ default: m.CommandMenu })))
 
 export function AppShell() {
   const [sideOpen, setSideOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [cmdUsed, setCmdUsed] = useState(false)
+  const openCmd = (v: boolean) => {
+    if (v) setCmdUsed(true)
+    setCmdOpen(v)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCmdUsed(true)
+        setCmdOpen((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const current = NAV_ITEMS.find((i) => (i.to === '/' ? pathname === '/' : pathname.startsWith(i.to)))
 
@@ -40,7 +59,7 @@ export function AppShell() {
               <b className="font-medium text-fg">{current?.label ?? 'Not found'}</b>
             </div>
             <button
-              onClick={() => setCmdOpen(true)}
+              onClick={() => openCmd(true)}
               className="ml-auto flex h-[34px] items-center gap-2.5 rounded-[10px] border border-line-2 bg-panel px-3 text-[13px] text-dim transition-colors hover:border-accent/40 hover:text-muted max-md:size-[34px] max-md:justify-center max-md:px-0 md:min-w-65"
             >
               <Search className="size-4" />
@@ -61,7 +80,11 @@ export function AppShell() {
           </main>
         </div>
 
-        <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
+        {cmdUsed && (
+          <Suspense>
+            <CommandMenu open={cmdOpen} onOpenChange={openCmd} />
+          </Suspense>
+        )}
         <Toaster
           theme="dark"
           position="bottom-right"
