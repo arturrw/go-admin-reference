@@ -3,6 +3,7 @@ import { type DragEvent, type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import type { Product } from '@/lib/api'
+import { imageAt } from '@/lib/image'
 import { useDeleteImage, useSetPrimaryImage, useUploadImage } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -50,6 +51,7 @@ export function ImageGallery({ product, editable }: { product: Product; editable
         src={current?.url}
         alt={current?.alt}
         size={null}
+        srcSize={400}
         className="aspect-[4/3] w-full rounded-[14px]"
         iconClassName="size-13 stroke-[1.25]"
       >
@@ -70,7 +72,7 @@ export function ImageGallery({ product, editable }: { product: Product; editable
               aria-label={`Show image ${i + 1}`}
               className={cn('block w-full overflow-hidden rounded-lg border-2 transition', i === selected ? 'border-accent' : 'border-transparent hover:border-line-2')}
             >
-              <img src={img.url} alt={img.alt} loading="lazy" className="aspect-square w-full object-cover" />
+              <img src={imageAt(img.url, 96)} alt={img.alt} loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
             </button>
             {i === 0 && <Star className="absolute top-1 left-1 size-3.5 fill-accent text-accent drop-shadow" aria-label="Cover image" />}
             {editable && (

@@ -1,6 +1,7 @@
 import { Backpack, Headphones, House, LampDesk, Laptop, type LucideIcon, Watch } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { Category } from '@/lib/api'
+import { imageAt } from '@/lib/image'
 import { cn } from '@/lib/utils'
 
 export const CATEGORY_ICON: Record<Category, LucideIcon> = {
@@ -22,6 +23,7 @@ export function ProductThumb({
   src,
   alt = '',
   size = 36,
+  srcSize,
   className,
   iconClassName,
   children,
@@ -32,6 +34,8 @@ export function ProductThumb({
   alt?: string
   /** Pixel size; pass null to size via className instead. */
   size?: number | null
+  /** Drawn width in CSS px when size is null, to fetch a fitting image. */
+  srcSize?: number
   className?: string
   iconClassName?: string
   children?: ReactNode
@@ -46,7 +50,14 @@ export function ProductThumb({
   return (
     <div className={cn('relative grid shrink-0 place-items-center overflow-hidden rounded-[10px] border', className)} style={style}>
       {src ? (
-        <img src={src} alt={alt} loading="lazy" draggable={false} className="absolute inset-0 size-full object-cover" />
+        <img
+          src={imageAt(src, size ?? srcSize ?? 400)}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="absolute inset-0 size-full object-cover"
+        />
       ) : (
         <Icon className={iconClassName} style={size ? { width: size * 0.46, height: size * 0.46 } : undefined} />
       )}

@@ -228,6 +228,7 @@ function ProductCard({ product: p, onOpen }: { product: Product; onOpen: () => v
         src={p.images[0]?.url}
         alt={p.images[0]?.alt}
         size={null}
+        srcSize={240}
         className="h-37.5 rounded-none border-0 border-b border-b-line"
         iconClassName="relative size-11.5 stroke-[1.25] drop-shadow-[0_8px_18px_currentColor]"
       >
