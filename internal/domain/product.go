@@ -33,7 +33,7 @@ type ProductImage struct {
 	ID        string `json:"id"`
 	URL       string `json:"url"`
 	Alt       string `json:"alt"`
-	Generated bool   `json:"generated"` // seed artwork rather than an uploaded file
+	Generated bool   `json:"generated"` // seed artwork or stock photo rather than an uploaded file
 	SizeBytes int64  `json:"sizeBytes"`
 }
 

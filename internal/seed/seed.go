@@ -171,7 +171,7 @@ func Generate(now time.Time) *Dataset {
 				UpdatedAt:      now.Add(-time.Duration(between(r, 1, 40*24)) * time.Hour),
 			}
 			p.Description = strings.Replace(p.Description, "the studio", p.Vendor, 1)
-			p.Images = generatedImages(p)
+			p.Images = seedImages(p)
 			s.Products = append(s.Products, p)
 		}
 	}

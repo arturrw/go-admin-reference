@@ -77,7 +77,7 @@ database), `UPLOAD_DIR` (default `data/uploads`), `SESSION_TTL` (default `12h`).
 cmd/server/            entrypoint: config, logger, graceful shutdown
 internal/config/       env config
 internal/auth/         PBKDF2 password hashing, server-side sessions
-internal/media/        upload storage + generated SVG product artwork
+internal/media/        upload storage + generated SVG artwork (fallback)
 internal/domain/       types, validation, domain errors, shared aggregations (money in cents)
 internal/seed/         deterministic demo dataset used by both stores
 internal/store/postgres/

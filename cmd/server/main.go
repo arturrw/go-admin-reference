@@ -123,6 +123,11 @@ func openStore(ctx context.Context, cfg config.Config, logger *slog.Logger, now 
 		if seeded {
 			logger.Info("seeded empty database with demo data")
 		}
+		if n, err := postgres.UseSeedPhotos(ctx, pool); err != nil {
+			logger.Warn("replace seed artwork with photos", "err", err)
+		} else if n > 0 {
+			logger.Info("replaced seed artwork with stock photos", "images", n)
+		}
 	}
 
 	sessions := postgres.NewSessions(pool, cfg.SessionTTL)

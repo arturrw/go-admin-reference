@@ -143,3 +143,28 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 	}
 	return nil
 }
+
+// UseSeedPhotos swaps the generated SVG artwork in databases seeded before
+// stock photos existed. Only untouched seed slots are updated, so images a
+// user uploaded or re-ordered stay as they are. It reports how many changed.
+func UseSeedPhotos(ctx context.Context, pool *pgxpool.Pool) (int64, error) {
+	b := &pgx.Batch{}
+	for _, img := range seed.SeedImages() {
+		b.Queue(`UPDATE product_images pi SET url = $1, alt = $2
+			FROM products p
+			WHERE pi.product_id = p.id AND p.name = $3
+			  AND pi.id = 'gen-' || p.id || '-' || $4::int
+			  AND pi.url LIKE '/media/generated/%'`, img.URL, img.Alt, img.ProductName, img.Position)
+	}
+	res := pool.SendBatch(ctx, b)
+	defer res.Close()
+	var n int64
+	for range b.Len() {
+		tag, err := res.Exec()
+		if err != nil {
+			return n, err
+		}
+		n += tag.RowsAffected()
+	}
+	return n, nil
+}

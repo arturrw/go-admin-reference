@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { loginAs, PNG } from './helpers'
 
-test('product cards show generated images', async ({ page }) => {
+test('product cards show Unsplash photos', async ({ page }) => {
   await loginAs(page, 'owner', '/products')
   const firstImage = page.locator('article img').first()
   await expect(firstImage).toBeVisible()
-  await expect(firstImage).toHaveAttribute('src', /\/media\/generated\//)
+  await expect(firstImage).toHaveAttribute('src', /^https:\/\/images\.unsplash\.com\/photo-/)
 })
 
 test('upload, set as cover and delete a product image', async ({ page }) => {
@@ -26,7 +26,7 @@ test('upload, set as cover and delete a product image', async ({ page }) => {
   await thumbs.first().hover()
   await gallery.getByRole('button', { name: 'Delete image' }).first().click()
   await expect(thumbs).toHaveCount(3)
-  await expect(thumbs.first()).toHaveAttribute('src', /\/media\/generated\//)
+  await expect(thumbs.first()).toHaveAttribute('src', /images\.unsplash\.com/)
 })
 
 test('rejects non-image uploads', async ({ page }) => {
