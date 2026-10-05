@@ -32,3 +32,36 @@ test('support can add an internal note', async ({ page }) => {
   await expect(sheet.getByText('Called about a late delivery.')).toBeVisible()
   await expect(sheet.getByText('Priya Shah').first()).toBeVisible()
 })
+
+test('overview widgets drill into filtered orders and products', async ({ page }) => {
+  await loginAs(page, 'owner', '/customers?view=10')
+  const sheet = page.getByRole('dialog')
+  const tabs = sheet.getByRole('tablist')
+
+  // A month bar opens the orders placed that month.
+  const bar = sheet.getByRole('button', { name: /^\w+ \d{4}: \$[\d,]+, [1-9]\d* orders$/ }).last()
+  const [, month, count] = (await bar.getAttribute('aria-label'))!.match(/^(\w+ \d{4}): .*, (\d+) orders$/)!
+  await bar.hover()
+  await expect(sheet.getByText(`${count} orders`).first()).toBeVisible()
+  await bar.click()
+  await expect(sheet.getByRole('tab', { name: /Orders/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(sheet.getByText(month)).toBeVisible()
+  await expect(sheet.locator('a[href*="/orders?view="]')).toHaveCount(Number(count))
+  // The tab strip keeps its height next to a long list.
+  expect((await tabs.boundingBox())!.height).toBeGreaterThan(25)
+
+  await sheet.getByRole('button', { name: 'Clear filter' }).click()
+  expect(await sheet.locator('a[href*="/orders?view="]').count()).toBeGreaterThan(Number(count) - 1)
+
+  // A favourite category opens the products bought in it.
+  await sheet.getByRole('tab', { name: /Overview/ }).click()
+  const cat = sheet.locator('section', { hasText: 'Favourite categories' }).getByRole('button', { name: /^\w+\s*\d+%$/ }).first()
+  const category = (await cat.locator('span').first().innerText()).trim()
+  await cat.click()
+  await expect(sheet.getByRole('tab', { name: /Products/ })).toHaveAttribute('aria-selected', 'true')
+  const products = sheet.locator('a[href*="/products?edit="]')
+  expect(await products.count()).toBeGreaterThan(0)
+  for (const t of await products.allInnerTexts()) expect(t).toContain(category)
+  await products.first().click()
+  await expect(page).toHaveURL(/\/products\?edit=\d+/)
+})
