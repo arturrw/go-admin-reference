@@ -1,12 +1,14 @@
 import { ChevronRight, Flame } from 'lucide-react'
+import { Bars } from '@/components/charts/bars'
 import { Card, CardHeader } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { duration, int } from '@/lib/format'
 import { useLive, useRuntime } from '@/lib/queries'
-import { cn } from '@/lib/utils'
 
 const BARS = 44
+
+const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
 /**
  * Live storefront traffic. Bars are requests/s over the last two minutes from
@@ -18,7 +20,8 @@ export function LiveTraffic({ onOpen }: { onOpen: () => void }) {
   const rps = history.map((h) => h.requestsPerSec)
   const lo = Math.min(...rps) * 0.85
   const hi = Math.max(...rps)
-  const bars = history.slice(-BARS).map((h) => 12 + ((h.requestsPerSec - lo) / (hi - lo || 1)) * 88)
+  const shown = history.slice(-BARS)
+  const bars = shown.map((h) => 12 + ((h.requestsPerSec - lo) / (hi - lo || 1)) * 88)
   const hot = data?.hot
 
   return (
@@ -43,18 +46,22 @@ export function LiveTraffic({ onOpen }: { onOpen: () => void }) {
           <b className="num font-medium text-fg">{data?.onlineUsers ?? '—'}</b> shoppers online
         </span>
       </div>
-      <div className="mt-2.5 flex h-16 items-end gap-[3px]">
-        {(bars.length ? bars : Array.from({ length: BARS }, () => 12)).map((v, i) => (
-          <i
-            key={i}
-            className={cn(
-              'min-h-[3px] flex-1 rounded-t-[3px] rounded-b-[1px] transition-[height] duration-400 ease-[cubic-bezier(.2,.8,.2,1)]',
-              v > 94 ? 'bg-linear-to-b from-danger to-danger/20' : 'bg-linear-to-b from-accent to-accent/25',
-            )}
-            style={{ height: `${v}%` }}
-          />
-        ))}
-      </div>
+      <Bars
+        className="mt-2.5 h-16"
+        label="Requests per second, last two minutes"
+        heights={bars.length ? bars : Array.from({ length: BARS }, () => 12)}
+        tone={(i) => ((bars[i] ?? 0) > 94 ? 'bg-linear-to-b from-danger to-danger/20' : 'bg-linear-to-b from-accent to-accent/25')}
+        tip={(i) =>
+          shown[i] ? (
+            <>
+              <span className="text-dim">{clock(shown[i].at)}</span> · <b className="font-medium">{int(shown[i].requestsPerSec)}</b> req/s ·{' '}
+              <b className="font-medium">{shown[i].onlineUsers}</b> online
+            </>
+          ) : (
+            'waiting for data'
+          )
+        }
+      />
       {hot && (
         <div className="mt-2 flex items-center gap-2.5 rounded-[10px] border border-line bg-panel-2/50 px-2.5 py-2">
           <ProductThumb category={hot.category} hue={hot.hue} src={hot.imageUrl} size={30} />

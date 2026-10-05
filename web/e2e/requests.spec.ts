@@ -23,3 +23,17 @@ test('request log shows analytics and a detailed, redacted view of each call', a
   await sheet.getByRole('tab', { name: /Response/ }).click()
   await expect(sheet.getByText(/validation failed/)).toBeVisible()
 })
+
+test('traffic charts highlight the hovered bar and show its value', async ({ page }) => {
+  await loginAs(page, 'owner', '/requests')
+  const traffic = page.getByRole('img', { name: 'Requests per minute, last 30 minutes' })
+  await traffic.getByTestId('bar').last().hover()
+  await expect(traffic.getByRole('tooltip')).toContainText(/this minute · \d+ requests/)
+  await traffic.getByTestId('bar').nth(10).hover()
+  await expect(traffic.getByRole('tooltip')).toContainText('19 min ago')
+
+  await page.goto('/')
+  const live = page.getByRole('img', { name: 'Requests per second, last two minutes' })
+  await live.getByTestId('bar').nth(20).hover()
+  await expect(live.getByRole('tooltip')).toContainText(/req\/s · \d+ online/)
+})

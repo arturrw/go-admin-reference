@@ -1,5 +1,6 @@
 import { Download, Pause, Terminal } from 'lucide-react'
 import { useDeferredValue, useEffect, useRef, useState } from 'react'
+import { Bars } from '@/components/charts/bars'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
@@ -142,16 +143,19 @@ function Analytics({ stats, onRoute }: { stats: RequestStats; onRoute: (route: s
     <div className="mb-4 grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
       <Card>
         <CardHeader title="Traffic" sub="requests per minute, last 30 min" />
-        <div className="flex h-24 items-end gap-[3px]">
-          {stats.perMinute.map((n, i) => (
-            <i
-              key={i}
-              title={`${29 - i} min ago — ${n} requests`}
-              className="min-h-0.5 flex-1 rounded-t-[3px] bg-linear-to-b from-accent to-accent/25"
-              style={{ height: `${(n / maxMin) * 100}%` }}
-            />
-          ))}
-        </div>
+        <Bars
+          className="h-24"
+          label="Requests per minute, last 30 minutes"
+          heights={stats.perMinute.map((n) => (n / maxMin) * 100)}
+          tip={(i) => {
+            const ago = stats.perMinute.length - 1 - i
+            return (
+              <>
+                <span className="text-dim">{ago === 0 ? 'this minute' : `${ago} min ago`}</span> · <b className="font-medium">{int(stats.perMinute[i])}</b> requests
+              </>
+            )
+          }}
+        />
         <div className="num mt-1.5 flex justify-between text-[10.5px] text-dim">
           <span>−30m</span>
           <span>now</span>
