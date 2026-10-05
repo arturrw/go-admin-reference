@@ -13,6 +13,7 @@ import { downloadUrl } from '@/lib/download'
 import { capitalize, money, timeAgo } from '@/lib/format'
 import { useOrders } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { OrderListItem } from './order-list-item'
 import { OrderSheet } from './order-sheet'
 
 const STATUSES: (OrderStatus | 'all')[] = ['all', 'pending', 'paid', 'shipped', 'delivered', 'refunded', 'failed']
@@ -72,7 +73,12 @@ export function OrdersPage() {
         </Card>
       ) : (
         <>
-          <TableCard>
+          <Card className="overflow-hidden p-0 sm:hidden">
+            {data.items.map((o) => (
+              <OrderListItem key={o.id} o={o} onOpen={() => navigate({ search: { view: o.id } })} />
+            ))}
+          </Card>
+          <TableCard className="max-sm:hidden">
             <table className="data-table">
               <thead>
                 <tr>

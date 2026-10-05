@@ -68,9 +68,9 @@ export function TeamPage() {
               <tr>
                 <th>Member</th>
                 <th>Role</th>
-                <th>Status</th>
-                <th>2FA</th>
-                <th className="num">Last active</th>
+                <th className="max-sm:hidden">Status</th>
+                <th className="max-sm:hidden">2FA</th>
+                <th className="num max-sm:hidden">Last active</th>
                 <th />
               </tr>
             </thead>
@@ -97,15 +97,20 @@ export function TeamPage() {
                           {m.id === me.user.id && <span className="ml-1.5 text-xs font-normal text-dim">(you)</span>}
                         </b>
                         <small className="block text-xs text-dim">{m.email}</small>
+                        {m.status !== 'active' && (
+                          <span className="mt-1 block sm:hidden">
+                            <StatusPill status={m.status} />
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
                   <td>
                     <StatusPill status={m.role} />
                   </td>
-                  <td>{m.status === 'active' ? <span className="text-muted">Active</span> : <StatusPill status={m.status} />}</td>
-                  <td>{m.mfa ? <ShieldCheck className="size-4 text-accent" /> : <ShieldOff className="size-4 text-dim" />}</td>
-                  <td className="num text-muted">{isOnline(m) ? <span className="text-accent">online</span> : m.lastActiveAt ? timeAgo(m.lastActiveAt) : '—'}</td>
+                  <td className="max-sm:hidden">{m.status === 'active' ? <span className="text-muted">Active</span> : <StatusPill status={m.status} />}</td>
+                  <td className="max-sm:hidden">{m.mfa ? <ShieldCheck className="size-4 text-accent" /> : <ShieldOff className="size-4 text-dim" />}</td>
+                  <td className="num text-muted max-sm:hidden">{isOnline(m) ? <span className="text-accent">online</span> : m.lastActiveAt ? timeAgo(m.lastActiveAt) : '—'}</td>
                   <td className="num" onClick={(e) => e.stopPropagation()}>
                     {canManage(m) && m.id !== me.user.id && (
                       <>
@@ -149,7 +154,7 @@ function PermissionMatrix({ myRole, counts }: { myRole: Role; counts: Record<str
       <table className="data-table" data-testid="permission-matrix">
         <thead>
           <tr>
-            <th className="min-w-55">Permission</th>
+            <th className="sticky left-0 z-10 min-w-55 bg-panel max-sm:min-w-38">Permission</th>
             {data.roles.map((r) => (
               <th key={r} className={cn('text-center!', r === myRole && 'bg-accent/8! text-accent!')}>
                 <div className="flex flex-col items-center gap-0.5">
@@ -174,7 +179,7 @@ function PermissionMatrix({ myRole, counts }: { myRole: Role; counts: Record<str
                   </tr>
                 )}
                 <tr>
-                  <td>
+                  <td className="sticky left-0 z-10 bg-panel">
                     <b className="block font-medium">{p.label}</b>
                     <small className="block text-xs whitespace-normal text-dim">{p.description}</small>
                   </td>

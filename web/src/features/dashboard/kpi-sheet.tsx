@@ -7,10 +7,11 @@ import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Sheet } from '@/components/ui/sheet'
 import { Tabs } from '@/components/ui/tabs'
+import { OrderListItem } from '@/features/orders/order-list-item'
 import type { Dashboard, KPI } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { int, money, shortDate } from '@/lib/format'
-import { PeekButton } from '@/lib/peek'
+import { PeekButton, usePeek } from '@/lib/peek'
 import { useOrders } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { formatKpi, formatUnit, isAdditive, kpiStyle } from './kpi'
@@ -105,16 +106,16 @@ function Overview({ k, onDay }: { k: KPI; onDay: (i: number) => void }) {
         <Stat label="Weakest day" value={fmt(low.current)} sub={shortDate(low.date)} onClick={() => onDay(k.series.indexOf(low))} />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-line">
+      <div className="overflow-x-auto rounded-xl border border-line">
         <table className="data-table">
           <thead>
             <tr>
               <th>Day</th>
-              <th className="w-[40%]" />
+              <th className="w-[40%] max-sm:hidden" />
               <th className="num">{k.label}</th>
               <th className="num">Previous</th>
               <th className="num">Change</th>
-              <th className="w-8" />
+              <th className="w-8 max-sm:hidden" />
             </tr>
           </thead>
           <tbody>
@@ -132,7 +133,7 @@ function Overview({ k, onDay }: { k: KPI; onDay: (i: number) => void }) {
                   className="group cursor-pointer"
                 >
                   <td className="font-mono text-muted tabular-nums group-hover:text-fg">{rowDay(p.date)}</td>
-                  <td>
+                  <td className="max-sm:hidden">
                     <div className="h-1.5 overflow-hidden rounded bg-panel-3">
                       <i className="block h-full rounded" style={{ width: `${(p.current / maxDay) * 100}%`, background: tint }} />
                     </div>
@@ -143,7 +144,7 @@ function Overview({ k, onDay }: { k: KPI; onDay: (i: number) => void }) {
                     {ch >= 0 ? '+' : ''}
                     {ch.toFixed(1)}%
                   </td>
-                  <td className="num">
+                  <td className="num max-sm:hidden">
                     <ChevronRight className="inline size-3.5 text-dim opacity-0 transition-opacity group-hover:opacity-100" />
                   </td>
                 </tr>
@@ -232,6 +233,7 @@ function DayDetail({
 
 function DayOrders({ date }: { date: string }) {
   const canOrders = useCan('orders:read')
+  const peek = usePeek()
   const from = localDay(date)
   const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1)
   const { data, isPending } = useOrders({ from: from.toISOString(), to: to.toISOString(), limit: 100 }, canOrders)
@@ -258,13 +260,18 @@ function DayOrders({ date }: { date: string }) {
         <p className="rounded-xl border border-dashed border-line-2 py-8 text-center text-[13px] text-dim">No orders in the store for this day.</p>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line">
+          <div className="sm:hidden">
+            {orders.map((o) => (
+              <OrderListItem key={o.id} o={o} onOpen={() => peek('order', o.id)} />
+            ))}
+          </div>
           {orders.map((o) => (
             <PeekButton
               key={o.id}
               kind="order"
               id={o.id}
               label={`Open order #${o.id}`}
-              className="flex w-full items-center gap-3 border-b border-line px-3.5 py-2.5 text-left transition-colors last:border-0 hover:bg-panel-2"
+              className="flex w-full items-center gap-3 border-b border-line px-3.5 py-2.5 text-left transition-colors last:border-0 hover:bg-panel-2 max-sm:hidden"
             >
               <span className="num w-14 text-[12.5px] text-muted">#{o.id}</span>
               <Avatar name={o.customer.name} size={24} />

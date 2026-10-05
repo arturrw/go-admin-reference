@@ -13,6 +13,7 @@ import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
 import { ActivityItem } from '@/features/activity/activity-item'
+import { OrderListItem } from '@/features/orders/order-list-item'
 import { ApiError, type Dashboard, type KPI, type Target } from '@/lib/api'
 import { useCan, useMe } from '@/lib/auth'
 import { downloadCsv } from '@/lib/download'
@@ -171,7 +172,7 @@ function KpiCard({ kpi, onOpen }: { kpi: KPI; onOpen: () => void }) {
       <div className="num mt-1 text-2xl font-semibold tracking-[-0.03em]">{formatKpi(kpi)}</div>
       <div className="flex items-center justify-between gap-2">
         <Delta value={kpi.deltaPct} />
-        <Sparkline data={kpi.trend} color={kpi.deltaPct < 0 ? 'var(--color-danger)' : color} />
+        <Sparkline data={kpi.trend} color={kpi.deltaPct < 0 ? 'var(--color-danger)' : color} className="w-auto max-w-21 min-w-0 flex-1" />
       </div>
     </Card>
   )
@@ -281,7 +282,12 @@ function RecentOrdersCard({ data, className }: { data: Dashboard; className?: st
           All orders <ArrowRight className="size-3.5" />
         </Link>
       </CardHeader>
-      <div className="-mx-4.5 overflow-x-auto border-t border-line">
+      <div className="-mx-4.5 border-t border-line sm:hidden">
+        {data.recentOrders.map((o) => (
+          <OrderListItem key={o.id} o={o} onOpen={canOrders ? () => peek('order', o.id) : undefined} />
+        ))}
+      </div>
+      <div className="-mx-4.5 overflow-x-auto border-t border-line max-sm:hidden">
         <table className="data-table">
           <thead>
             <tr>

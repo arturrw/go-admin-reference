@@ -124,14 +124,14 @@ export function PageHeader({ title, description, children }: { title: ReactNode;
 /** Horizontal strip of headline numbers (Products, Request log). */
 export function StatStrip({ items }: { items: { label: ReactNode; value: ReactNode; icon?: LucideIcon; tone?: string }[] }) {
   return (
-    <div className="mb-4 grid grid-cols-1 overflow-hidden rounded-[14px] border border-line bg-panel sm:grid-cols-2 lg:grid-cols-5">
+    <div className="mb-4 grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-line bg-line lg:grid-cols-5">
       {items.map(({ label, value, icon: Icon, tone }, i) => (
-        <div key={i} className="border-line px-4.5 py-3.5 max-lg:border-b lg:border-r lg:last:border-r-0">
+        <div key={i} className="min-w-0 bg-panel px-4.5 py-3.5 max-sm:px-3.5 max-sm:py-3 max-lg:last:odd:col-span-2">
           <div className="flex items-center gap-1.5 text-xs text-muted">
             {Icon && <Icon className="size-3.5" style={tone ? { color: tone } : undefined} />}
             {label}
           </div>
-          <div className="num mt-1 text-[22px] font-semibold tracking-[-0.03em]" style={tone && !Icon ? { color: tone } : undefined}>
+          <div className="num mt-1 truncate text-[22px] font-semibold tracking-[-0.03em] max-sm:text-[19px]" style={tone && !Icon ? { color: tone } : undefined}>
             {value}
           </div>
         </div>

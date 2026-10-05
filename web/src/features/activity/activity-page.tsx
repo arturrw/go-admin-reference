@@ -63,7 +63,7 @@ export function ActivityPage() {
 
       <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
         <SearchInput placeholder="Search actions…" value={q} onChange={(e) => reset(setQ)(e.target.value)} />
-        <Select className="w-48" aria-label="Member" value={actor} onChange={(e) => reset(setActor)(Number(e.target.value))}>
+        <Select className="w-48 max-sm:w-[calc(50%-5px)]" aria-label="Member" value={actor} onChange={(e) => reset(setActor)(Number(e.target.value))}>
           <option value={0}>Everyone</option>
           {team?.items.map((m) => (
             <option key={m.id} value={m.id}>
@@ -71,7 +71,7 @@ export function ActivityPage() {
             </option>
           ))}
         </Select>
-        <Select className="w-44" aria-label="Type" value={kind} onChange={(e) => reset(setKind)(e.target.value as ActivityKind | '')}>
+        <Select className="w-44 max-sm:w-[calc(50%-5px)]" aria-label="Type" value={kind} onChange={(e) => reset(setKind)(e.target.value as ActivityKind | '')}>
           <option value="">All types</option>
           {(Object.keys(ACTIVITY_KIND) as ActivityKind[]).map((k) => (
             <option key={k} value={k}>

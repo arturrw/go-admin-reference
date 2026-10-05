@@ -21,6 +21,8 @@ export const METHOD_COLOR: Record<string, string> = {
   DELETE: 'text-danger',
 }
 export const STATUS_COLOR = ['', '', 'text-accent', 'text-info', 'text-warn', 'text-danger']
+// Top endpoints: route, calls, avg, p95, errors; phones keep route, calls and p95.
+const EP_COLS = 'grid grid-cols-[minmax(0,1fr)_56px_64px_64px_48px] gap-2 max-sm:grid-cols-[minmax(0,1fr)_44px_60px]'
 const COLS =
   'grid grid-cols-[96px_64px_minmax(0,1fr)_56px_110px_150px] gap-3 px-4.5 py-1.5 max-lg:grid-cols-[96px_64px_minmax(0,1fr)_56px_110px] max-md:grid-cols-[64px_52px_minmax(0,1fr)_40px] max-md:px-3.5'
 
@@ -173,27 +175,27 @@ function Analytics({ stats, onRoute }: { stats: RequestStats; onRoute: (route: s
       <Card className="pb-2">
         <CardHeader title="Top endpoints" sub="by volume" />
         <div className="num text-[12px]">
-          <div className="grid grid-cols-[minmax(0,1fr)_56px_64px_64px_48px] gap-2 pb-1.5 text-[10px] tracking-widest text-dim uppercase">
+          <div className={cn(EP_COLS, 'pb-1.5 text-[10px] tracking-widest text-dim uppercase')}>
             <span>Route</span>
             <span className="text-right">Calls</span>
-            <span className="text-right">Avg</span>
+            <span className="text-right max-sm:hidden">Avg</span>
             <span className="text-right">p95</span>
-            <span className="text-right">Err</span>
+            <span className="text-right max-sm:hidden">Err</span>
           </div>
           {stats.endpoints.map((e) => (
             <button
               key={e.route}
               onClick={() => onRoute(e.route)}
-              className="relative grid w-full grid-cols-[minmax(0,1fr)_56px_64px_64px_48px] items-center gap-2 rounded-md py-1 text-left hover:bg-white/3"
+              className={cn(EP_COLS, 'relative w-full items-center rounded-md py-1 text-left hover:bg-white/3')}
             >
               <i className="absolute inset-y-0.5 left-0 rounded-md bg-accent/7" style={{ width: `${(e.count / maxEp) * 100}%` }} />
               <span className="relative truncate pl-1.5">
                 <b className={cn('font-semibold', METHOD_COLOR[e.route.split(' ')[0]])}>{e.route.split(' ')[0]}</b> {e.route.split(' ')[1]}
               </span>
               <span className="relative text-right">{e.count}</span>
-              <span className="relative text-right text-muted">{fmtMs(e.avgMs)}</span>
+              <span className="relative text-right text-muted max-sm:hidden">{fmtMs(e.avgMs)}</span>
               <span className="relative text-right text-muted">{fmtMs(e.p95Ms)}</span>
-              <span className={cn('relative pr-1.5 text-right', e.errors ? 'text-warn' : 'text-dim')}>{e.errors}</span>
+              <span className={cn('relative pr-1.5 text-right max-sm:hidden', e.errors ? 'text-warn' : 'text-dim')}>{e.errors}</span>
             </button>
           ))}
         </div>
@@ -204,11 +206,14 @@ function Analytics({ stats, onRoute }: { stats: RequestStats; onRoute: (route: s
 
 function Row({ e, flash, onOpen }: { e: RequestSummary; flash: boolean; onOpen: () => void }) {
   const t = new Date(e.time)
-  const time = t.toTimeString().slice(0, 8) + '.' + String(t.getMilliseconds()).padStart(3, '0')
+  const ms = '.' + String(t.getMilliseconds()).padStart(3, '0')
   const slow = e.durationMs > 800 ? 'bg-danger' : e.durationMs > 200 ? 'bg-warn' : 'bg-muted/60'
   return (
     <button onClick={onOpen} className={cn(COLS, 'w-full items-center border-b border-line text-left hover:bg-white/3', flash && 'animate-flash')}>
-      <span className="text-dim">{time}</span>
+      <span className="text-dim">
+        {t.toTimeString().slice(0, 8)}
+        <span className="max-md:hidden">{ms}</span>
+      </span>
       <span className={cn('font-semibold', METHOD_COLOR[e.method])}>{e.method}</span>
       <span className="truncate" title={e.path}>
         {e.path}

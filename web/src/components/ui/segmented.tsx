@@ -20,7 +20,7 @@ export function Segmented<T extends string | number>({
   return (
     <div
       role="radiogroup"
-      className={cn('inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[10px] border border-line bg-panel p-[3px]', className)}
+      className={cn('scrollbar-none inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[10px] border border-line bg-panel p-[3px]', className)}
     >
       {options.map((o) => {
         const on = o.value === value

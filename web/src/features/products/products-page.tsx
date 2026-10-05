@@ -360,23 +360,23 @@ function BulkBar({ selected, onClear }: { selected: Set<number>; onClear: () => 
   return (
     <div
       className={cn(
-        'fixed bottom-6 left-1/2 z-35 flex -translate-x-1/2 items-center gap-2.5 rounded-[14px] border border-line-2 bg-panel-2 py-2 pr-2 pl-4 shadow-float transition-all duration-250',
+        'fixed bottom-6 left-1/2 z-35 flex max-w-[calc(100vw-20px)] -translate-x-1/2 items-center gap-2.5 rounded-[14px] max-sm:gap-1.5 max-sm:pl-3 border border-line-2 bg-panel-2 py-2 pr-2 pl-4 shadow-float transition-all duration-250',
         n ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-[120%] opacity-0',
       )}
     >
       <b className="num text-[13px] font-medium text-accent">{n}</b>
-      <span className="mr-2 text-[13px] text-muted">selected</span>
+      <span className="mr-2 text-[13px] text-muted max-sm:mr-0.5">selected</span>
       <Button size="sm" disabled={bulk.isPending} onClick={() => run('publish')}>
         <Eye />
-        Publish
+        <span className="max-sm:sr-only">Publish</span>
       </Button>
       <Button size="sm" disabled={bulk.isPending} onClick={() => run('archive')}>
         <Archive />
-        Archive
+        <span className="max-sm:sr-only">Archive</span>
       </Button>
       <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => run('delete')}>
         <Trash2 />
-        Delete
+        <span className="max-sm:sr-only">Delete</span>
       </Button>
       <Button variant="ghost" size="icon-sm" aria-label="Clear selection" onClick={onClear}>
         <X />

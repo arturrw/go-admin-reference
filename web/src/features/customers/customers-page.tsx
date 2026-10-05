@@ -94,13 +94,13 @@ export function CustomersPage() {
             <thead>
               <tr>
                 <th>Customer</th>
-                <th>Country</th>
-                <th>Segment</th>
-                <th className="num">Orders</th>
-                <th>Lifetime value</th>
-                <th>Customer since</th>
-                <th className="num">Last seen</th>
-                <th />
+                <th className="max-sm:hidden">Country</th>
+                <th className="max-sm:hidden">Segment</th>
+                <th className="num max-sm:hidden">Orders</th>
+                <th className="max-sm:text-right">Lifetime value</th>
+                <th className="max-md:hidden">Customer since</th>
+                <th className="num max-md:hidden">Last seen</th>
+                <th className="max-sm:hidden" />
               </tr>
             </thead>
             <tbody>
@@ -111,28 +111,31 @@ export function CustomersPage() {
                       <Avatar name={c.name} />
                       <div>
                         <b className="block font-medium">{c.name}</b>
-                        <small className="block text-xs text-dim">{c.email}</small>
+                        <small className="block max-w-44 truncate text-xs text-dim">{c.email}</small>
+                        <span className="mt-1 block sm:hidden">
+                          <StatusPill status={c.segment} />
+                        </span>
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td className="max-sm:hidden">
                     <span className="num rounded-[5px] border border-line-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-muted">{c.country}</span>
                   </td>
-                  <td>
+                  <td className="max-sm:hidden">
                     <StatusPill status={c.segment} />
                   </td>
-                  <td className="num">{int(c.orders)}</td>
+                  <td className="num max-sm:hidden">{int(c.orders)}</td>
                   <td>
-                    <div className="flex items-center gap-2.5">
-                      <span className="num min-w-16">{money(c.ltvCents)}</span>
-                      <div className="h-1 w-22 overflow-hidden rounded bg-panel-3">
+                    <div className="flex items-center gap-2.5 max-sm:justify-end">
+                      <span className="num min-w-16 max-sm:text-right">{money(c.ltvCents)}</span>
+                      <div className="h-1 w-22 overflow-hidden rounded bg-panel-3 max-sm:hidden">
                         <i className="block h-full rounded bg-accent" style={{ width: `${(c.ltvCents / maxLtv) * 100}%` }} />
                       </div>
                     </div>
                   </td>
-                  <td className="text-muted">{monthYear(c.createdAt)}</td>
-                  <td className="num text-muted">{timeAgo(c.lastSeenAt)}</td>
-                  <td className="num">
+                  <td className="text-muted max-md:hidden">{monthYear(c.createdAt)}</td>
+                  <td className="num text-muted max-md:hidden">{timeAgo(c.lastSeenAt)}</td>
+                  <td className="num max-sm:hidden">
                     <ChevronRight className="inline size-4 text-dim" />
                   </td>
                 </tr>
