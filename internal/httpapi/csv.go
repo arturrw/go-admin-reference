@@ -131,14 +131,19 @@ func (s *server) exportOrders(w http.ResponseWriter, r *http.Request) {
 			units += it.Qty
 			lines = append(lines, fmt.Sprintf("%d× %s (%s)", it.Qty, it.Name, it.SKU))
 		}
+		var refundReason, refundedBy, refundedAt string
+		if o.Refund != nil {
+			refundReason, refundedBy, refundedAt = o.Refund.Reason, o.Refund.By, stamp(o.Refund.At)
+		}
 		rows = append(rows, []string{
 			strconv.FormatInt(o.ID, 10), stamp(o.PlacedAt), string(o.Status), strconv.FormatInt(o.Customer.ID, 10),
 			o.Customer.Name, o.Customer.Email, o.Customer.Country, o.Payment, strconv.Itoa(units), strings.Join(lines, "; "),
-			dollars(o.TotalCents),
+			dollars(o.TotalCents), refundReason, refundedBy, refundedAt,
 		})
 	}
 	writeCSV(w, "orders", []string{
 		"id", "placed_at", "status", "customer_id", "customer_name", "customer_email", "country", "payment", "units", "items", "total",
+		"refund_reason", "refunded_by", "refunded_at",
 	}, rows)
 }
 

@@ -44,13 +44,38 @@ type CustomerRef struct {
 }
 
 type Order struct {
-	ID         int64       `json:"id"`
-	Customer   CustomerRef `json:"customer"`
-	Items      []OrderItem `json:"items"`
-	TotalCents int64       `json:"totalCents"`
-	Status     OrderStatus `json:"status"`
-	Payment    string      `json:"payment"`
-	PlacedAt   time.Time   `json:"placedAt"`
+	ID         int64        `json:"id"`
+	Customer   CustomerRef  `json:"customer"`
+	Items      []OrderItem  `json:"items"`
+	TotalCents int64        `json:"totalCents"`
+	Status     OrderStatus  `json:"status"`
+	Payment    string       `json:"payment"`
+	PlacedAt   time.Time    `json:"placedAt"`
+	Refund     *OrderRefund `json:"refund"` // set while the order is refunded
+}
+
+// OrderRefund records why and by whom an order was refunded.
+type OrderRefund struct {
+	Reason string    `json:"reason"`
+	By     string    `json:"by"`
+	At     time.Time `json:"at"`
+}
+
+// RefundReasons are offered as presets in the UI; any text is accepted.
+var RefundReasons = []string{
+	"Damaged in transit", "Wrong item sent", "Item not as described", "Arrived too late",
+	"Customer changed their mind", "Duplicate order",
+}
+
+func ValidateRefundReason(reason string) (string, error) {
+	reason = strings.TrimSpace(reason)
+	switch {
+	case reason == "":
+		return "", NewValidationError("reason", "a refund needs a reason")
+	case len(reason) > 500:
+		return "", NewValidationError("reason", "must be at most 500 characters")
+	}
+	return reason, nil
 }
 
 type OrderFilter struct {

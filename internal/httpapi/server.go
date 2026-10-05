@@ -30,7 +30,8 @@ type Store interface {
 	ListOrders(ctx context.Context, f d.OrderFilter) ([]d.Order, int, error)
 	OrderCounts(ctx context.Context) (map[d.OrderStatus]int, error)
 	GetOrder(ctx context.Context, id int64) (d.Order, error)
-	UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus) (d.Order, error)
+	// UpdateOrderStatus sets the status; refund is recorded with a refund and nil otherwise.
+	UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund) (d.Order, error)
 
 	ListCustomers(ctx context.Context, f d.CustomerFilter) ([]d.Customer, error)
 	CustomerSegments(ctx context.Context) (map[string]d.SegmentSummary, error)

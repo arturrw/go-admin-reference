@@ -1,11 +1,14 @@
 import { ChevronRight, FileText, Truck, Undo2 } from 'lucide-react'
+import { type FormEvent, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/input'
 import { Avatar, Skeleton } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Sheet } from '@/components/ui/sheet'
-import type { OrderStatus } from '@/lib/api'
+import { ApiError, type Order, type OrderStatus, REFUND_REASONS } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { money, timeAgo } from '@/lib/format'
 import { PeekButton } from '@/lib/peek'
@@ -22,6 +25,7 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
   const canWrite = useCan('orders:write')
   const canCustomers = useCan('customers:read')
   const canProducts = useCan('products:read')
+  const [refunding, setRefunding] = useState(false)
 
   if (isError) return null
 
@@ -52,7 +56,7 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
             </Button>
             {canWrite && (
               <>
-                <Button variant="danger" className="order-first mr-auto" disabled={update.isPending || o.status === 'refunded'} onClick={() => update.mutate({ id: o.id, status: 'refunded' })}>
+                <Button variant="danger" className="order-first mr-auto" disabled={update.isPending || o.status === 'refunded' || o.status === 'failed'} onClick={() => setRefunding(true)}>
                   <Undo2 />
                   Refund
                 </Button>
@@ -77,6 +81,8 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
           <div>
             <StatusPill status={o.status} />
           </div>
+          {o.refund && <RefundNote refund={o.refund} />}
+          <RefundDialog key={String(refunding)} order={o} open={refunding} onOpenChange={setRefunding} />
           {canCustomers ? (
             <PeekButton
               kind="customer"
@@ -160,5 +166,79 @@ function CustomerRow({ o }: { o: { customer: { name: string; email: string; coun
       </div>
       <StatusPill status={o.customer.segment} />
     </>
+  )
+}
+
+/** Why the order was refunded; stays in the order and the customer's history. */
+export function RefundNote({ refund, compact }: { refund: NonNullable<Order['refund']>; compact?: boolean }) {
+  return (
+    <div className={cn('flex gap-2.5 rounded-xl border border-violet/25 bg-violet/6 text-[13px]', compact ? 'px-2.5 py-1.5' : 'px-3.5 py-3')}>
+      <Undo2 className={cn('shrink-0 text-violet', compact ? 'mt-0.5 size-3.5' : 'mt-0.5 size-4')} />
+      <div className="min-w-0">
+        <b className="font-medium">{refund.reason}</b>
+        <small className="block text-xs text-dim">
+          Refunded by {refund.by} · {new Date(refund.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </small>
+      </div>
+    </div>
+  )
+}
+
+function RefundDialog({ order, open, onOpenChange }: { order: Order; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const update = useUpdateOrderStatus()
+  const [preset, setPreset] = useState<string>(REFUND_REASONS[0])
+  const [details, setDetails] = useState('')
+  const reason = preset === 'Other' ? details.trim() : details.trim() ? `${preset}: ${details.trim()}` : preset
+  const error = update.error instanceof ApiError ? update.error.fields?.reason : undefined
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    update.mutate({ id: order.id, status: 'refunded', reason }, { onSuccess: () => onOpenChange(false) })
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Refund order #${order.id}`}
+      description={`Refunds ${money(order.totalCents, 2)} to ${order.customer.name}. The reason is kept in the order and the customer's purchase history.`}
+      footer={
+        <>
+          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="danger" type="submit" form="refund-form" disabled={update.isPending || !reason}>
+            <Undo2 />
+            {update.isPending ? 'Refunding…' : `Refund ${money(order.totalCents, 2)}`}
+          </Button>
+        </>
+      }
+    >
+      <form id="refund-form" onSubmit={submit} className="flex flex-col gap-3">
+        <div role="radiogroup" aria-label="Reason" className="flex flex-wrap gap-1.5">
+          {[...REFUND_REASONS, 'Other'].map((r) => (
+            <button
+              key={r}
+              type="button"
+              role="radio"
+              aria-checked={preset === r}
+              onClick={() => setPreset(r)}
+              className={cn(
+                'rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors',
+                preset === r ? 'border-accent/50 bg-accent/10 text-fg' : 'border-line-2 text-muted hover:text-fg',
+              )}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        <Textarea
+          rows={3}
+          aria-label="Refund details"
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          placeholder={preset === 'Other' ? 'Describe the reason (required)' : 'Add details (optional)'}
+        />
+        {error && <span className="text-xs text-danger">{error}</span>}
+      </form>
+    </Dialog>
   )
 }

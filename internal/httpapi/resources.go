@@ -6,6 +6,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"time"
 
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 	"github.com/arturrw/go-admin-reference/internal/media"
@@ -293,6 +294,7 @@ func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Status d.OrderStatus `json:"status"`
+		Reason string        `json:"reason"` // required when refunding
 	}
 	if !decodeJSON(w, r, &in) {
 		return
@@ -301,12 +303,35 @@ func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, d.NewValidationError("status", "is not a valid order status"))
 		return
 	}
-	o, err := s.store.UpdateOrderStatus(r.Context(), id, in.Status)
+	cur, err := s.store.GetOrder(r.Context(), id)
 	if err != nil {
 		s.writeDomainError(w, r, err)
 		return
 	}
-	s.audit(r.Context(), d.ActOrder, "order", o.ID, "marked order #%d as %s", o.ID, o.Status)
+	me, _ := CurrentMember(r.Context())
+	var refund *d.OrderRefund
+	if in.Status == d.OrderRefunded {
+		reason, err := d.ValidateRefundReason(in.Reason)
+		if err != nil {
+			s.writeDomainError(w, r, err)
+			return
+		}
+		if !cur.Status.Billable() {
+			writeError(w, http.StatusConflict, "only paid orders can be refunded")
+			return
+		}
+		refund = &d.OrderRefund{Reason: reason, By: me.Name, At: time.Now()}
+	}
+	o, err := s.store.UpdateOrderStatus(r.Context(), id, in.Status, refund)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	if refund != nil {
+		s.audit(r.Context(), d.ActRefund, "order", o.ID, "refunded order #%d (%s) — %s", o.ID, d.USD(o.TotalCents), refund.Reason)
+	} else {
+		s.audit(r.Context(), d.ActOrder, "order", o.ID, "marked order #%d as %s", o.ID, o.Status)
+	}
 	writeJSON(w, http.StatusOK, o)
 }
 

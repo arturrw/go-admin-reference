@@ -92,12 +92,17 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 	rows = nil
 	var items [][]any
 	for _, o := range ds.Orders {
-		rows = append(rows, []any{o.ID, o.Customer.ID, string(o.Status), o.Payment, o.TotalCents, o.PlacedAt})
+		var reason, by string
+		var at *time.Time
+		if o.Refund != nil {
+			reason, by, at = o.Refund.Reason, o.Refund.By, &o.Refund.At
+		}
+		rows = append(rows, []any{o.ID, o.Customer.ID, string(o.Status), o.Payment, o.TotalCents, o.PlacedAt, reason, by, at})
 		for i, it := range o.Items {
 			items = append(items, []any{o.ID, int32(i), it.ProductID, it.Name, it.SKU, string(it.Category), int32(it.Hue), it.ImageURL, int32(it.Qty), it.PriceCents})
 		}
 	}
-	if err := copyRows("orders", []string{"id", "customer_id", "status", "payment", "total_cents", "placed_at"}, rows); err != nil {
+	if err := copyRows("orders", []string{"id", "customer_id", "status", "payment", "total_cents", "placed_at", "refund_reason", "refunded_by", "refunded_at"}, rows); err != nil {
 		return err
 	}
 	if err := copyRows("order_items", []string{"order_id", "line", "product_id", "name", "sku", "category", "hue", "image_url", "qty", "price_cents"}, items); err != nil {

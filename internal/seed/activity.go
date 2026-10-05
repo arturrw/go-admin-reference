@@ -57,18 +57,16 @@ func seedActivity(s *Dataset, now time.Time) []d.Activity {
 
 	// Fulfilment and refunds follow the orders themselves.
 	shippers := []string{"Mark Liu", "Omar Haddad", "Yuki Tanaka"}
-	refunders := []string{"Priya Shah", "Diego Vega"}
-	shipped, refunded := 0, 0
+	shipped := 0
 	for _, o := range s.Orders {
 		switch {
 		case o.Status == d.OrderShipped && shipped < 8:
 			add(o.PlacedAt.Add(5*time.Hour+time.Duration(o.ID%50)*time.Minute), d.ActOrder, shippers[shipped%len(shippers)],
 				fmt.Sprintf("marked order #%d as shipped", o.ID), "order", o.ID)
 			shipped++
-		case o.Status == d.OrderRefunded && refunded < 4:
-			add(o.PlacedAt.Add(2*24*time.Hour), d.ActRefund, refunders[refunded%len(refunders)],
-				fmt.Sprintf("refunded order #%d (%s)", o.ID, d.USD(o.TotalCents)), "order", o.ID)
-			refunded++
+		case o.Refund != nil:
+			add(o.Refund.At, d.ActRefund, o.Refund.By,
+				fmt.Sprintf("refunded order #%d (%s) — %s", o.ID, d.USD(o.TotalCents), o.Refund.Reason), "order", o.ID)
 		}
 	}
 

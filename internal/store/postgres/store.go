@@ -263,10 +263,14 @@ func (s *Store) attachItems(ctx context.Context, orders []d.Order) ([]d.Order, e
 }
 
 func listRowToOrder(r db.ListOrdersRow) d.Order {
-	return d.Order{
+	o := d.Order{
 		ID: r.ID, Status: d.OrderStatus(r.Status), Payment: r.Payment, TotalCents: r.TotalCents, PlacedAt: r.PlacedAt,
 		Customer: d.CustomerRef{ID: r.CustomerID, Name: r.CustomerName, Email: r.CustomerEmail, Country: r.CustomerCountry, Segment: r.CustomerSegment},
 	}
+	if r.RefundedAt != nil {
+		o.Refund = &d.OrderRefund{Reason: r.RefundReason, By: r.RefundedBy, At: *r.RefundedAt}
+	}
+	return o
 }
 
 func (s *Store) ListOrders(ctx context.Context, f d.OrderFilter) ([]d.Order, int, error) {
@@ -319,8 +323,12 @@ func (s *Store) GetOrder(ctx context.Context, id int64) (d.Order, error) {
 	return orders[0], nil
 }
 
-func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus) (d.Order, error) {
-	n, err := s.q.UpdateOrderStatus(ctx, db.UpdateOrderStatusParams{ID: id, Status: string(status)})
+func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund) (d.Order, error) {
+	p := db.UpdateOrderStatusParams{ID: id, Status: string(status)}
+	if refund != nil {
+		p.RefundReason, p.RefundedBy, p.RefundedAt = refund.Reason, refund.By, &refund.At
+	}
+	n, err := s.q.UpdateOrderStatus(ctx, p)
 	if err != nil {
 		return d.Order{}, mapErr(err)
 	}

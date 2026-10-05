@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -58,6 +59,50 @@ func TestOrderItemsFollowProductCover(t *testing.T) {
 	_, list = c.do("GET", "/api/v1/orders?limit=1", nil)
 	if got := cover(list["items"].([]any)[0].(map[string]any)); got != up["url"] {
 		t.Fatalf("order list image = %q, want new cover %q", got, up["url"])
+	}
+}
+
+// A refund needs a reason, which stays on the order and in the customer's history.
+func TestRefundKeepsReason(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	_, list := c.do("GET", "/api/v1/orders?status=delivered&limit=1", nil)
+	o := list["items"].([]any)[0].(map[string]any)
+	path := fmt.Sprintf("/api/v1/orders/%v/status", o["id"])
+
+	if code, res := c.do("PATCH", path, map[string]any{"status": "refunded"}); code != http.StatusUnprocessableEntity || res["fields"].(map[string]any)["reason"] == nil {
+		t.Fatalf("refund without reason: %d %v", code, res)
+	}
+	code, got := c.do("PATCH", path, map[string]any{"status": "refunded", "reason": "  Damaged in transit "})
+	if code != http.StatusOK {
+		t.Fatalf("refund: %d %v", code, got)
+	}
+	refund, _ := got["refund"].(map[string]any)
+	if got["status"] != "refunded" || refund["reason"] != "Damaged in transit" || refund["by"] != "Priya Shah" {
+		t.Fatalf("refunded order = %v", got)
+	}
+	if code, _ := c.do("PATCH", path, map[string]any{"status": "refunded", "reason": "again"}); code != http.StatusConflict {
+		t.Fatalf("second refund: got %d, want 409", code)
+	}
+
+	cust := o["customer"].(map[string]any)["id"]
+	_, det := c.do("GET", fmt.Sprintf("/api/v1/customers/%v", cust), nil)
+	found := false
+	for _, x := range det["orders"].([]any) {
+		if x := x.(map[string]any); x["id"] == o["id"] {
+			found = x["refund"].(map[string]any)["reason"] == "Damaged in transit"
+		}
+	}
+	if !found {
+		t.Fatal("customer history does not show the refund reason")
+	}
+
+	_, act := c.do("GET", "/api/v1/dashboard", nil)
+	first := act["activity"].([]any)[0].(map[string]any)
+	if first["kind"] != "refund" || !strings.HasSuffix(first["message"].(string), "— Damaged in transit") {
+		t.Fatalf("activity = %v", first)
 	}
 }
 

@@ -188,12 +188,12 @@ export function useBulkProducts() {
 export function useUpdateOrderStatus() {
   const invalidate = useInvalidate('orders', 'order', 'customer', 'customers', 'dashboard', 'meta')
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: OrderStatus }) => api.updateOrderStatus(id, status),
+    mutationFn: ({ id, status, reason }: { id: number; status: OrderStatus; reason?: string }) => api.updateOrderStatus(id, status, reason),
     onSuccess: (o) => {
-      toast.success(`Order #${o.id} marked as ${o.status}`)
+      toast.success(o.refund ? `Order #${o.id} refunded` : `Order #${o.id} marked as ${o.status}`, o.refund ? { description: o.refund.reason } : undefined)
       return invalidate()
     },
-    onError,
+    onError: onFormError,
   })
 }
 

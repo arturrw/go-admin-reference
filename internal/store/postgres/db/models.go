@@ -78,12 +78,15 @@ type Member struct {
 }
 
 type Order struct {
-	ID         int64
-	CustomerID int64
-	Status     string
-	Payment    string
-	TotalCents int64
-	PlacedAt   time.Time
+	ID           int64
+	CustomerID   int64
+	Status       string
+	Payment      string
+	TotalCents   int64
+	PlacedAt     time.Time
+	RefundReason string
+	RefundedBy   string
+	RefundedAt   *time.Time
 }
 
 type OrderItem struct {

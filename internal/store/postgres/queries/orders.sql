@@ -1,5 +1,5 @@
 -- name: ListOrders :many
-SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at,
+SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at, o.refund_reason, o.refunded_by, o.refunded_at,
        c.id AS customer_id, c.name AS customer_name, c.email AS customer_email,
        c.country AS customer_country, c.segment AS customer_segment
 FROM orders o
@@ -27,7 +27,7 @@ WHERE (sqlc.arg(status)::text = '' OR o.status = sqlc.arg(status)::text)
        OR ('#' || o.id::text) ILIKE '%' || sqlc.arg(q)::text || '%');
 
 -- name: GetOrder :one
-SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at,
+SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at, o.refund_reason, o.refunded_by, o.refunded_at,
        c.id AS customer_id, c.name AS customer_name, c.email AS customer_email,
        c.country AS customer_country, c.segment AS customer_segment
 FROM orders o
@@ -51,4 +51,7 @@ ORDER BY oi.order_id, oi.line;
 SELECT status, count(*)::int AS n FROM orders GROUP BY status;
 
 -- name: UpdateOrderStatus :execrows
-UPDATE orders SET status = $2 WHERE id = $1;
+-- The refund columns are set with a refund and cleared by any other status.
+UPDATE orders
+SET status = $2, refund_reason = $3, refunded_by = $4, refunded_at = sqlc.narg(refunded_at)
+WHERE id = $1;

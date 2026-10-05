@@ -87,7 +87,19 @@ export interface Order {
   status: OrderStatus
   payment: string
   placedAt: string
+  /** Set while the order is refunded: why, by whom and when. */
+  refund: { reason: string; by: string; at: string } | null
 }
+
+/** Presets offered in the refund dialog (mirrors domain.RefundReasons). */
+export const REFUND_REASONS = [
+  'Damaged in transit',
+  'Wrong item sent',
+  'Item not as described',
+  'Arrived too late',
+  'Customer changed their mind',
+  'Duplicate order',
+]
 
 export interface CustomerNote {
   id: number
@@ -397,7 +409,7 @@ export const api = {
   orders: (f: { q?: string; status?: string; limit?: number; offset?: number; customer?: number; from?: string; to?: string }) =>
     request<{ items: Order[]; counts: Partial<Record<OrderStatus, number>>; total: number }>(`/orders${qs(f)}`),
   order: (id: number) => request<Order>(`/orders/${id}`),
-  updateOrderStatus: (id: number, status: OrderStatus) => request<Order>(`/orders/${id}/status`, json('PATCH', { status })),
+  updateOrderStatus: (id: number, status: OrderStatus, reason?: string) => request<Order>(`/orders/${id}/status`, json('PATCH', { status, reason })),
 
   customers: (f: { q?: string; segment?: string }) =>
     request<{ items: Customer[]; segments: Partial<Record<Segment, { count: number; ltvCents: number }>> }>(`/customers${qs(f)}`),

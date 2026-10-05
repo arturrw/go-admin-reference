@@ -1,4 +1,4 @@
-import { BellOff, BellRing, ChevronRight, Copy, Mail, MapPin, MessageSquarePlus, Phone, X } from 'lucide-react'
+import { BellOff, BellRing, ChevronRight, Copy, Mail, MapPin, MessageSquarePlus, Phone, Undo2, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { Donut, SERIES_COLORS } from '@/components/charts/donut'
@@ -286,6 +286,14 @@ function OrdersTab({ data, filter, onClear }: { data: CustomerDetail; filter: Fi
             <small className="block truncate text-xs text-dim">
               {o.items.map((i) => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(', ')}
             </small>
+            {o.refund && (
+              <small className="mt-0.5 flex items-center gap-1 text-xs text-violet" data-testid="refund-reason">
+                <Undo2 className="size-3 shrink-0" />
+                <span className="truncate">
+                  {o.refund.reason} · {o.refund.by}, {shortDate(o.refund.at)}
+                </span>
+              </small>
+            )}
           </div>
           <div className="text-right">
             <b className="num block font-medium">{money(o.totalCents, 2)}</b>

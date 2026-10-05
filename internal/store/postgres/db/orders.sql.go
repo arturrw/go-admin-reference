@@ -47,7 +47,7 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int32
 }
 
 const getOrder = `-- name: GetOrder :one
-SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at,
+SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at, o.refund_reason, o.refunded_by, o.refunded_at,
        c.id AS customer_id, c.name AS customer_name, c.email AS customer_email,
        c.country AS customer_country, c.segment AS customer_segment
 FROM orders o
@@ -61,6 +61,9 @@ type GetOrderRow struct {
 	Payment         string
 	TotalCents      int64
 	PlacedAt        time.Time
+	RefundReason    string
+	RefundedBy      string
+	RefundedAt      *time.Time
 	CustomerID      int64
 	CustomerName    string
 	CustomerEmail   string
@@ -77,6 +80,9 @@ func (q *Queries) GetOrder(ctx context.Context, id int64) (GetOrderRow, error) {
 		&i.Payment,
 		&i.TotalCents,
 		&i.PlacedAt,
+		&i.RefundReason,
+		&i.RefundedBy,
+		&i.RefundedAt,
 		&i.CustomerID,
 		&i.CustomerName,
 		&i.CustomerEmail,
@@ -145,7 +151,7 @@ func (q *Queries) ListOrderItems(ctx context.Context, orderIds []int64) ([]ListO
 }
 
 const listOrders = `-- name: ListOrders :many
-SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at,
+SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at, o.refund_reason, o.refunded_by, o.refunded_at,
        c.id AS customer_id, c.name AS customer_name, c.email AS customer_email,
        c.country AS customer_country, c.segment AS customer_segment
 FROM orders o
@@ -177,6 +183,9 @@ type ListOrdersRow struct {
 	Payment         string
 	TotalCents      int64
 	PlacedAt        time.Time
+	RefundReason    string
+	RefundedBy      string
+	RefundedAt      *time.Time
 	CustomerID      int64
 	CustomerName    string
 	CustomerEmail   string
@@ -207,6 +216,9 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListO
 			&i.Payment,
 			&i.TotalCents,
 			&i.PlacedAt,
+			&i.RefundReason,
+			&i.RefundedBy,
+			&i.RefundedAt,
 			&i.CustomerID,
 			&i.CustomerName,
 			&i.CustomerEmail,
@@ -253,16 +265,28 @@ func (q *Queries) OrderCounts(ctx context.Context) ([]OrderCountsRow, error) {
 }
 
 const updateOrderStatus = `-- name: UpdateOrderStatus :execrows
-UPDATE orders SET status = $2 WHERE id = $1
+UPDATE orders
+SET status = $2, refund_reason = $3, refunded_by = $4, refunded_at = $5
+WHERE id = $1
 `
 
 type UpdateOrderStatusParams struct {
-	ID     int64
-	Status string
+	ID           int64
+	Status       string
+	RefundReason string
+	RefundedBy   string
+	RefundedAt   *time.Time
 }
 
+// The refund columns are set with a refund and cleared by any other status.
 func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateOrderStatus, arg.ID, arg.Status)
+	result, err := q.db.Exec(ctx, updateOrderStatus,
+		arg.ID,
+		arg.Status,
+		arg.RefundReason,
+		arg.RefundedBy,
+		arg.RefundedAt,
+	)
 	if err != nil {
 		return 0, err
 	}

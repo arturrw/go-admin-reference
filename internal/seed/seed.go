@@ -285,6 +285,18 @@ func Generate(now time.Time) *Dataset {
 		s.Orders[i].Customer = s.Customers[s.Orders[i].Customer.ID-1].Ref()
 	}
 	slices.SortFunc(s.Orders, func(a, b d.Order) int { return cmp.Compare(b.ID, a.ID) })
+	refunders := []string{"Priya Shah", "Diego Vega"}
+	refunds := 0
+	for i := range s.Orders {
+		if o := &s.Orders[i]; o.Status == d.OrderRefunded {
+			at := o.PlacedAt.Add(time.Duration(between(r, 20, 96)) * time.Hour)
+			if at.After(now) {
+				at = now.Add(-time.Hour)
+			}
+			o.Refund = &d.OrderRefund{Reason: d.RefundReasons[refunds%len(d.RefundReasons)], By: refunders[refunds%len(refunders)], At: at}
+			refunds++
+		}
+	}
 
 	// ── Team ──
 	hash, err := auth.HashPassword(DemoPassword)
