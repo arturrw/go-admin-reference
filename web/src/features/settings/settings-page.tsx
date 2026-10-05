@@ -107,7 +107,7 @@ export function SettingsPage() {
                     setAccent(c)
                     setAccentState(c)
                   }}
-                  className={cn('grid size-8.5 place-items-center rounded-[10px] border-2 text-accent-ink', accent === c ? 'border-fg' : 'border-transparent')}
+                  className={cn('grid size-8.5 place-items-center rounded-[10px] text-accent-ink ring-offset-2 ring-offset-panel', accent === c && 'ring-2 ring-fg/80')}
                   style={{ background: c }}
                 >
                   {accent === c && <Check className="size-4" />}

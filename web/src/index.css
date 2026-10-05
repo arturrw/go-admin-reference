@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Design tokens — dark graphite with a single lime accent.
+/* Design tokens — dark graphite with a single white accent.
    --color-accent can be changed at runtime (Settings → Appearance). */
 @theme {
   --color-bg: #09090b;
@@ -13,7 +13,7 @@
   --color-fg: #edeff2;
   --color-muted: #8b929c;
   --color-dim: #5a616b;
-  --color-accent: #c6f432;
+  --color-accent: #f5f5f4;
   --color-accent-ink: #0a0b0d;
   --color-danger: #ff6b6b;
   --color-warn: #ffb547;

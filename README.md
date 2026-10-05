@@ -16,7 +16,7 @@ customers, a team and a request log. All of it is seeded fake data.
 | UI       | Hand-rolled shadcn-style primitives, Radix Dialog, cmdk, sonner, lucide icons, Geist fonts |
 | Shipping | `web/dist` is embedded with `go:embed`, so the result is one binary |
 
-The design is dark graphite with a lime accent. The original clickable mockup
+The design is dark graphite with a white accent (lime and four other accents are one click away in Settings → Appearance). The original clickable mockup
 is in [`design/admin-prototype.html`](design/admin-prototype.html).
 
 ## Run it

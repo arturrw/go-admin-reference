@@ -1,4 +1,5 @@
-export const ACCENTS = ['#C6F432', '#4FE3F0', '#FF8A3D', '#FF5FA2', '#A78BFA', '#F5F5F4'] as const
+// White is the default; the rest are offered in Settings → Appearance.
+export const ACCENTS = ['#F5F5F4', '#C6F432', '#4FE3F0', '#FF8A3D', '#FF5FA2', '#A78BFA'] as const
 
 const KEY = 'goadmin.accent'
 const DEFAULT = ACCENTS[0]
