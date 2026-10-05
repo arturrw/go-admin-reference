@@ -50,7 +50,8 @@ export function Sheet({
               </Button>
             </Dialog.Close>
           </div>
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4.5">{children}</div>
+          {/* Children never shrink: blocks with overflow set would otherwise be squashed and clipped. */}
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4.5 *:shrink-0">{children}</div>
           {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4.5 py-3.5">{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>

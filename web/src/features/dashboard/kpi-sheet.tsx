@@ -82,7 +82,7 @@ export function KpiSheet({ kpis, initial, rangeDays, onClose }: { kpis: KPI[]; i
               const ch = p.previous ? (p.current / p.previous - 1) * 100 : 0
               return (
                 <tr key={p.date}>
-                  <td className="num text-muted">{new Date(p.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                  <td className="font-mono text-muted tabular-nums">{new Date(p.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
                   <td>
                     <div className="h-1.5 overflow-hidden rounded bg-panel-3">
                       <i className="block h-full rounded" style={{ width: `${(p.current / maxDay) * 100}%`, background: tint }} />
