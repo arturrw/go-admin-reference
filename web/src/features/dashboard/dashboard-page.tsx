@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Download, type LucideIcon, PackagePlus, Rocket, TriangleAlert, Undo2, UserCheck } from 'lucide-react'
 import { useState } from 'react'
 import { AreaChart } from '@/components/charts/area-chart'
@@ -15,6 +15,7 @@ import type { Dashboard, KPI } from '@/lib/api'
 import { useCan, useMe } from '@/lib/auth'
 import { downloadCsv } from '@/lib/download'
 import { compact, int, money, timeAgo } from '@/lib/format'
+import { PeekButton, usePeek } from '@/lib/peek'
 import { useDashboard } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { formatKpi, kpiStyle } from './kpi'
@@ -240,12 +241,13 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
       </CardHeader>
       <div className="flex flex-col">
         {data.topProducts.map((p, i) => (
-          <Link
+          <PeekButton
             key={p.id}
-            to="/products"
-            search={{ edit: p.id }}
+            kind="product"
+            id={p.id}
             disabled={!canOpen}
-            className="-mx-2 flex items-center gap-3 rounded-lg border-b border-dashed border-line px-2 py-2.5 transition-colors last:border-0 hover:bg-panel-2"
+            label={`Open ${p.name}`}
+            className="-mx-2 flex items-center gap-3 rounded-lg border-b border-dashed border-line px-2 py-2.5 text-left transition-colors last:border-0 enabled:hover:bg-panel-2"
           >
             <span className="num w-4 text-[11px] text-dim">0{i + 1}</span>
             <ProductThumb category={p.category} hue={p.hue} src={p.imageUrl} size={34} />
@@ -259,7 +261,7 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
               <b className="num block text-[13px] font-medium">{money(p.revenueCents)}</b>
               <small className="text-[11.5px] text-dim">{int(p.sold)} sold</small>
             </div>
-          </Link>
+          </PeekButton>
         ))}
       </div>
     </Card>
@@ -267,7 +269,7 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
 }
 
 function RecentOrdersCard({ data, className }: { data: Dashboard; className?: string }) {
-  const navigate = useNavigate()
+  const peek = usePeek()
   const canOrders = useCan('orders:read')
   const canCustomers = useCan('customers:read')
   return (
@@ -293,28 +295,24 @@ function RecentOrdersCard({ data, className }: { data: Dashboard; className?: st
               <tr
                 key={o.id}
                 className={cn(canOrders && 'cursor-pointer')}
-                onClick={canOrders ? () => navigate({ to: '/orders', search: { view: o.id } }) : undefined}
+                onClick={canOrders ? () => peek('order', o.id) : undefined}
               >
                 <td className="num">
-                  {canOrders ? (
-                    <Link to="/orders" search={{ view: o.id }} className="hover:text-accent" onClick={(e) => e.stopPropagation()}>
-                      #{o.id}
-                    </Link>
-                  ) : (
-                    `#${o.id}`
-                  )}
+                  <PeekButton kind="order" id={o.id} disabled={!canOrders} className="hover:text-accent">
+                    #{o.id}
+                  </PeekButton>
                 </td>
                 <td>
                   {canCustomers ? (
-                    <Link
-                      to="/customers"
-                      search={{ view: o.customer.id }}
-                      onClick={(e) => e.stopPropagation()}
+                    <PeekButton
+                      kind="customer"
+                      id={o.customer.id}
+                      label={`Open customer ${o.customer.name}`}
                       className="group/c -my-1 -ml-1.5 inline-flex items-center gap-2.5 rounded-lg py-1 pr-2 pl-1.5 hover:bg-panel-3"
                     >
                       <Avatar name={o.customer.name} size={26} />
                       <b className="font-medium group-hover/c:text-accent">{o.customer.name}</b>
-                    </Link>
+                    </PeekButton>
                   ) : (
                     <div className="flex items-center gap-2.5">
                       <Avatar name={o.customer.name} size={26} />

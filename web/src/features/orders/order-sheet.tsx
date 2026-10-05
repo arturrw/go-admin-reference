@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { ChevronRight, FileText, Truck, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -9,6 +8,7 @@ import { Sheet } from '@/components/ui/sheet'
 import type { OrderStatus } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { money, timeAgo } from '@/lib/format'
+import { PeekButton } from '@/lib/peek'
 import { useOrder, useUpdateOrderStatus } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,7 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
   const update = useUpdateOrderStatus()
   const canWrite = useCan('orders:write')
   const canCustomers = useCan('customers:read')
+  const canProducts = useCan('products:read')
 
   if (isError) return null
 
@@ -77,15 +78,15 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
             <StatusPill status={o.status} />
           </div>
           {canCustomers ? (
-            <Link
-              to="/customers"
-              search={{ view: o.customer.id }}
-              className="card flex items-center gap-2.5 p-3.5 transition-colors hover:border-accent/35"
-              aria-label={`Open customer ${o.customer.name}`}
+            <PeekButton
+              kind="customer"
+              id={o.customer.id}
+              className="card flex items-center gap-2.5 p-3.5 text-left transition-colors hover:border-accent/35"
+              label={`Open customer ${o.customer.name}`}
             >
               <CustomerRow o={o} />
               <ChevronRight className="size-4 text-dim" />
-            </Link>
+            </PeekButton>
           ) : (
             <div className="card flex items-center gap-2.5 p-3.5">
               <CustomerRow o={o} />
@@ -95,7 +96,14 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
           <div>
             <div className="eyebrow mb-1.5">Items</div>
             {o.items.map((it, i) => (
-              <div key={i} className="flex items-center gap-2.5 border-b border-dashed border-line py-2 last:border-0">
+              <PeekButton
+                key={i}
+                kind="product"
+                id={it.productId}
+                disabled={!canProducts || !it.productId}
+                label={`Open ${it.name}`}
+                className="-mx-2 flex w-[calc(100%+16px)] items-center gap-2.5 rounded-lg border-b border-dashed border-line px-2 py-2 text-left last:border-0 enabled:hover:bg-panel-2"
+              >
                 <ProductThumb category={it.category} hue={it.hue} src={it.imageUrl} size={40} />
                 <div className="min-w-0 flex-1">
                   <b className="block truncate font-medium">{it.name}</b>
@@ -104,7 +112,7 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
                   </div>
                 </div>
                 <b className="num font-medium">{money(it.priceCents * it.qty, 2)}</b>
-              </div>
+              </PeekButton>
             ))}
           </div>
 

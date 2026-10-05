@@ -58,25 +58,33 @@ test('live card opens live details with the hottest product', async ({ page }) =
   await expect(page).toHaveURL(/\/products\?edit=\d+/)
 })
 
-test('top products and recent orders open their detail sheets', async ({ page }) => {
+test('top products and recent orders open their sheets on the dashboard itself', async ({ page }) => {
   await loginAs(page, 'owner', '/')
+  const dialog = page.getByRole('dialog')
   const top = page.locator('.card', { has: page.getByRole('heading', { name: 'Top products' }) })
-  const first = top.getByRole('link').nth(1) // 0 is "View all"
+  const first = top.getByRole('button', { name: /^Open / }).first()
   const name = (await first.locator('b').first().innerText()).trim()
   await first.click()
-  await expect(page).toHaveURL(/\/products\?edit=\d+/)
-  await expect(page.getByRole('dialog').getByRole('heading', { name })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
 
-  await page.goto('/')
   const orders = page.locator('.card', { has: page.getByRole('heading', { name: 'Recent orders' }) })
-  const customerLink = orders.locator('tbody tr').first().locator('td').nth(1).getByRole('link')
+  const customerLink = orders.locator('tbody tr').first().getByRole('button', { name: /^Open customer / })
   const customer = (await customerLink.innerText()).trim().split('\n').pop()!
   await customerLink.click()
-  await expect(page).toHaveURL(/\/customers\?view=\d+/)
-  await expect(page.getByRole('dialog').getByRole('heading', { name: customer })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: customer })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
+  await page.keyboard.press('Escape')
 
-  await page.goto('/')
   await orders.locator('tbody tr').first().locator('td').nth(2).click()
-  await expect(page).toHaveURL(/\/orders\?view=\d+/)
-  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(dialog.getByText('Fulfillment')).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
+
+  // Sheets opened from a sheet stack: closing the customer goes back to the order.
+  await dialog.getByRole('button', { name: /^Open customer / }).click()
+  await expect(dialog.getByRole('heading', { name: customer })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect(dialog.getByText('Fulfillment')).toBeVisible()
 })

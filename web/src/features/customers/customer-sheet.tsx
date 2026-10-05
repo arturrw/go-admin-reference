@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { BellOff, BellRing, ChevronRight, Copy, Mail, MapPin, MessageSquarePlus, Phone, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
@@ -13,6 +12,7 @@ import { Tabs } from '@/components/ui/tabs'
 import type { Category, CustomerDetail, OrderStatus } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { compact, int, money, monthYear, shortDate, timeAgo } from '@/lib/format'
+import { PeekButton } from '@/lib/peek'
 import { useAddCustomerNote, useCustomer } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -250,6 +250,7 @@ function Overview({ data, onDrill }: { data: CustomerDetail; onDrill: (t: Tab, f
 }
 
 function OrdersTab({ data, filter, onClear }: { data: CustomerDetail; filter: Filter; onClear: () => void }) {
+  const canOrders = useCan('orders:read')
   if (!data.orders.length) return <p className="py-8 text-center text-muted">No orders yet.</p>
   const orders = data.orders.filter(
     (o) =>
@@ -262,11 +263,13 @@ function OrdersTab({ data, filter, onClear }: { data: CustomerDetail; filter: Fi
     <div className="flex flex-col gap-2">
       {label && <FilterChip label={label} count={orders.length} noun="orders" onClear={onClear} />}
       {orders.map((o) => (
-        <Link
+        <PeekButton
           key={o.id}
-          to="/orders"
-          search={{ view: o.id }}
-          className="card flex items-center gap-3 px-3.5 py-3 transition-colors hover:border-accent/35"
+          kind="order"
+          id={o.id}
+          disabled={!canOrders}
+          label={`Open order #${o.id}`}
+          className="card flex items-center gap-3 px-3.5 py-3 text-left transition-colors enabled:hover:border-accent/35"
         >
           <div className="flex items-center">
             {o.items.slice(0, 3).map((it, k) => (
@@ -288,7 +291,7 @@ function OrdersTab({ data, filter, onClear }: { data: CustomerDetail; filter: Fi
             <b className="num block font-medium">{money(o.totalCents, 2)}</b>
             <small className="text-xs text-dim">{shortDate(o.placedAt)}</small>
           </div>
-        </Link>
+        </PeekButton>
       ))}
     </div>
   )
@@ -302,12 +305,13 @@ function ProductsTab({ data, category, onClear }: { data: CustomerDetail; catego
     <div className="grid gap-2.5 sm:grid-cols-2">
       {category && <FilterChip label={category} count={products.length} noun="products" onClear={onClear} className="sm:col-span-2" />}
       {products.map((p) => (
-        <Link
+        <PeekButton
           key={p.productId}
-          to="/products"
-          search={{ edit: p.productId }}
+          kind="product"
+          id={p.productId}
           disabled={!canOpen}
-          className="card flex items-center gap-3 p-3 transition-colors hover:border-accent/35"
+          label={`Open ${p.name}`}
+          className="card flex items-center gap-3 p-3 text-left transition-colors enabled:hover:border-accent/35"
         >
           <ProductThumb category={p.category} hue={p.hue} src={p.imageUrl} size={48} />
           <div className="min-w-0 flex-1">
@@ -317,7 +321,7 @@ function ProductsTab({ data, category, onClear }: { data: CustomerDetail; catego
             </small>
           </div>
           <b className="num text-[13px] font-medium">{money(p.spentCents)}</b>
-        </Link>
+        </PeekButton>
       ))}
     </div>
   )
@@ -369,10 +373,11 @@ function Panel({ title, hint, children }: { title: string; hint?: string; childr
 }
 
 function OrderLink({ id, children }: { id: number; children: ReactNode }) {
+  const canOrders = useCan('orders:read')
   return (
-    <Link to="/orders" search={{ view: id }} className="underline-offset-2 hover:text-accent hover:underline" title={`Open order #${id}`}>
+    <PeekButton kind="order" id={id} disabled={!canOrders} label={`Open order #${id}`} className="underline-offset-2 hover:text-accent hover:underline">
       {children}
-    </Link>
+    </PeekButton>
   )
 }
 

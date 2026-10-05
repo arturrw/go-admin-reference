@@ -14,13 +14,13 @@ test('clicking a customer opens their full profile and purchase history', async 
   await expect(page).toHaveURL(/view=\d+/)
 
   await sheet.getByRole('tab', { name: /Orders/ }).click()
-  const orders = sheet.locator('a[href*="/orders?view="]')
+  const orders = sheet.getByRole('button', { name: /^Open order #\d+$/ })
   expect(await orders.count()).toBeGreaterThan(0)
 
-  // Order history links through to the order sheet.
+  // Order history opens the order on top of the customer, without leaving the page.
   await orders.first().click()
-  await expect(page).toHaveURL(/\/orders\?view=\d+/)
   await expect(page.getByRole('dialog').getByText('Fulfillment')).toBeVisible()
+  await expect(page).toHaveURL(/\/customers\?view=\d+/)
 })
 
 test('support can add an internal note', async ({ page }) => {
@@ -46,12 +46,13 @@ test('overview widgets drill into filtered orders and products', async ({ page }
   await bar.click()
   await expect(sheet.getByRole('tab', { name: /Orders/ })).toHaveAttribute('aria-selected', 'true')
   await expect(sheet.getByText(month)).toBeVisible()
-  await expect(sheet.locator('a[href*="/orders?view="]')).toHaveCount(Number(count))
+  const orders = sheet.getByRole('button', { name: /^Open order #\d+$/ })
+  await expect(orders).toHaveCount(Number(count))
   // The tab strip keeps its height next to a long list.
   expect((await tabs.boundingBox())!.height).toBeGreaterThan(25)
 
   await sheet.getByRole('button', { name: 'Clear filter' }).click()
-  expect(await sheet.locator('a[href*="/orders?view="]').count()).toBeGreaterThan(Number(count) - 1)
+  expect(await orders.count()).toBeGreaterThan(Number(count) - 1)
 
   // A favourite category opens the products bought in it.
   await sheet.getByRole('tab', { name: /Overview/ }).click()
@@ -59,9 +60,11 @@ test('overview widgets drill into filtered orders and products', async ({ page }
   const category = (await cat.locator('span').first().innerText()).trim()
   await cat.click()
   await expect(sheet.getByRole('tab', { name: /Products/ })).toHaveAttribute('aria-selected', 'true')
-  const products = sheet.locator('a[href*="/products?edit="]')
+  const products = sheet.getByRole('button', { name: /^Open (?!order )/ })
   expect(await products.count()).toBeGreaterThan(0)
   for (const t of await products.allInnerTexts()) expect(t).toContain(category)
+  const product = (await products.first().locator('b').first().innerText()).trim()
   await products.first().click()
-  await expect(page).toHaveURL(/\/products\?edit=\d+/)
+  await expect(page.getByRole('dialog').getByRole('heading', { name: product })).toBeVisible()
+  await expect(page).toHaveURL(/\/customers\?view=10$/)
 })
