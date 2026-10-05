@@ -50,9 +50,10 @@ sqlc:
 test:
 	go test ./...
 
-# Handler tests + memory/Postgres parity test against a real database.
+# Handler tests + memory/Postgres parity test against a real database. -p 1: both
+# packages reset the same test database, so they must not run concurrently.
 test-pg: db-up
-	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -count=1 ./...
+	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -count=1 -p 1 ./...
 
 e2e:
 	cd web && npm run e2e
