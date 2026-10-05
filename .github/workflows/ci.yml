@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go (format, vet, tests on Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: goadmin
+          POSTGRES_PASSWORD: goadmin
+          POSTGRES_DB: goadmin_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U goadmin -d goadmin_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgres://goadmin:goadmin@localhost:5432/goadmin_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "Run gofmt on:"; echo "$unformatted"; exit 1; fi
+      - run: go vet ./...
+      - name: Tests on the in-memory store
+        run: go test -count=1 ./...
+      - name: Tests on Postgres (one package at a time, they share the database)
+        run: go test -count=1 -p 1 ./...
+
+  sqlc:
+    name: Generated SQL code is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: sqlc generate
+        run: docker run --rm -v "$PWD:/src" -w /src sqlc/sqlc:1.29.0 generate
+      - name: Fail if generation changed anything
+        run: git diff --exit-code -- internal/store/postgres/db || (echo "Run 'make sqlc' and commit the result"; exit 1)
+
+  web:
+    name: Web (typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build
+
+  e2e:
+    name: E2E on ${{ matrix.store }}
+    runs-on: ubuntu-latest
+    needs: [go, web]
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [memory, postgres]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: goadmin
+          POSTGRES_PASSWORD: goadmin
+          POSTGRES_DB: goadmin_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U goadmin -d goadmin_e2e"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      CI: "true" # Playwright uses its own Chromium and the GitHub reporter
+      # Empty = the in-memory store (see web/playwright.config.ts).
+      E2E_DATABASE_URL: ${{ matrix.store == 'postgres' && 'postgres://goadmin:goadmin@localhost:5432/goadmin_e2e?sslmode=disable' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies and Chromium
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Build the UI
+        working-directory: web
+        run: npm run build
+      - name: Playwright
+        working-directory: web
+        run: npx playwright test
+      - name: Keep traces and screenshots of failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ matrix.store }}
+          path: web/test-results
+          retention-days: 7
+
+  docker:
+    name: Docker image starts and is healthy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the stack
+        run: docker compose up -d --build --wait --wait-timeout 180
+      - name: Health check
+        run: |
+          curl -fsS http://localhost:8080/healthz
+          echo
+          curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+      - name: Logs
+        if: failure()
+        run: docker compose logs
+      - name: Stop
+        if: always()
+        run: docker compose down -v
