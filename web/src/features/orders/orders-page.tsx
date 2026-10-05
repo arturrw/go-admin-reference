@@ -18,6 +18,8 @@ import { OrderSheet } from './order-sheet'
 const STATUSES: (OrderStatus | 'all')[] = ['all', 'pending', 'paid', 'shipped', 'delivered', 'refunded', 'failed']
 const PAGE = 25
 
+const units = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`
+
 export function OrdersPage() {
   const { view } = useSearch({ from: '/app/orders' })
   const navigate = useNavigate({ from: '/orders' })
@@ -104,7 +106,7 @@ export function OrdersPage() {
                             <ProductThumb category={it.category} hue={it.hue} src={it.imageUrl} size={28} />
                           </div>
                         ))}
-                        <span className="ml-2 text-[12.5px] text-muted">{o.items.reduce((s, i) => s + i.qty, 0)} items</span>
+                        <span className="ml-2 text-[12.5px] text-muted">{units(o.items.reduce((s, i) => s + i.qty, 0))}</span>
                       </div>
                     </td>
                     <td className="text-muted">{o.payment}</td>

@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countOrders = `-- name: CountOrders :one
@@ -75,18 +77,41 @@ func (q *Queries) GetOrder(ctx context.Context, id int64) (GetOrderRow, error) {
 }
 
 const listOrderItems = `-- name: ListOrderItems :many
-SELECT order_id, line, product_id, name, sku, category, hue, image_url, qty, price_cents FROM order_items WHERE order_id = ANY($1::bigint[]) ORDER BY order_id, line
+SELECT oi.order_id, oi.line, oi.product_id, oi.name, oi.sku, oi.category, oi.hue, oi.qty, oi.price_cents,
+       (CASE WHEN p.id IS NULL THEN oi.image_url
+             ELSE coalesce((SELECT pi.url FROM product_images pi
+                            WHERE pi.product_id = p.id ORDER BY pi.position LIMIT 1), '')
+        END)::text AS image_url
+FROM order_items oi
+LEFT JOIN products p ON p.id = oi.product_id
+WHERE oi.order_id = ANY($1::bigint[])
+ORDER BY oi.order_id, oi.line
 `
 
-func (q *Queries) ListOrderItems(ctx context.Context, orderIds []int64) ([]OrderItem, error) {
+type ListOrderItemsRow struct {
+	OrderID    int64
+	Line       int32
+	ProductID  pgtype.Int8
+	Name       string
+	Sku        string
+	Category   string
+	Hue        int32
+	Qty        int32
+	PriceCents int64
+	ImageUrl   string
+}
+
+// image_url is the product's current cover, so orders follow gallery edits;
+// the snapshot taken at purchase is only used once the product is deleted.
+func (q *Queries) ListOrderItems(ctx context.Context, orderIds []int64) ([]ListOrderItemsRow, error) {
 	rows, err := q.db.Query(ctx, listOrderItems, orderIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []OrderItem{}
+	items := []ListOrderItemsRow{}
 	for rows.Next() {
-		var i OrderItem
+		var i ListOrderItemsRow
 		if err := rows.Scan(
 			&i.OrderID,
 			&i.Line,
@@ -95,9 +120,9 @@ func (q *Queries) ListOrderItems(ctx context.Context, orderIds []int64) ([]Order
 			&i.Sku,
 			&i.Category,
 			&i.Hue,
-			&i.ImageUrl,
 			&i.Qty,
 			&i.PriceCents,
+			&i.ImageUrl,
 		); err != nil {
 			return nil, err
 		}

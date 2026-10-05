@@ -279,6 +279,23 @@ func categoryHue(c d.Category) int { return seed.CategoryHue(c) }
 
 // ── Orders ──────────────────────────────────────────────────────────────────
 
+// withCovers copies orders and points each item's image at the product's
+// current cover, so orders follow gallery edits. Items of deleted products
+// keep the snapshot taken at purchase.
+func (s *Store) withCovers(orders ...d.Order) []d.Order {
+	out := make([]d.Order, len(orders))
+	for i, o := range orders {
+		o.Items = slices.Clone(o.Items)
+		for j, it := range o.Items {
+			if pi := s.productIndex(it.ProductID); pi >= 0 {
+				o.Items[j].ImageURL = s.products[pi].ImageURL()
+			}
+		}
+		out[i] = o
+	}
+	return out
+}
+
 func (s *Store) ListOrders(_ context.Context, f d.OrderFilter) ([]d.Order, int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -296,7 +313,7 @@ func (s *Store) ListOrders(_ context.Context, f d.OrderFilter) ([]d.Order, int, 
 	if f.Limit > 0 {
 		hi = min(lo+f.Limit, total)
 	}
-	return slices.Clone(matched[lo:hi]), total, nil
+	return s.withCovers(matched[lo:hi]...), total, nil
 }
 
 func (s *Store) OrderCounts(_ context.Context) (map[d.OrderStatus]int, error) {
@@ -314,7 +331,7 @@ func (s *Store) GetOrder(_ context.Context, id int64) (d.Order, error) {
 	defer s.mu.RUnlock()
 	for _, o := range s.orders {
 		if o.ID == id {
-			return o, nil
+			return s.withCovers(o)[0], nil
 		}
 	}
 	return d.Order{}, d.ErrNotFound
@@ -329,7 +346,7 @@ func (s *Store) UpdateOrderStatus(_ context.Context, id int64, status d.OrderSta
 			if ci := s.customerIndex(s.orders[i].Customer.ID); ci >= 0 {
 				s.recomputeCustomer(ci, s.now())
 			}
-			return s.orders[i], nil
+			return s.withCovers(s.orders[i])[0], nil
 		}
 	}
 	return d.Order{}, d.ErrNotFound
@@ -378,7 +395,7 @@ func (s *Store) GetCustomer(_ context.Context, id int64) (d.CustomerDetail, erro
 			orders = append(orders, o)
 		}
 	}
-	return d.BuildCustomerDetail(c, orders, s.now()), nil
+	return d.BuildCustomerDetail(c, s.withCovers(orders...), s.now()), nil
 }
 
 func (s *Store) AddCustomerNote(_ context.Context, customerID int64, author, text string) (d.CustomerNote, error) {
@@ -516,6 +533,6 @@ func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	for _, p := range top[:min(5, len(top))] {
 		dash.TopProducts = append(dash.TopProducts, d.TopProduct{ID: p.ID, Name: p.Name, Category: p.Category, Hue: p.Hue, ImageURL: p.ImageURL(), Sold: p.Sold30d, RevenueCents: p.Revenue30dCents()})
 	}
-	dash.RecentOrders = slices.Clone(s.orders[:min(6, len(s.orders))])
+	dash.RecentOrders = s.withCovers(s.orders[:min(6, len(s.orders))]...)
 	return dash, nil
 }

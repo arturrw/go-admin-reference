@@ -31,7 +31,17 @@ JOIN customers_v c ON c.id = o.customer_id
 WHERE o.id = $1;
 
 -- name: ListOrderItems :many
-SELECT * FROM order_items WHERE order_id = ANY(sqlc.arg(order_ids)::bigint[]) ORDER BY order_id, line;
+-- image_url is the product's current cover, so orders follow gallery edits;
+-- the snapshot taken at purchase is only used once the product is deleted.
+SELECT oi.order_id, oi.line, oi.product_id, oi.name, oi.sku, oi.category, oi.hue, oi.qty, oi.price_cents,
+       (CASE WHEN p.id IS NULL THEN oi.image_url
+             ELSE coalesce((SELECT pi.url FROM product_images pi
+                            WHERE pi.product_id = p.id ORDER BY pi.position LIMIT 1), '')
+        END)::text AS image_url
+FROM order_items oi
+LEFT JOIN products p ON p.id = oi.product_id
+WHERE oi.order_id = ANY(sqlc.arg(order_ids)::bigint[])
+ORDER BY oi.order_id, oi.line;
 
 -- name: OrderCounts :many
 SELECT status, count(*)::int AS n FROM orders GROUP BY status;
