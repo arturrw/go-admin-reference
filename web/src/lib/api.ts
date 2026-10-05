@@ -162,6 +162,7 @@ export interface KPI {
   unit: 'count' | 'percent' | 'cents'
   deltaPct: number
   trend: number[]
+  series: { date: string; current: number; previous: number }[]
 }
 
 export interface Dashboard {
@@ -192,6 +193,54 @@ export interface RuntimeStats {
   revision: string
   requestsPerSec: number
   onlineUsers: number
+}
+
+export interface LiveStats {
+  at: string
+  requestsPerSec: number
+  onlineUsers: number
+  activeCarts: number
+  checkoutsPerMin: number
+  conversionPct: number
+  avgSessionSec: number
+  bounceRatePct: number
+  history: { at: string; requestsPerSec: number; onlineUsers: number; hotViewers: number }[]
+  devices: { name: string; pct: number }[]
+  sources: { name: string; pct: number }[]
+  topPages: { path: string; viewers: number }[]
+  hot: {
+    id: number
+    name: string
+    category: Category
+    hue: number
+    imageUrl: string
+    sku: string
+    priceCents: number
+    stock: number
+    sold30d: number
+    rating: number
+    viewers: number
+    inCarts: number
+    soldToday: number
+    revenueTodayCents: number
+    conversionPct: number
+    shareOfTrafficPct: number
+  } | null
+}
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+export interface ImportRowError {
+  row: number
+  sku?: string
+  field: string
+  message: string
+}
+
+export interface ImportResult {
+  created: number
+  updated: number
+  errors: ImportRowError[]
 }
 
 export interface Meta {
@@ -244,11 +293,14 @@ export interface RequestStats {
 export class ApiError extends Error {
   readonly status: number
   readonly fields?: Record<string, string>
+  /** The decoded error response, for endpoints that return more than a message. */
+  readonly body?: Record<string, unknown>
 
-  constructor(status: number, message: string, fields?: Record<string, string>) {
+  constructor(status: number, message: string, fields?: Record<string, string>, body?: Record<string, unknown>) {
     super(message)
     this.status = status
     this.fields = fields
+    this.body = body
   }
 }
 
@@ -261,7 +313,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (res.status === 204) return undefined as T
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new ApiError(res.status, body.error ?? res.statusText, body.fields)
+  if (!res.ok) throw new ApiError(res.status, body.error ?? res.statusText, body.fields, body)
   return body as T
 }
 
@@ -274,6 +326,10 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) })
 
+/** URL of a CSV export endpoint with the same filters as its list. */
+export const exportUrl = (resource: 'products' | 'orders' | 'customers', f: Record<string, string | number | undefined> = {}) =>
+  `/api/v1/${resource}/export${qs(f)}`
+
 export const api = {
   login: (email: string, password: string) => request<Me>('/auth/login', json('POST', { email, password })),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
@@ -283,6 +339,9 @@ export const api = {
 
   meta: () => request<Meta>('/meta'),
   runtime: () => request<RuntimeStats>('/runtime'),
+  live: () => request<LiveStats>('/live'),
+  logLevel: () => request<{ level: LogLevel }>('/settings/log-level'),
+  setLogLevel: (level: LogLevel) => request<{ level: LogLevel }>('/settings/log-level', json('PUT', { level })),
   dashboard: (range: number) => request<Dashboard>(`/dashboard${qs({ range })}`),
 
   products: (f: { q?: string; category?: string; status?: string; sort?: string }) =>
@@ -293,6 +352,11 @@ export const api = {
   deleteProduct: (id: number) => request<void>(`/products/${id}`, { method: 'DELETE' }),
   bulkProducts: (ids: number[], action: 'publish' | 'archive' | 'delete') =>
     request<{ affected: number }>('/products/bulk', json('POST', { ids, action })),
+  importProducts: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request<ImportResult>('/products/import', { method: 'POST', body: fd })
+  },
   uploadImage: (id: number, file: File) => {
     const fd = new FormData()
     fd.append('file', file)

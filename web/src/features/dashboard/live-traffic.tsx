@@ -1,30 +1,41 @@
-import { useEffect, useState } from 'react'
+import { ChevronRight, Flame } from 'lucide-react'
 import { Card, CardHeader } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
+import { ProductThumb } from '@/components/ui/product-thumb'
 import { duration, int } from '@/lib/format'
-import { useRuntime } from '@/lib/queries'
+import { useLive, useRuntime } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
 const BARS = 44
 
-/** Animated traffic stream. Bar heights are local noise; the counters come from /api/v1/runtime. */
-export function LiveTraffic() {
-  const { data } = useRuntime()
-  const [bars, setBars] = useState(() => Array.from({ length: BARS }, () => 30 + Math.random() * 60))
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setBars((b) => [...b.slice(1), Math.min(100, Math.max(12, b[b.length - 1] + (Math.random() - 0.5) * 34))])
-    }, 1100)
-    return () => clearInterval(t)
-  }, [])
+/**
+ * Live storefront traffic. Bars are requests/s over the last two minutes from
+ * /api/v1/live; clicking opens the detailed view.
+ */
+export function LiveTraffic({ onOpen }: { onOpen: () => void }) {
+  const { data } = useLive()
+  const history = data?.history ?? []
+  const rps = history.map((h) => h.requestsPerSec)
+  const lo = Math.min(...rps) * 0.85
+  const hi = Math.max(...rps)
+  const bars = history.slice(-BARS).map((h) => 12 + ((h.requestsPerSec - lo) / (hi - lo || 1)) * 88)
+  const hot = data?.hot
 
   return (
-    <Card className="col-span-full flex flex-col gap-1.5 p-4">
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-label="Open live traffic details"
+      onClick={onOpen}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen())}
+      className="col-span-full flex cursor-pointer flex-col gap-1.5 p-4 transition-colors hover:border-line-2"
+    >
       <div className="flex items-center gap-2 text-[12.5px] text-muted">
         <span className="live-dot" />
         Live now
-        <span className="num ml-auto text-[11.5px] text-dim">req/s</span>
+        <span className="num ml-auto flex items-center gap-1 text-[11.5px] text-dim">
+          req/s <ChevronRight className="size-3.5" />
+        </span>
       </div>
       <div className="flex items-baseline gap-2.5">
         <div className="num mt-1 text-2xl font-semibold tracking-[-0.03em]">{data ? int(data.requestsPerSec) : '—'}</div>
@@ -32,20 +43,33 @@ export function LiveTraffic() {
           <b className="num font-medium text-fg">{data?.onlineUsers ?? '—'}</b> shoppers online
         </span>
       </div>
-      <div className="mt-3.5 flex h-18 items-end gap-[3px]">
-        {bars.map((v, i) => (
+      <div className="mt-2.5 flex h-16 items-end gap-[3px]">
+        {(bars.length ? bars : Array.from({ length: BARS }, () => 12)).map((v, i) => (
           <i
             key={i}
             className={cn(
               'min-h-[3px] flex-1 rounded-t-[3px] rounded-b-[1px] transition-[height] duration-400 ease-[cubic-bezier(.2,.8,.2,1)]',
-              v > 94
-                ? 'bg-linear-to-b from-danger to-danger/20'
-                : 'bg-linear-to-b from-accent to-accent/25',
+              v > 94 ? 'bg-linear-to-b from-danger to-danger/20' : 'bg-linear-to-b from-accent to-accent/25',
             )}
             style={{ height: `${v}%` }}
           />
         ))}
       </div>
+      {hot && (
+        <div className="mt-2 flex items-center gap-2.5 rounded-[10px] border border-line bg-panel-2/50 px-2.5 py-2">
+          <ProductThumb category={hot.category} hue={hot.hue} src={hot.imageUrl} size={30} />
+          <div className="min-w-0 flex-1">
+            <small className="flex items-center gap-1 text-[11px] text-dim">
+              <Flame className="size-3 text-warn" /> Hottest product
+            </small>
+            <b className="block truncate text-[12.5px] font-medium">{hot.name}</b>
+          </div>
+          <div className="text-right text-[11.5px] text-dim">
+            <b className="num block text-[13px] font-medium text-fg">{hot.viewers}</b>
+            viewing
+          </div>
+        </div>
+      )}
     </Card>
   )
 }

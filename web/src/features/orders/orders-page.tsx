@@ -8,7 +8,8 @@ import { Avatar, EmptyState, PageHeader, Skeleton } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
-import type { OrderStatus } from '@/lib/api'
+import { exportUrl, type OrderStatus } from '@/lib/api'
+import { downloadUrl } from '@/lib/download'
 import { capitalize, money, timeAgo } from '@/lib/format'
 import { useOrders } from '@/lib/queries'
 import { cn } from '@/lib/utils'
@@ -23,7 +24,8 @@ export function OrdersPage() {
   const [status, setStatus] = useState<OrderStatus | 'all'>('all')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
-  const { data, isPending } = useOrders({ status, q: useDeferredValue(q), limit: PAGE, offset: page * PAGE })
+  const dq = useDeferredValue(q)
+  const { data, isPending } = useOrders({ status, q: dq, limit: PAGE, offset: page * PAGE })
   const counts = data?.counts ?? {}
   const all = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0)
   const total = data?.total ?? 0
@@ -37,9 +39,9 @@ export function OrdersPage() {
   return (
     <>
       <PageHeader title="Orders" description={`${all} orders · newest first`}>
-        <Button>
+        <Button onClick={() => downloadUrl(exportUrl('orders', { status, q: dq }))}>
           <Download />
-          Export
+          Export CSV
         </Button>
       </PageHeader>
 

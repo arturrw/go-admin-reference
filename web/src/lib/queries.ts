@@ -7,6 +7,8 @@ import { api, ApiError, type MemberInput, type OrderStatus, type Product, type P
 export const keys = {
   meta: ['meta'] as const,
   runtime: ['runtime'] as const,
+  live: ['live'] as const,
+  logLevel: ['log-level'] as const,
   dashboard: (range: number) => ['dashboard', range] as const,
   products: (f: object) => ['products', f] as const,
   orders: (f: object) => ['orders', f] as const,
@@ -24,6 +26,33 @@ export const useMeta = () => useQuery({ queryKey: keys.meta, queryFn: api.meta, 
 
 export const useRuntime = (enabled = true) =>
   useQuery({ queryKey: keys.runtime, queryFn: api.runtime, refetchInterval: 2000, enabled })
+
+export const useLive = () => useQuery({ queryKey: keys.live, queryFn: api.live, refetchInterval: 2000 })
+
+export const useLogLevel = () => useQuery({ queryKey: keys.logLevel, queryFn: api.logLevel })
+
+export function useSetLogLevel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.setLogLevel,
+    onSuccess: (res) => {
+      qc.setQueryData(keys.logLevel, res)
+      toast.success(`Log level set to ${res.level}`, { description: 'Applied to the running server. LOG_LEVEL is used again after a restart.' })
+    },
+    onError,
+  })
+}
+
+export function useImportProducts() {
+  const invalidate = useInvalidate('products', 'product', 'dashboard', 'meta', 'live')
+  return useMutation({
+    mutationFn: api.importProducts,
+    onSuccess: ({ created, updated }) => {
+      toast.success(`Imported ${created + updated} products`, { description: `${created} created · ${updated} updated` })
+      return invalidate()
+    },
+  })
+}
 
 export const useDashboard = (range: number) =>
   useQuery({ queryKey: keys.dashboard(range), queryFn: () => api.dashboard(range), placeholderData: keepPreviousData })

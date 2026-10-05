@@ -3,6 +3,7 @@ import {
   Archive,
   CircleCheck,
   CircleX,
+  Download,
   Eye,
   LayoutGrid,
   Package,
@@ -25,11 +26,13 @@ import { Checkbox, EmptyState, PageHeader, Skeleton, StatStrip } from '@/compone
 import { StatusPill } from '@/components/ui/pill'
 import { CATEGORY_ICON, ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
-import { CATEGORIES, type Category, type Product, type ProductStats } from '@/lib/api'
+import { CATEGORIES, type Category, exportUrl, type Product, type ProductStats } from '@/lib/api'
+import { downloadUrl } from '@/lib/download'
 import { int, money } from '@/lib/format'
 import { useCan } from '@/lib/auth'
 import { useBulkProducts, useProducts } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { ImportSheet } from './import-sheet'
 import { ProductSheet } from './product-sheet'
 
 const LOW_STOCK = 15
@@ -50,6 +53,7 @@ export function ProductsPage() {
   const [sort, setSort] = useState('revenue')
   const [view, setView] = useState<'grid' | 'table'>('grid')
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [importing, setImporting] = useState(false)
 
   const canWrite = useCan('products:write')
   const filters = { q: useDeferredValue(q), category, status, sort }
@@ -73,9 +77,13 @@ export function ProductsPage() {
   return (
     <>
       <PageHeader title="Products" description={data ? `${data.stats.total} products across ${CATEGORIES.length} categories` : ' '}>
+        <Button onClick={() => downloadUrl(exportUrl('products', { q: filters.q, category, status, sort }))}>
+          <Download />
+          Export CSV
+        </Button>
         {canWrite && (
           <>
-            <Button>
+            <Button onClick={() => setImporting(true)}>
               <Upload />
               Import CSV
             </Button>
@@ -159,6 +167,7 @@ export function ProductsPage() {
         onClose={closeSheet}
         onCreated={(p) => navigate({ search: { edit: p.id }, replace: true })}
       />
+      {importing && <ImportSheet onClose={() => setImporting(false)} />}
     </>
   )
 }

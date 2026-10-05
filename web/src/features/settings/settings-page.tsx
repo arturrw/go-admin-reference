@@ -5,12 +5,22 @@ import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/input'
 import { PageHeader, Switch } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
+import type { LogLevel } from '@/lib/api'
 import { useCan } from '@/lib/auth'
+import { useLogLevel, useSetLogLevel } from '@/lib/queries'
 import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
-// Settings are local-only in this reference build; wire them to an API
-// endpoint (e.g. PUT /api/v1/settings) when you need persistence.
+// Settings are local-only in this reference build except the log level,
+// which is applied to the running server (PUT /api/v1/settings/log-level).
+// Wire the rest to an API endpoint when you need persistence.
+
+const LOG_LEVELS: { value: LogLevel; hint: string }[] = [
+  { value: 'debug', hint: 'Everything, including static files and the UI’s polling requests' },
+  { value: 'info', hint: 'Every API request, sign-ins, imports and startup messages' },
+  { value: 'warn', hint: 'Only client errors (4xx), settings changes and warnings' },
+  { value: 'error', hint: 'Only server errors (5xx) and failures' },
+]
 
 const SECTIONS = [
   ['general', 'General', SlidersHorizontal],
@@ -24,7 +34,9 @@ export function SettingsPage() {
   const canEdit = useCan('settings:write')
   const canDanger = useCan('workspace:manage')
   const [accent, setAccentState] = useState(getAccent)
-  const [logLevel, setLogLevel] = useState('info')
+  const logLevel = useLogLevel()
+  const setLogLevel = useSetLogLevel()
+  const level = setLogLevel.isPending ? setLogLevel.variables : logLevel.data?.level
   const [density, setDensity] = useState('comfortable')
   const [toggles, setToggles] = useState({ maint: false, mfa: true, audit: true, alerts: true, webhooks: false })
   const flip = (k: keyof typeof toggles, label: string) => (v: boolean) => {
@@ -64,8 +76,18 @@ export function SettingsPage() {
             <Field label="Public base URL">
               <Input className="num" defaultValue="https://admin.acme.io" />
             </Field>
-            <Field label="Log level">
-              <Segmented className="self-start" value={logLevel} onChange={setLogLevel} options={['debug', 'info', 'warn', 'error'].map((l) => ({ value: l, label: l }))} />
+            <Field label="Log level" hint={
+                <>
+                  {LOG_LEVELS.find((l) => l.value === level)?.hint ?? 'Loading…'}. Applied to the running server immediately; after a restart LOG_LEVEL decides
+                  again.
+                </>
+              }>
+              <Segmented
+                className="self-start"
+                value={level ?? ('' as LogLevel)}
+                onChange={(l) => l !== level && setLogLevel.mutate(l)}
+                options={LOG_LEVELS.map((l) => ({ value: l.value, label: l.value }))}
+              />
             </Field>
             <ToggleRow title="Maintenance mode" description="Storefront returns 503 with a friendly page" checked={toggles.maint} onChange={flip('maint', 'Maintenance mode')} />
             <div>

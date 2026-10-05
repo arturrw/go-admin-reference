@@ -6,6 +6,7 @@ import { Input, Select } from '@/components/ui/input'
 import { PageHeader, Skeleton, StatStrip } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
 import type { RequestStats, RequestSummary } from '@/lib/api'
+import { downloadCsv } from '@/lib/download'
 import { int } from '@/lib/format'
 import { useRequests } from '@/lib/queries'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,14 @@ export const METHOD_COLOR: Record<string, string> = {
 export const STATUS_COLOR = ['', '', 'text-accent', 'text-info', 'text-warn', 'text-danger']
 const COLS =
   'grid grid-cols-[96px_64px_minmax(0,1fr)_56px_110px_150px] gap-3 px-4.5 py-1.5 max-lg:grid-cols-[96px_64px_minmax(0,1fr)_56px_110px] max-md:grid-cols-[64px_52px_minmax(0,1fr)_40px] max-md:px-3.5'
+
+/** The requests currently listed (same filters), newest first. */
+function exportRequests(items: RequestSummary[]) {
+  downloadCsv('requests', [
+    ['id', 'time', 'method', 'path', 'status', 'duration_ms', 'bytes', 'ip', 'actor'],
+    ...items.map((e) => [e.id, e.time, e.method, e.path, e.status, e.durationMs, e.bytes, e.ip, e.actor]),
+  ])
+}
 
 export function RequestsPage() {
   const [live, setLive] = useState(true)
@@ -46,9 +55,9 @@ export function RequestsPage() {
           {live ? <span className="live-dot" /> : <Pause />}
           {live ? 'Live' : 'Paused'}
         </Button>
-        <Button>
+        <Button disabled={!data?.items.length} onClick={() => data && exportRequests(data.items)}>
           <Download />
-          Download
+          Download CSV
         </Button>
       </PageHeader>
 

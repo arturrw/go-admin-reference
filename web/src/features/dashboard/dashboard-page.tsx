@@ -1,18 +1,5 @@
-import { Link } from '@tanstack/react-router'
-import {
-  ArrowRight,
-  Download,
-  type LucideIcon,
-  MousePointerClick,
-  PackagePlus,
-  Receipt,
-  Rocket,
-  ShoppingBag,
-  TriangleAlert,
-  Undo2,
-  UserCheck,
-  UserPlus,
-} from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { ArrowRight, ChevronRight, Download, type LucideIcon, PackagePlus, Rocket, TriangleAlert, Undo2, UserCheck } from 'lucide-react'
 import { useState } from 'react'
 import { AreaChart } from '@/components/charts/area-chart'
 import { Donut, ProgressRing, SERIES_COLORS } from '@/components/charts/donut'
@@ -25,10 +12,14 @@ import { StatusPill, type Tone, toneColor } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
 import type { Dashboard, KPI } from '@/lib/api'
+import { useCan, useMe } from '@/lib/auth'
+import { downloadCsv } from '@/lib/download'
 import { compact, int, money, timeAgo } from '@/lib/format'
-import { useMe } from '@/lib/auth'
 import { useDashboard } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { formatKpi, kpiStyle } from './kpi'
+import { KpiSheet } from './kpi-sheet'
+import { LiveSheet } from './live-sheet'
 import { GoRuntimeCard, LiveTraffic } from './live-traffic'
 
 const RANGES = [7, 30, 90] as const
@@ -42,7 +33,7 @@ export function DashboardPage() {
     <>
       <PageHeader title={`${greeting()}, ${me.user.name.split(' ')[0]}`} description="Here’s what’s happening across your store today.">
         <Segmented value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: `${r}d` }))} />
-        <Button>
+        <Button disabled={!data} onClick={() => data && exportDashboard(data)}>
           <Download />
           Export
         </Button>
@@ -53,16 +44,54 @@ export function DashboardPage() {
   )
 }
 
+/** Dashboard snapshot as one CSV: summary, daily series, categories, top products, markets. */
+function exportDashboard(d: Dashboard) {
+  const dollars = (c: number) => (c / 100).toFixed(2)
+  const total = d.categories.reduce((s, c) => s + c.salesCents, 0) || 1
+  const kpi = (key: string) => d.kpis.find((k) => k.key === key)
+  const rows: unknown[][] = [
+    ['Dashboard export', new Date().toISOString(), `last ${d.rangeDays} days`],
+    [],
+    ['Metric', 'Value', 'Change vs previous %'],
+    ['Net revenue', dollars(d.revenueCents), ((d.revenueCents / d.prevRevenueCents - 1) * 100).toFixed(1)],
+    ['Previous revenue', dollars(d.prevRevenueCents), ''],
+    ...d.kpis.map((k) => [k.label, k.unit === 'cents' ? dollars(k.value) : k.value, k.deltaPct]),
+    [],
+    ['Date', 'Revenue', 'Previous revenue', 'Orders', 'New customers', 'Conversion %', 'Avg. order value'],
+    ...d.revenue.map((p, i) => [
+      p.date,
+      dollars(p.current),
+      dollars(p.previous),
+      kpi('orders')?.series[i]?.current ?? '',
+      kpi('customers')?.series[i]?.current ?? '',
+      kpi('conversion')?.series[i]?.current ?? '',
+      kpi('aov')?.series[i] ? dollars(kpi('aov')!.series[i].current) : '',
+    ]),
+    [],
+    ['Category', 'Sales', 'Share %'],
+    ...d.categories.map((c) => [c.category, dollars(c.salesCents), ((c.salesCents / total) * 100).toFixed(1)]),
+    [],
+    ['Top product', 'Category', 'Units sold', 'Revenue'],
+    ...d.topProducts.map((p) => [p.name, p.category, p.sold, dollars(p.revenueCents)]),
+    [],
+    ['Market', 'Share %'],
+    ...d.markets.map((m) => [m.name, m.sharePct]),
+  ]
+  downloadCsv(`dashboard-${d.rangeDays}d`, rows)
+}
+
 function Bento({ data }: { data: Dashboard }) {
+  const [kpi, setKpi] = useState<string | null>(null)
+  const [live, setLive] = useState(false)
   return (
     <div className="grid grid-cols-12 gap-3.5">
       <RevenueCard data={data} className="col-span-12 xl:col-span-8" />
 
       <div className="col-span-12 grid grid-cols-2 gap-3.5 sm:grid-cols-4 xl:col-span-4 xl:grid-cols-2">
         {data.kpis.map((k) => (
-          <KpiCard key={k.key} kpi={k} />
+          <KpiCard key={k.key} kpi={k} onOpen={() => setKpi(k.key)} />
         ))}
-        <LiveTraffic />
+        <LiveTraffic onOpen={() => setLive(true)} />
       </div>
 
       <Card className="col-span-12 lg:col-span-6 xl:col-span-5">
@@ -81,6 +110,9 @@ function Bento({ data }: { data: Dashboard }) {
       <ActivityCard data={data} className="col-span-12 md:col-span-6 xl:col-span-4" />
       <MarketsCard data={data} className="col-span-12 md:col-span-6 xl:col-span-4" />
       <TargetCard data={data} className="col-span-12 xl:col-span-4" />
+
+      {kpi && <KpiSheet kpis={data.kpis} initial={kpi} rangeDays={data.rangeDays} onClose={() => setKpi(null)} />}
+      {live && <LiveSheet onClose={() => setLive(false)} />}
     </div>
   )
 }
@@ -117,28 +149,23 @@ function RevenueCard({ data, className }: { data: Dashboard; className?: string 
   )
 }
 
-const KPI_STYLE: Record<string, { icon: LucideIcon; color: string }> = {
-  orders: { icon: ShoppingBag, color: 'var(--color-accent)' },
-  customers: { icon: UserPlus, color: 'var(--color-info)' },
-  conversion: { icon: MousePointerClick, color: 'var(--color-danger)' },
-  aov: { icon: Receipt, color: 'var(--color-violet)' },
-}
-
-function formatKpi(k: KPI) {
-  if (k.unit === 'cents') return money(k.value, 2)
-  if (k.unit === 'percent') return `${k.value.toFixed(2)}%`
-  return compact(k.value)
-}
-
-function KpiCard({ kpi }: { kpi: KPI }) {
-  const { icon: Icon, color } = KPI_STYLE[kpi.key] ?? KPI_STYLE.orders
+function KpiCard({ kpi, onOpen }: { kpi: KPI; onOpen: () => void }) {
+  const { icon: Icon, color } = kpiStyle(kpi.key)
   return (
-    <Card className="flex flex-col gap-1.5 p-4">
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-label={`${kpi.label}: open details`}
+      onClick={onOpen}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen())}
+      className="group flex cursor-pointer flex-col gap-1.5 p-4 transition-colors hover:border-line-2"
+    >
       <div className="flex items-center gap-2 text-[12.5px] text-muted">
         <span className="grid size-6.5 place-items-center rounded-lg bg-panel-3">
           <Icon className="size-3.5" />
         </span>
         {kpi.label}
+        <ChevronRight className="ml-auto size-3.5 text-dim opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
       <div className="num mt-1 text-2xl font-semibold tracking-[-0.03em]">{formatKpi(kpi)}</div>
       <div className="flex items-center justify-between gap-2">
@@ -150,23 +177,51 @@ function KpiCard({ kpi }: { kpi: KPI }) {
 }
 
 function CategoryCard({ data, className }: { data: Dashboard; className?: string }) {
+  const [active, setActive] = useState<number | null>(null)
   const total = data.categories.reduce((s, c) => s + c.salesCents, 0) || 1
+  const share = (cents: number) => `${((cents / total) * 100).toFixed(1)}%`
+  const cur = active === null ? null : data.categories[active]
   return (
     <Card className={className}>
       <CardHeader title="Sales by category" />
       <div className="flex flex-col items-stretch gap-4.5">
         <div className="self-center">
-          <Donut values={data.categories.map((c) => c.salesCents)}>
-            <b className="num text-lg font-semibold">{compact(total / 100)}</b>
-            <small className="text-[11px] text-dim">gross sales</small>
+          <Donut
+            values={data.categories.map((c) => c.salesCents)}
+            labels={data.categories.map((c) => `${c.category}: ${share(c.salesCents)}`)}
+            active={active}
+            onActive={setActive}
+          >
+            {cur ? (
+              <>
+                <b className="num text-lg font-semibold" style={{ color: SERIES_COLORS[active!] }}>
+                  {share(cur.salesCents)}
+                </b>
+                <small className="text-[11px] text-muted">{cur.category}</small>
+                <small className="num text-[10.5px] text-dim">{money(cur.salesCents)}</small>
+              </>
+            ) : (
+              <>
+                <b className="num text-lg font-semibold">{compact(total / 100)}</b>
+                <small className="text-[11px] text-dim">gross sales</small>
+              </>
+            )}
           </Donut>
         </div>
-        <div className="flex flex-col gap-2 text-[12.5px]">
+        <div className="flex flex-col gap-0.5 text-[12.5px]" onMouseLeave={() => setActive(null)}>
           {data.categories.map((c, i) => (
-            <div key={c.category} className="flex items-center gap-2">
+            <div
+              key={c.category}
+              onMouseEnter={() => setActive(i)}
+              className={cn(
+                '-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-[3px] transition-[background-color,opacity]',
+                active === i && 'bg-panel-2',
+                active !== null && active !== i && 'opacity-50',
+              )}
+            >
               <i className="size-2 rounded-[2px]" style={{ background: SERIES_COLORS[i] }} />
               <span className="flex-1 text-muted">{c.category}</span>
-              <b className="num text-xs font-medium">{((c.salesCents / total) * 100).toFixed(1)}%</b>
+              <b className="num text-xs font-medium">{share(c.salesCents)}</b>
             </div>
           ))}
         </div>
@@ -177,6 +232,7 @@ function CategoryCard({ data, className }: { data: Dashboard; className?: string
 
 function TopProductsCard({ data, className }: { data: Dashboard; className?: string }) {
   const top = data.topProducts[0]?.revenueCents || 1
+  const canOpen = useCan('products:read')
   return (
     <Card className={className}>
       <CardHeader title="Top products" sub="by revenue">
@@ -186,7 +242,13 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
       </CardHeader>
       <div className="flex flex-col">
         {data.topProducts.map((p, i) => (
-          <div key={p.id} className="flex items-center gap-3 border-b border-dashed border-line py-2.5 last:border-0">
+          <Link
+            key={p.id}
+            to="/products"
+            search={{ edit: p.id }}
+            disabled={!canOpen}
+            className="-mx-2 flex items-center gap-3 rounded-lg border-b border-dashed border-line px-2 py-2.5 transition-colors last:border-0 hover:bg-panel-2"
+          >
             <span className="num w-4 text-[11px] text-dim">0{i + 1}</span>
             <ProductThumb category={p.category} hue={p.hue} src={p.imageUrl} size={34} />
             <div className="min-w-0 flex-1">
@@ -199,7 +261,7 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
               <b className="num block text-[13px] font-medium">{money(p.revenueCents)}</b>
               <small className="text-[11.5px] text-dim">{int(p.sold)} sold</small>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </Card>
@@ -207,6 +269,9 @@ function TopProductsCard({ data, className }: { data: Dashboard; className?: str
 }
 
 function RecentOrdersCard({ data, className }: { data: Dashboard; className?: string }) {
+  const navigate = useNavigate()
+  const canOrders = useCan('orders:read')
+  const canCustomers = useCan('customers:read')
   return (
     <Card className={cn('flex flex-col pb-0', className)}>
       <CardHeader title="Recent orders">
@@ -227,13 +292,37 @@ function RecentOrdersCard({ data, className }: { data: Dashboard; className?: st
           </thead>
           <tbody>
             {data.recentOrders.map((o) => (
-              <tr key={o.id}>
-                <td className="num">#{o.id}</td>
+              <tr
+                key={o.id}
+                className={cn(canOrders && 'cursor-pointer')}
+                onClick={canOrders ? () => navigate({ to: '/orders', search: { view: o.id } }) : undefined}
+              >
+                <td className="num">
+                  {canOrders ? (
+                    <Link to="/orders" search={{ view: o.id }} className="hover:text-accent" onClick={(e) => e.stopPropagation()}>
+                      #{o.id}
+                    </Link>
+                  ) : (
+                    `#${o.id}`
+                  )}
+                </td>
                 <td>
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={o.customer.name} size={26} />
-                    <b className="font-medium">{o.customer.name}</b>
-                  </div>
+                  {canCustomers ? (
+                    <Link
+                      to="/customers"
+                      search={{ view: o.customer.id }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="group/c -my-1 -ml-1.5 inline-flex items-center gap-2.5 rounded-lg py-1 pr-2 pl-1.5 hover:bg-panel-3"
+                    >
+                      <Avatar name={o.customer.name} size={26} />
+                      <b className="font-medium group-hover/c:text-accent">{o.customer.name}</b>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={o.customer.name} size={26} />
+                      <b className="font-medium">{o.customer.name}</b>
+                    </div>
+                  )}
                 </td>
                 <td>
                   <StatusPill status={o.status} />

@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronRight, Crown, type LucideIcon, Mail, Sparkles, TriangleAlert, User, UserPlus, UserX, X } from 'lucide-react'
+import { ChevronRight, Crown, Download, type LucideIcon, Mail, Sparkles, TriangleAlert, User, UserPlus, UserX, X } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -7,7 +7,8 @@ import { Card, TableCard } from '@/components/ui/card'
 import { SearchInput } from '@/components/ui/input'
 import { Avatar, EmptyState, PageHeader, Skeleton } from '@/components/ui/misc'
 import { STATUS_TONE, StatusPill, toneColor } from '@/components/ui/pill'
-import type { Segment } from '@/lib/api'
+import { exportUrl, type Segment } from '@/lib/api'
+import { downloadUrl } from '@/lib/download'
 import { int, money, monthYear, timeAgo } from '@/lib/format'
 import { useCustomers } from '@/lib/queries'
 import { cn } from '@/lib/utils'
@@ -25,7 +26,8 @@ export function CustomersPage() {
   const navigate = useNavigate({ from: '/customers' })
   const [q, setQ] = useState('')
   const [segment, setSegment] = useState<Segment | ''>('')
-  const { data, isPending } = useCustomers({ q: useDeferredValue(q), segment })
+  const dq = useDeferredValue(q)
+  const { data, isPending } = useCustomers({ q: dq, segment })
   const segs = data?.segments ?? {}
   const totalLtv = Object.values(segs).reduce((s, x) => s + (x?.ltvCents ?? 0), 0)
   const totalCount = Object.values(segs).reduce((s, x) => s + (x?.count ?? 0), 0)
@@ -34,6 +36,10 @@ export function CustomersPage() {
   return (
     <>
       <PageHeader title="Customers" description={`${totalCount} customers · ${money(totalLtv)} lifetime value`}>
+        <Button onClick={() => downloadUrl(exportUrl('customers', { q: dq, segment }))}>
+          <Download />
+          Export CSV
+        </Button>
         <Button>
           <Mail />
           Email segment
