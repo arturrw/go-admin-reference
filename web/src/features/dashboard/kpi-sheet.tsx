@@ -53,7 +53,7 @@ export function KpiSheet({ kpis, initial, rangeDays, onClose }: { kpis: KPI[]; i
               Previous
             </span>
           </div>
-          <AreaChart points={k.series} label={k.label} color={tint} format={fmt} axisFormat={(v) => formatUnit(k.unit, v, true)} className="pl-7" />
+          <AreaChart points={k.series} label={k.label} color={tint} format={fmt} axisFormat={(v) => formatUnit(k.unit, v, true)} gutter={28} />
         </div>
       )}
 

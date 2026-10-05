@@ -77,7 +77,7 @@ export function LiveSheet({ onClose }: { onClose: () => void }) {
               axisFormat={int}
               xFormat={clock}
               tipDate={clock}
-              className="pl-7"
+              gutter={28}
             />
           </div>
 
