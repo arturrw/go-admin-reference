@@ -8,7 +8,7 @@ and tested.
 
 ## Setup
 
-You need Go 1.25+, Node 24, Docker (for Postgres and for `sqlc`) and Chrome
+You need Go 1.26+, Node 24, Docker (for Postgres and for `sqlc`) and Chrome
 (for the e2e suite locally).
 
 ```bash
@@ -104,7 +104,8 @@ demo databases may also need a one-off backfill in `postgres/seed.go`.
   reasons to the orders list") and a body that explains why.
 - Keep pull requests focused. Describe what changed and how you tested it, and
   attach a screenshot for UI changes.
-- Run the full check list above before asking for review.
+- CI (GitHub Actions) runs the same checks as the list above, on both stores, and
+  must be green before merging. See [CI/CD in the README](README.md#cicd).
 
 ## Reporting issues
 

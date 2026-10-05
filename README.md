@@ -1,5 +1,8 @@
 # GoAdmin reference
 
+[![CI](https://github.com/arturrw/go-admin-reference/actions/workflows/ci.yml/badge.svg)](https://github.com/arturrw/go-admin-reference/actions/workflows/ci.yml)
+[![CD](https://github.com/arturrw/go-admin-reference/actions/workflows/cd.yml/badge.svg)](https://github.com/arturrw/go-admin-reference/actions/workflows/cd.yml)
+
 A reference admin panel: Go JSON API plus a React SPA, shipped as one binary.
 It is not built for a specific business. Use it as a starting point and as a
 catalogue of patterns. The domain is a small store with products, orders,
@@ -69,7 +72,7 @@ Screenshots are full pages captured from the demo data by
 
 | Layer    | Choice |
 | -------- | ------ |
-| API      | Go 1.25+, stdlib `net/http` (method + path patterns), `log/slog` |
+| API      | Go 1.26+, stdlib `net/http` (method + path patterns), `log/slog` |
 | Storage  | PostgreSQL 17 via pgx/v5 + sqlc, goose migrations embedded in the binary; in-memory fallback behind the same `httpapi.Store` interface |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4 |
 | Data     | TanStack Query (server state), TanStack Router (routes, URL-driven sheets) |
@@ -102,6 +105,12 @@ cd web && npm install && npm run dev    # UI on :5173 with hot reload
 
 Without `DATABASE_URL` the server falls back to the in-memory store
 (`make dev-api-mem`). It runs without Docker but resets on every restart.
+
+Or run the published image (in-memory demo data, no database needed):
+
+```bash
+docker run --rm -p 8080:8080 ghcr.io/arturrw/go-admin-reference:latest
+```
 
 Single binary:
 
@@ -174,6 +183,19 @@ Locally the e2e suite uses the installed Chrome. With `CI=1` it uses
 Playwright's bundled Chromium (`npx playwright install chromium`). The suite
 has 40 tests covering auth, every page, refunds, notes, member access, the
 activity log, charts and phone layouts. It passes on both stores.
+
+## CI/CD
+
+GitHub Actions in [.github/workflows](.github/workflows):
+
+- **CI** (ci.yml) runs on every push to main and every pull request: gofmt
+  and go vet, Go tests on both stores (Postgres as a service container), a check
+  that the sqlc-generated code is current, the web typecheck and build, the full
+  Playwright suite on both stores, and a smoke test that the Docker image starts
+  and answers /healthz. Failed e2e runs upload their traces.
+- **CD** (cd.yml) publishes the image to GitHub Container Registry as
+  `ghcr.io/arturrw/go-admin-reference`: `:latest` and `:sha-<commit>` after CI
+  passes on main, and `:1.2.3` / `:1.2` when a `v*` tag is pushed.
 
 ## Learn more
 
