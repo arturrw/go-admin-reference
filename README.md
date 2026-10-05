@@ -111,8 +111,10 @@ Requests without a session get 401, and requests the role doesn't allow get 403.
 | GET | `/roles` | role × permission matrix (what the API enforces) |
 | GET | `/meta` | version, env, sidebar counters |
 | GET | `/runtime` | real Go runtime stats (goroutines, heap, GC); req/s is simulated |
-| GET | `/live` | simulated storefront traffic (2-minute history) + live numbers for the best-selling product |
+| GET | `/live` | simulated storefront traffic (2-minute history) + the hottest product: the active, in-stock best sellers compete on a demand signal that drifts minute to minute |
 | GET | `/dashboard?range=7\|30\|90` | everything the dashboard renders |
+| PUT | `/target` | `{goalCents}`: this quarter's revenue goal; owner only (`workspace:manage`) |
+| GET | `/activity` | `?actor&kind&q&limit&offset`: the audit log of staff actions (`team:read`) |
 | GET/POST | `/products` | `?q&category&status&sort`; list also returns stats |
 | GET | `/products/export` · `/orders/export` · `/customers/export` | CSV with the same filters as the list |
 | POST | `/products/import` | CSV (multipart `file` or `text/csv` body), upsert by SKU; all-or-nothing, 422 lists row errors |
@@ -121,14 +123,18 @@ Requests without a session get 401, and requests the role doesn't allow get 403.
 | POST | `/products/{id}/images` | multipart `file`; JPEG/PNG/WebP/GIF ≤ 5 MB (sniffed, SVG rejected) |
 | DELETE | `/products/{id}/images/{imageId}` | also removes the file |
 | POST | `/products/{id}/images/{imageId}/primary` | make cover image |
-| GET | `/orders` | `?q&status&customer&limit&offset`; returns `items`, `total`, per-status `counts` |
+| GET | `/orders` | `?q&status&customer&from&to&limit&offset` (`from`/`to` are RFC 3339); returns `items`, `total`, per-status `counts` |
 | GET | `/orders/{id}` | |
-| PATCH | `/orders/{id}/status` | `{status}` |
+| PATCH | `/orders/{id}/status` | `{status, reason}`: a refund needs a `reason`, which is kept on the order with who refunded it and when |
 | GET | `/customers` | `?q&segment`; also returns segment summary |
 | GET | `/customers/{id}` | profile, stats, full order history, products, monthly spend |
 | POST | `/customers/{id}/notes` | `{text}` |
+| DELETE | `/customers/{id}/notes/{noteId}` | |
 | GET/POST | `/team` | `?role` |
+| GET | `/team/{id}` | member, effective permissions, `online` (a request in the last 5 minutes) |
 | PUT/DELETE | `/team/{id}` | the owner cannot be edited or removed (403) |
+| PUT | `/team/{id}/access` | `{granted, revoked}`: per-member exceptions to the role; owner only |
+| PUT | `/team/{id}/status` | `{status: active\|suspended}`; suspending signs the member out everywhere |
 | GET | `/requests` | `?q&class=2\|4\|5&method&actor&limit`; list + analytics (p50/p95/p99, per-minute, top endpoints) |
 | GET | `/requests/{id}` | headers, bodies (redacted), user, route, timing |
 | GET/PUT | `/settings/log-level` | `{level: debug\|info\|warn\|error}`; PUT needs `settings:write`, applies until restart |
@@ -145,16 +151,19 @@ Plus `GET /healthz` and the public `GET /media/...` image files. Seed products u
 | Edit products, upload images | ✓ | ✓ | ✓ | | |
 | Change order status, refund | ✓ | ✓ | ✓ | ✓ | |
 | Customer notes | ✓ | ✓ | | ✓ | |
-| View team | ✓ | ✓ | ✓ | | |
+| View team, activity log | ✓ | ✓ | ✓ | | |
 | Manage team | ✓ | ✓ | | | |
 | Request log | ✓ | ✓ | | | |
 | Edit settings | ✓ | ✓ | | | |
-| Danger zone | ✓ | | | | |
+| Danger zone, quarterly target | ✓ | | | | |
 
 The matrix lives in `internal/domain/team.go`. The API enforces it on every route,
-and the UI reads it from `/roles` to hide or disable controls. A few extra rules
-apply: the owner can't be edited or removed, only the owner can grant or manage
-the admin role, and nobody can remove themselves.
+and the UI reads it from `/roles` to hide or disable controls. On top of the role,
+the owner can grant or revoke single permissions for one member (Team → member →
+Access); the API checks the effective set, role + granted − revoked. A few extra
+rules apply: the owner can't be edited, suspended or removed, only the owner can
+grant or manage the admin role, the danger zone can't be granted, and nobody can
+remove or suspend themselves.
 
 ## Database
 
@@ -197,6 +206,12 @@ Playwright's bundled Chromium instead (`npx playwright install chromium`).
 - **Domain errors map to HTTP in one place.** See `writeDomainError`.
 - **URL-driven sheets.** `/products?edit=12` or `?edit=new` opens the editor,
   so it can be deep-linked and the ⌘K menu can open it.
+- **Peek instead of navigate.** Links to a customer, order, product or member
+  from another page open its sheet in place (`lib/peek.tsx`). Sheets opened from
+  a sheet stack, and closing one returns to the previous.
+- **Audit log next to the change.** Handlers call `s.audit(...)` after a write
+  succeeds; entries keep the actor and the record they touched, so the feed can
+  open it. Logging failures never fail the request.
 - **Session auth without dependencies.** PBKDF2 from `crypto/pbkdf2`, opaque
   tokens and an Origin check on writes on top of SameSite cookies.
 - **Safe uploads.** The content type is sniffed (not trusted from the client),
