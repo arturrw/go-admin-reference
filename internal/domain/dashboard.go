@@ -1,6 +1,10 @@
 package domain
 
-import "math"
+import (
+	"fmt"
+	"math"
+	"time"
+)
 
 type RevenuePoint struct {
 	Date     string `json:"date"` // YYYY-MM-DD
@@ -45,11 +49,63 @@ type Market struct {
 	SharePct float64 `json:"sharePct"`
 }
 
+// Target is the revenue goal for the current quarter, which the owner sets.
 type Target struct {
-	Label       string  `json:"label"`
-	BookedCents int64   `json:"bookedCents"`
-	GoalCents   int64   `json:"goalCents"`
-	PacePct     float64 `json:"pacePct"`
+	Label       string     `json:"label"`   // "Q4 target"
+	Quarter     string     `json:"quarter"` // "2026-Q4"
+	Period      string     `json:"period"`  // "Oct – Dec"
+	BookedCents int64      `json:"bookedCents"`
+	GoalCents   int64      `json:"goalCents"`
+	PacePct     float64    `json:"pacePct"` // booked share of the goal minus share of the quarter elapsed
+	UpdatedBy   string     `json:"updatedBy"`
+	UpdatedAt   *time.Time `json:"updatedAt"`
+}
+
+// TargetGoal is a stored quarterly goal.
+type TargetGoal struct {
+	Quarter   string
+	GoalCents int64
+	UpdatedBy string
+	UpdatedAt time.Time
+}
+
+const (
+	// DefaultGoalCents applies until the owner sets a goal for the quarter.
+	DefaultGoalCents = 120_000_000
+	// Synthetic: there is no storefront ledger behind this reference app.
+	quarterBookedCents = 34_128_000
+	MaxGoalCents       = 10_000_000_000_000 // $100bn
+)
+
+// QuarterOf returns the quarter key ("2026-Q4") and its bounds.
+func QuarterOf(t time.Time) (key string, start, end time.Time) {
+	q := (int(t.Month()) - 1) / 3
+	start = time.Date(t.Year(), time.Month(q*3+1), 1, 0, 0, 0, 0, t.Location())
+	return fmt.Sprintf("%d-Q%d", t.Year(), q+1), start, start.AddDate(0, 3, 0)
+}
+
+// BuildTarget computes the current quarter's target; goal is nil while unset.
+func BuildTarget(now time.Time, goal *TargetGoal) Target {
+	key, start, end := QuarterOf(now)
+	t := Target{
+		Label: key[5:] + " target", Quarter: key, BookedCents: quarterBookedCents, GoalCents: DefaultGoalCents,
+		Period: start.Format("Jan") + " – " + end.AddDate(0, 0, -1).Format("Jan"),
+	}
+	if goal != nil {
+		t.GoalCents, t.UpdatedBy = goal.GoalCents, goal.UpdatedBy
+		at := goal.UpdatedAt
+		t.UpdatedAt = &at
+	}
+	elapsed := float64(now.Sub(start)) / float64(end.Sub(start))
+	t.PacePct = math.Round((float64(t.BookedCents)/float64(t.GoalCents)-elapsed)*1000) / 10
+	return t
+}
+
+func ValidateGoal(cents int64) error {
+	if cents <= 0 || cents > MaxGoalCents {
+		return NewValidationError("goalCents", "must be between $0.01 and $100bn")
+	}
+	return nil
 }
 
 type Dashboard struct {
@@ -116,7 +172,6 @@ func BuildDashboard(series []RevenuePoint, markets []Market) Dashboard {
 					return math.Round(avgOrderCents * (1 + .06*math.Sin(float64(i)*1.3) + .03*math.Sin(float64(i)*.4)))
 				})},
 		},
-		Target: Target{Label: "Q4 target", BookedCents: 34_128_000, GoalCents: 120_000_000, PacePct: 6.2},
 	}
 }
 

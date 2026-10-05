@@ -108,3 +108,20 @@ test('the hottest product is its own target and opens the product', async ({ pag
   await expect(page).toHaveURL(/\/products\?edit=\d+/)
   await expect(page.getByRole('dialog').getByRole('heading', { name })).toBeVisible()
 })
+
+test('the owner edits the quarterly target; other roles cannot', async ({ page }) => {
+  await loginAs(page, 'owner', '/')
+  const card = page.locator('.card', { has: page.getByRole('heading', { name: /^Q\d target$/ }) })
+  await card.getByRole('button', { name: 'Edit target' }).click()
+  await card.getByLabel('Goal, USD').fill('900000')
+  await card.getByRole('button', { name: 'Save target' }).click()
+  await expect(page.getByText(/target set to \$900,000/)).toBeVisible()
+  await expect(card.getByText('$900,000')).toBeVisible()
+  await expect(card.getByTestId('target-updated')).toContainText('Goal set by Artur DCS')
+
+  const feed = page.locator('.card', { has: page.getByRole('heading', { name: 'Activity' }) })
+  await expect(feed.getByTestId('activity-item').first()).toContainText('target to $900,000.00 (was $1,200,000.00)')
+
+  await loginAs(page, 'admin', '/')
+  await expect(page.getByRole('button', { name: 'Edit target' })).toHaveCount(0)
+})

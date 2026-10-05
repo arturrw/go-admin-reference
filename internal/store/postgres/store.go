@@ -3,11 +3,13 @@ package postgres
 import (
 	"cmp"
 	"context"
+	"errors"
 	"io/fs"
 	"math"
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	d "github.com/arturrw/go-admin-reference/internal/domain"
@@ -533,6 +535,12 @@ func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
 		series[i] = d.RevenuePoint{Date: r.Day.Format("2006-01-02"), Current: r.CurrentCents, Previous: r.PreviousCents}
 	}
 	dash := d.BuildDashboard(series, seed.Markets())
+	key, _, _ := d.QuarterOf(s.now())
+	goal, err := s.TargetGoal(ctx, key)
+	if err != nil {
+		return d.Dashboard{}, err
+	}
+	dash.Target = d.BuildTarget(s.now(), goal)
 
 	cells, err := s.q.OrdersHeatmap(ctx)
 	if err != nil {
@@ -574,6 +582,26 @@ func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
 		return d.Dashboard{}, err
 	}
 	return dash, nil
+}
+
+// TargetGoal returns the stored goal for a quarter, or nil when none is set.
+func (s *Store) TargetGoal(ctx context.Context, quarter string) (*d.TargetGoal, error) {
+	t, err := s.q.GetTarget(ctx, quarter)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &d.TargetGoal{Quarter: t.Quarter, GoalCents: t.GoalCents, UpdatedBy: t.UpdatedBy, UpdatedAt: t.UpdatedAt}, nil
+}
+
+func (s *Store) SetTargetGoal(ctx context.Context, g d.TargetGoal) (d.TargetGoal, error) {
+	t, err := s.q.UpsertTarget(ctx, db.UpsertTargetParams{Quarter: g.Quarter, GoalCents: g.GoalCents, UpdatedBy: g.UpdatedBy})
+	if err != nil {
+		return d.TargetGoal{}, mapErr(err)
+	}
+	return d.TargetGoal{Quarter: t.Quarter, GoalCents: t.GoalCents, UpdatedBy: t.UpdatedBy, UpdatedAt: t.UpdatedAt}, nil
 }
 
 // ── Activity ────────────────────────────────────────────────────────────────

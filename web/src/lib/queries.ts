@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, ApiError, type MemberInput, type OrderStatus, type Permission, type Product, type ProductInput } from './api'
+import { money } from './format'
 
 // Query keys are grouped by resource so a mutation can invalidate everything
 // that depends on it with a single prefix.
@@ -42,6 +43,15 @@ export function useSetLogLevel() {
       toast.success(`Log level set to ${res.level}`, { description: 'Applied to the running server. LOG_LEVEL is used again after a restart.' })
     },
     onError,
+  })
+}
+
+export function useSetTarget() {
+  return useMutation({
+    mutationFn: api.setTarget,
+    // The dashboard (and its target) is refetched after every mutation.
+    onSuccess: (t) => toast.success(`${t.label} set to ${money(t.goalCents)}`),
+    onError: onFormError,
   })
 }
 

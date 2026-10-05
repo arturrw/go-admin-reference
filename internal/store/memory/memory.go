@@ -25,6 +25,7 @@ type Store struct {
 	revenue        []d.RevenuePoint
 	heatmap        [7][24]int
 	activity       []d.Activity
+	goals          map[string]d.TargetGoal // by quarter
 	nextProductID  int64
 	nextMemberID   int64
 	nextNoteID     int64
@@ -37,6 +38,7 @@ func New(now time.Time) *Store {
 	s := &Store{
 		products: ds.Products, orders: ds.Orders, customers: ds.Customers, members: ds.Members,
 		revenue: ds.Revenue, heatmap: ds.Heatmap, activity: ds.Activity, now: time.Now,
+		goals: map[string]d.TargetGoal{},
 	}
 	for _, p := range s.products {
 		s.nextProductID = max(s.nextProductID, p.ID+1)
@@ -559,6 +561,25 @@ func (s *Store) DeleteMember(_ context.Context, id int64) error {
 	return nil
 }
 
+// ── Targets ─────────────────────────────────────────────────────────────────
+
+func (s *Store) TargetGoal(_ context.Context, quarter string) (*d.TargetGoal, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if g, ok := s.goals[quarter]; ok {
+		return &g, nil
+	}
+	return nil, nil
+}
+
+func (s *Store) SetTargetGoal(_ context.Context, g d.TargetGoal) (d.TargetGoal, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g.UpdatedAt = s.now()
+	s.goals[g.Quarter] = g
+	return g, nil
+}
+
 // ── Activity ────────────────────────────────────────────────────────────────
 
 func (s *Store) RecordActivity(_ context.Context, a d.Activity) (d.Activity, error) {
@@ -607,6 +628,12 @@ func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	days = min(max(days, 7), len(s.revenue))
 	dash := d.BuildDashboard(slices.Clone(s.revenue[len(s.revenue)-days:]), seed.Markets())
 	dash.OrdersHeatmap = s.heatmap
+	key, _, _ := d.QuarterOf(s.now())
+	if g, ok := s.goals[key]; ok {
+		dash.Target = d.BuildTarget(s.now(), &g)
+	} else {
+		dash.Target = d.BuildTarget(s.now(), nil)
+	}
 	dash.Activity, _ = s.listActivity(d.ActivityFilter{ExcludeAuth: true, Limit: d.DashboardActivity})
 
 	sales := map[d.Category]int64{}

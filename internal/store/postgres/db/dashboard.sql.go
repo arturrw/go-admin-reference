@@ -20,6 +20,22 @@ func (q *Queries) CountMembers(ctx context.Context) (int32, error) {
 	return column_1, err
 }
 
+const getTarget = `-- name: GetTarget :one
+SELECT quarter, goal_cents, updated_by, updated_at FROM targets WHERE quarter = $1
+`
+
+func (q *Queries) GetTarget(ctx context.Context, quarter string) (Target, error) {
+	row := q.db.QueryRow(ctx, getTarget, quarter)
+	var i Target
+	err := row.Scan(
+		&i.Quarter,
+		&i.GoalCents,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const ordersHeatmap = `-- name: OrdersHeatmap :many
 SELECT dow, hour, orders FROM orders_heatmap
 `
@@ -68,4 +84,28 @@ func (q *Queries) RevenueSeries(ctx context.Context, days int32) ([]RevenueDaily
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertTarget = `-- name: UpsertTarget :one
+INSERT INTO targets (quarter, goal_cents, updated_by) VALUES ($1, $2, $3)
+ON CONFLICT (quarter) DO UPDATE SET goal_cents = EXCLUDED.goal_cents, updated_by = EXCLUDED.updated_by, updated_at = now()
+RETURNING quarter, goal_cents, updated_by, updated_at
+`
+
+type UpsertTargetParams struct {
+	Quarter   string
+	GoalCents int64
+	UpdatedBy string
+}
+
+func (q *Queries) UpsertTarget(ctx context.Context, arg UpsertTargetParams) (Target, error) {
+	row := q.db.QueryRow(ctx, upsertTarget, arg.Quarter, arg.GoalCents, arg.UpdatedBy)
+	var i Target
+	err := row.Scan(
+		&i.Quarter,
+		&i.GoalCents,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

@@ -105,6 +105,41 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dash)
 }
 
+// setTarget: PUT /api/v1/target {goalCents} — the current quarter's revenue
+// goal. Owner only (workspace:manage).
+func (s *server) setTarget(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		GoalCents int64 `json:"goalCents"`
+	}
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	if err := domain.ValidateGoal(in.GoalCents); err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	now := time.Now()
+	key, _, _ := domain.QuarterOf(now)
+	prev, err := s.store.TargetGoal(r.Context(), key)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	me, _ := CurrentMember(r.Context())
+	g, err := s.store.SetTargetGoal(r.Context(), domain.TargetGoal{Quarter: key, GoalCents: in.GoalCents, UpdatedBy: me.Name})
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	before := int64(domain.DefaultGoalCents)
+	if prev != nil {
+		before = prev.GoalCents
+	}
+	t := domain.BuildTarget(now, &g)
+	s.audit(r.Context(), domain.ActTarget, "", 0, "set the %s target to %s (was %s)", key[5:]+" "+key[:4], domain.USD(g.GoalCents), domain.USD(before))
+	writeJSON(w, http.StatusOK, t)
+}
+
 // listRequests supports ?limit=, ?class=2|4|5, ?method=, ?actor= and ?q=
 // (substring of method, path, status or actor).
 func (s *server) listRequests(w http.ResponseWriter, r *http.Request) {

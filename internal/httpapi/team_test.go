@@ -79,6 +79,44 @@ func TestMemberAccessOverrides(t *testing.T) {
 	}
 }
 
+// The owner sets the quarter's goal; the dashboard target and pace follow it.
+func TestQuarterTarget(t *testing.T) {
+	srv := newServer(t)
+	owner := newClient(t, srv)
+	owner.login("artur@acme.io")
+
+	_, before := owner.do("GET", "/api/v1/dashboard", nil)
+	tg := before["target"].(map[string]any)
+	if tg["goalCents"].(float64) != 120_000_000 || tg["updatedBy"] != "" {
+		t.Fatalf("default target = %v", tg)
+	}
+
+	code, after := owner.do("PUT", "/api/v1/target", map[string]any{"goalCents": 60_000_000})
+	if code != http.StatusOK || after["goalCents"].(float64) != 60_000_000 || after["updatedBy"] != "Artur DCS" {
+		t.Fatalf("set target: %d %v", code, after)
+	}
+	if after["pacePct"].(float64) <= tg["pacePct"].(float64) {
+		t.Fatalf("halving the goal should improve the pace: %v → %v", tg["pacePct"], after["pacePct"])
+	}
+	_, dash := owner.do("GET", "/api/v1/dashboard", nil)
+	if dash["target"].(map[string]any)["goalCents"].(float64) != 60_000_000 {
+		t.Fatalf("dashboard target = %v", dash["target"])
+	}
+	_, act := owner.do("GET", "/api/v1/activity?kind=target&limit=1", nil)
+	if msg := act["items"].([]any)[0].(map[string]any)["message"].(string); msg != "set the "+tg["label"].(string)[:2]+" "+tg["quarter"].(string)[:4]+" target to $600,000.00 (was $1,200,000.00)" {
+		t.Fatalf("activity = %q", msg)
+	}
+
+	if code, _ := owner.do("PUT", "/api/v1/target", map[string]any{"goalCents": 0}); code != http.StatusUnprocessableEntity {
+		t.Fatalf("zero goal: got %d, want 422", code)
+	}
+	admin := newClient(t, srv)
+	admin.login("mark@acme.io")
+	if code, _ := admin.do("PUT", "/api/v1/target", map[string]any{"goalCents": 1}); code != http.StatusForbidden {
+		t.Fatalf("admin sets target: got %d, want 403", code)
+	}
+}
+
 // Suspending signs the member out and blocks sign-in until reactivated.
 func TestSuspendMember(t *testing.T) {
 	srv := newServer(t)

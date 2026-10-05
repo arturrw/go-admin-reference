@@ -199,7 +199,7 @@ export interface Dashboard {
   recentOrders: Order[]
   activity: Activity[]
   markets: { country: string; name: string; sharePct: number }[]
-  target: { label: string; bookedCents: number; goalCents: number; pacePct: number }
+  target: Target
 }
 
 export type ActivityKind =
@@ -228,6 +228,18 @@ export interface Activity {
   entity: '' | 'product' | 'order' | 'customer' | 'member'
   entityId: number
   at: string
+}
+
+/** The current quarter's revenue goal; the owner can change goalCents. */
+export interface Target {
+  label: string
+  quarter: string
+  period: string
+  bookedCents: number
+  goalCents: number
+  pacePct: number
+  updatedBy: string
+  updatedAt: string | null
 }
 
 export interface RuntimeStats {
@@ -393,6 +405,7 @@ export const api = {
   logLevel: () => request<{ level: LogLevel }>('/settings/log-level'),
   setLogLevel: (level: LogLevel) => request<{ level: LogLevel }>('/settings/log-level', json('PUT', { level })),
   dashboard: (range: number) => request<Dashboard>(`/dashboard${qs({ range })}`),
+  setTarget: (goalCents: number) => request<Target>('/target', json('PUT', { goalCents })),
 
   products: (f: { q?: string; category?: string; status?: string; sort?: string }) =>
     request<{ items: Product[]; stats: ProductStats }>(`/products${qs(f)}`),

@@ -52,6 +52,10 @@ type Store interface {
 	RecordActivity(ctx context.Context, a d.Activity) (d.Activity, error)
 	ListActivity(ctx context.Context, f d.ActivityFilter) ([]d.Activity, int, error)
 
+	// TargetGoal returns the quarter's stored goal, or nil while it is unset.
+	TargetGoal(ctx context.Context, quarter string) (*d.TargetGoal, error)
+	SetTargetGoal(ctx context.Context, g d.TargetGoal) (d.TargetGoal, error)
+
 	Dashboard(ctx context.Context, days int) (d.Dashboard, error)
 }
 
@@ -125,6 +129,7 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/runtime", d.PermDashboard, s.runtime)
 	route("GET /api/v1/live", d.PermDashboard, s.live)
 	route("GET /api/v1/dashboard", d.PermDashboard, s.dashboard)
+	route("PUT /api/v1/target", d.PermWorkspaceManage, s.setTarget)
 
 	route("GET /api/v1/products", d.PermProductsRead, s.listProducts)
 	route("POST /api/v1/products", d.PermProductsWrite, s.createProduct)

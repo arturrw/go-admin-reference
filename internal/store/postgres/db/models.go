@@ -155,3 +155,10 @@ type Session struct {
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }
+
+type Target struct {
+	Quarter   string
+	GoalCents int64
+	UpdatedBy string
+	UpdatedAt time.Time
+}

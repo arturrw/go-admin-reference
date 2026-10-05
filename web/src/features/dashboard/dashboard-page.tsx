@@ -1,23 +1,24 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, ChevronRight, Download } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowRight, Check, ChevronRight, Download, Pencil, X } from 'lucide-react'
+import { type FormEvent, useState } from 'react'
 import { AreaChart } from '@/components/charts/area-chart'
 import { Donut, ProgressRing, SERIES_COLORS } from '@/components/charts/donut'
 import { Heatmap, HeatmapScale } from '@/components/charts/heatmap'
 import { Sparkline } from '@/components/charts/sparkline'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Avatar, Delta, IconTile, PageHeader, Skeleton } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
 import { ActivityItem } from '@/features/activity/activity-item'
-import type { Dashboard, KPI } from '@/lib/api'
+import { ApiError, type Dashboard, type KPI, type Target } from '@/lib/api'
 import { useCan, useMe } from '@/lib/auth'
 import { downloadCsv } from '@/lib/download'
 import { compact, int, money, timeAgo } from '@/lib/format'
 import { PeekButton, usePeek } from '@/lib/peek'
-import { useDashboard } from '@/lib/queries'
+import { useDashboard, useSetTarget } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { formatKpi, kpiStyle } from './kpi'
 import { KpiSheet } from './kpi-sheet'
@@ -380,26 +381,70 @@ function MarketsCard({ data, className }: { data: Dashboard; className?: string 
 function TargetCard({ data, className }: { data: Dashboard; className?: string }) {
   const t = data.target
   const ratio = t.bookedCents / t.goalCents
+  const canEdit = useCan('workspace:manage')
+  const [editing, setEditing] = useState(false)
+  const ahead = t.pacePct >= 0
   return (
     <Card className={className}>
-      <CardHeader title={t.label} sub="Oct – Dec" />
+      <CardHeader title={t.label} sub={t.period}>
+        {canEdit && !editing && (
+          <Button variant="ghost" size="icon-sm" aria-label="Edit target" onClick={() => setEditing(true)}>
+            <Pencil />
+          </Button>
+        )}
+      </CardHeader>
       <div className="flex items-center gap-4.5 max-sm:flex-col max-sm:items-start">
-        <ProgressRing value={ratio} label={`${Math.round(ratio * 100)}%`} />
+        <ProgressRing value={Math.min(ratio, 1)} label={`${Math.round(ratio * 100)}%`} />
         <div className="flex flex-1 flex-col gap-2.5">
           <Stat label="Booked" value={money(t.bookedCents)} />
-          <Stat label="Goal" value={money(t.goalCents)} />
-          <Stat label="Pace" value={`+${t.pacePct}% ahead`} accent />
+          {editing ? <GoalEditor target={t} onDone={() => setEditing(false)} /> : <Stat label="Goal" value={money(t.goalCents)} />}
+          <Stat label="Pace" value={`${ahead ? '+' : ''}${t.pacePct.toFixed(1)}% ${ahead ? 'ahead' : 'behind'}`} tone={ahead ? 'accent' : 'danger'} />
         </div>
       </div>
+      {t.updatedBy && t.updatedAt && (
+        <p className="mt-3.5 text-[11.5px] text-dim" data-testid="target-updated">
+          Goal set by {t.updatedBy} · {timeAgo(t.updatedAt)}
+        </p>
+      )}
     </Card>
   )
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+/** Inline goal editor for the owner: dollars in, cents to the API. */
+function GoalEditor({ target, onDone }: { target: Target; onDone: () => void }) {
+  const [value, setValue] = useState(String(target.goalCents / 100))
+  const save = useSetTarget()
+  const cents = Math.round(parseFloat(value.replace(/[$,\s]/g, '')) * 100)
+  const valid = Number.isFinite(cents) && cents > 0
+  const error = save.error instanceof ApiError ? save.error.fields?.goalCents : undefined
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (valid) save.mutate(cents, { onSuccess: onDone })
+  }
+  return (
+    <form onSubmit={submit} onKeyDown={(e) => e.key === 'Escape' && onDone()}>
+      <label className="block text-[11.5px] text-dim" htmlFor="goal-input">
+        Goal, USD
+      </label>
+      <div className="mt-0.5 flex items-center gap-1.5">
+        <Input id="goal-input" className="num h-8 min-w-0 flex-1 sm:max-w-36" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus aria-invalid={!valid || undefined} />
+        <Button type="submit" size="icon-sm" variant="primary" aria-label="Save target" disabled={!valid || save.isPending}>
+          <Check />
+        </Button>
+        <Button size="icon-sm" variant="ghost" aria-label="Cancel" onClick={onDone}>
+          <X />
+        </Button>
+      </div>
+      {error && <span className="text-xs text-danger">{error}</span>}
+    </form>
+  )
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: 'accent' | 'danger' }) {
   return (
     <div>
       <small className="block text-[11.5px] text-dim">{label}</small>
-      <b className={cn('num text-[15px] font-medium', accent && 'text-accent')}>{value}</b>
+      <b className={cn('num text-[15px] font-medium', tone === 'accent' && 'text-accent', tone === 'danger' && 'text-danger')}>{value}</b>
     </div>
   )
 }
