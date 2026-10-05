@@ -95,6 +95,16 @@ const routeTree = rootRoute.addChildren([
     }),
     createRoute({
       getParentRoute: () => appRoute,
+      path: '/activity',
+      validateSearch: (s: Record<string, unknown>): { actor?: number } => {
+        const id = Number(s.actor)
+        return Number.isInteger(id) && id > 0 ? { actor: id } : {}
+      },
+      beforeLoad: guard('team:read'),
+      component: lazyRouteComponent(() => import('@/features/activity/activity-page'), 'ActivityPage'),
+    }),
+    createRoute({
+      getParentRoute: () => appRoute,
       path: '/requests',
       beforeLoad: guard('requests:read'),
       component: lazyRouteComponent(() => import('@/features/requests/requests-page'), 'RequestsPage'),

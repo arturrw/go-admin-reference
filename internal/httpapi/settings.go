@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	d "github.com/arturrw/go-admin-reference/internal/domain"
 )
 
 // Log levels the UI can pick. Changes apply to the running process only;
@@ -46,5 +48,6 @@ func (s *server) setLogLevel(w http.ResponseWriter, r *http.Request) {
 	me, _ := CurrentMember(r.Context())
 	// Logged at warn so the change itself is visible at every level but error.
 	s.log.WarnContext(r.Context(), "log level changed", "from", levelName(prev), "to", levelName(lvl), "actor", me.Email)
+	s.audit(r.Context(), d.ActSettings, "", 0, "set the log level to %s", levelName(lvl))
 	writeJSON(w, http.StatusOK, map[string]string{"level": levelName(lvl)})
 }

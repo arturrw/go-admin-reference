@@ -44,36 +44,6 @@ func (q *Queries) OrdersHeatmap(ctx context.Context) ([]OrdersHeatmap, error) {
 	return items, nil
 }
 
-const recentActivity = `-- name: RecentActivity :many
-SELECT id, kind, actor, message, at FROM activity ORDER BY at DESC LIMIT $1::int
-`
-
-func (q *Queries) RecentActivity(ctx context.Context, lim int32) ([]Activity, error) {
-	rows, err := q.db.Query(ctx, recentActivity, lim)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Activity{}
-	for rows.Next() {
-		var i Activity
-		if err := rows.Scan(
-			&i.ID,
-			&i.Kind,
-			&i.Actor,
-			&i.Message,
-			&i.At,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const revenueSeries = `-- name: RevenueSeries :many
 SELECT day, current_cents, previous_cents FROM (
     SELECT day, current_cents, previous_cents FROM revenue_daily ORDER BY day DESC LIMIT $1::int

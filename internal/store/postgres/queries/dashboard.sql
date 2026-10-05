@@ -6,8 +6,6 @@ SELECT * FROM (
 -- name: OrdersHeatmap :many
 SELECT dow, hour, orders FROM orders_heatmap;
 
--- name: RecentActivity :many
-SELECT * FROM activity ORDER BY at DESC LIMIT sqlc.arg(lim)::int;
 
 -- name: CountMembers :one
 SELECT count(*)::int FROM members;

@@ -69,6 +69,7 @@ func (s *server) createProduct(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.audit(r.Context(), d.ActProduct, "product", p.ID, "created %s", p.Name)
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -85,11 +86,17 @@ func (s *server) updateProduct(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	old, err := s.store.GetProduct(r.Context(), id)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
 	p, err := s.store.UpdateProduct(r.Context(), id, in)
 	if err != nil {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.auditProductUpdate(r.Context(), old, p)
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -104,6 +111,7 @@ func (s *server) deleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.removeFiles(r, p.Images...)
+	s.audit(r.Context(), d.ActProduct, "", 0, "deleted %s (%s)", p.Name, p.SKU)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -133,6 +141,7 @@ func (s *server) bulkProducts(w http.ResponseWriter, r *http.Request) {
 			s.removeFiles(r, p.Images...)
 		}
 	}
+	s.auditBulk(r.Context(), in.Action, affected)
 	writeJSON(w, http.StatusOK, map[string]int{"affected": len(affected)})
 }
 
@@ -185,6 +194,7 @@ func (s *server) uploadProductImage(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.audit(r.Context(), d.ActImage, "product", p.ID, "uploaded an image to %s", p.Name)
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -199,6 +209,7 @@ func (s *server) deleteProductImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.removeFiles(r, img)
+	s.audit(r.Context(), d.ActImage, "product", p.ID, "removed an image from %s", p.Name)
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -212,6 +223,7 @@ func (s *server) setPrimaryImage(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.audit(r.Context(), d.ActImage, "product", p.ID, "changed the cover image of %s", p.Name)
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -294,6 +306,7 @@ func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.audit(r.Context(), d.ActOrder, "order", o.ID, "marked order #%d as %s", o.ID, o.Status)
 	writeJSON(w, http.StatusOK, o)
 }
 
@@ -349,6 +362,7 @@ func (s *server) addCustomerNote(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.audit(r.Context(), d.ActNote, "customer", id, "added a note on %s", s.customerName(r.Context(), id))
 	writeJSON(w, http.StatusCreated, note)
 }
 
@@ -395,6 +409,7 @@ func (s *server) createMember(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	s.audit(r.Context(), d.ActTeam, "member", m.ID, "invited %s as %s", m.Name, m.Role)
 	writeJSON(w, http.StatusCreated, m)
 }
 
@@ -426,6 +441,11 @@ func (s *server) updateMember(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	if m.Role != target.Role {
+		s.audit(r.Context(), d.ActRole, "member", m.ID, "changed %s's role from %s to %s", m.Name, target.Role, m.Role)
+	} else {
+		s.audit(r.Context(), d.ActTeam, "member", m.ID, "updated %s's profile", m.Name)
+	}
 	writeJSON(w, http.StatusOK, m)
 }
 
@@ -453,5 +473,6 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.sessions.DeleteMember(r.Context(), id)
+	s.audit(r.Context(), d.ActTeam, "", 0, "removed %s (%s) from the team", target.Name, target.Role)
 	w.WriteHeader(http.StatusNoContent)
 }

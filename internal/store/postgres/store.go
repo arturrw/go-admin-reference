@@ -8,6 +8,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 	"github.com/arturrw/go-admin-reference/internal/seed"
 	"github.com/arturrw/go-admin-reference/internal/store/postgres/db"
@@ -525,14 +527,51 @@ func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
 	if dash.RecentOrders, _, err = s.ListOrders(ctx, d.OrderFilter{Limit: 6}); err != nil {
 		return d.Dashboard{}, err
 	}
-	acts, err := s.q.RecentActivity(ctx, 5)
-	if err != nil {
+	if dash.Activity, _, err = s.ListActivity(ctx, d.ActivityFilter{ExcludeAuth: true, Limit: d.DashboardActivity}); err != nil {
 		return d.Dashboard{}, err
 	}
-	for _, a := range acts {
-		dash.Activity = append(dash.Activity, d.Activity{Kind: a.Kind, Actor: a.Actor, Message: a.Message, At: a.At})
-	}
 	return dash, nil
+}
+
+// ── Activity ────────────────────────────────────────────────────────────────
+
+func toActivity(a db.Activity) d.Activity {
+	return d.Activity{
+		ID: a.ID, Kind: a.Kind, ActorID: a.ActorID.Int64, Actor: a.Actor, Message: a.Message,
+		Entity: a.Entity, EntityID: a.EntityID, At: a.At,
+	}
+}
+
+func (s *Store) RecordActivity(ctx context.Context, a d.Activity) (d.Activity, error) {
+	row, err := s.q.AddActivity(ctx, db.AddActivityParams{
+		Kind: a.Kind, Actor: a.Actor, ActorID: pgtype.Int8{Int64: a.ActorID, Valid: a.ActorID != 0},
+		Message: a.Message, Entity: a.Entity, EntityID: a.EntityID,
+	})
+	return toActivity(row), mapErr(err)
+}
+
+func (s *Store) ListActivity(ctx context.Context, f d.ActivityFilter) ([]d.Activity, int, error) {
+	limit := f.Limit
+	if limit <= 0 {
+		limit = math.MaxInt32
+	}
+	q := escapeLike(f.Query)
+	rows, err := s.q.ListActivity(ctx, db.ListActivityParams{
+		ActorID: f.ActorID, Kind: f.Kind, ExcludeAuth: f.ExcludeAuth, Q: q,
+		Lim: int32(min(limit, math.MaxInt32)), Off: int32(max(f.Offset, 0)),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.q.CountActivity(ctx, db.CountActivityParams{ActorID: f.ActorID, Kind: f.Kind, ExcludeAuth: f.ExcludeAuth, Q: q})
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]d.Activity, len(rows))
+	for i, a := range rows {
+		out[i] = toActivity(a)
+	}
+	return out, int(total), nil
 }
 
 // timePtr maps the zero time to NULL for optional query arguments.

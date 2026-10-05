@@ -337,12 +337,6 @@ func Generate(now time.Time) *Dataset {
 		}
 	}
 
-	s.Activity = []d.Activity{
-		{Kind: "role", Actor: "Mark Liu", Message: "changed Sofia Rossi's role to editor", At: now.Add(-14 * time.Minute)},
-		{Kind: "publish", Actor: "Yuki Tanaka", Message: "published Pulse Watch Ultra", At: now.Add(-38 * time.Minute)},
-		{Kind: "deploy", Actor: "CI", Message: "rolled out v1.4.2 to 3/3 pods", At: now.Add(-2 * time.Hour)},
-		{Kind: "stock", Actor: "Inventory", Message: "Glow Strip 5m dropped below 10 units", At: now.Add(-3 * time.Hour)},
-		{Kind: "refund", Actor: "Priya Shah", Message: "issued a $129.99 refund", At: now.Add(-5 * time.Hour)},
-	}
+	s.Activity = seedActivity(s, now)
 	return s
 }

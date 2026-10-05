@@ -11,11 +11,14 @@ import (
 )
 
 type Activity struct {
-	ID      int64
-	Kind    string
-	Actor   string
-	Message string
-	At      time.Time
+	ID       int64
+	Kind     string
+	Actor    string
+	Message  string
+	At       time.Time
+	ActorID  pgtype.Int8
+	Entity   string
+	EntityID int64
 }
 
 type Customer struct {

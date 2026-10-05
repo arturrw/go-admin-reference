@@ -20,6 +20,7 @@ export const keys = {
   order: (id: number) => ['order', id] as const,
   customer: (id: number) => ['customer', id] as const,
   roles: ['roles'] as const,
+  activity: (f: object) => ['activity', f] as const,
 }
 
 export const useMeta = () => useQuery({ queryKey: keys.meta, queryFn: api.meta, staleTime: 30_000 })
@@ -76,6 +77,9 @@ export const useRequestEntry = (id: string | undefined) =>
   useQuery({ queryKey: keys.request(id ?? ''), queryFn: () => api.request(id!), enabled: !!id, staleTime: Infinity })
 
 export const useRoles = () => useQuery({ queryKey: keys.roles, queryFn: api.roles, staleTime: Infinity })
+
+export const useActivity = (f: Parameters<typeof api.activity>[0], enabled = true) =>
+  useQuery({ queryKey: keys.activity(f), queryFn: () => api.activity(f), placeholderData: keepPreviousData, enabled })
 
 export const useCustomers = (f: Parameters<typeof api.customers>[0]) =>
   useQuery({ queryKey: keys.customers(f), queryFn: () => api.customers(f), placeholderData: keepPreviousData })

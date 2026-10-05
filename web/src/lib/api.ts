@@ -175,9 +175,37 @@ export interface Dashboard {
   categories: { category: Category; salesCents: number }[]
   topProducts: { id: number; name: string; category: Category; hue: number; imageUrl: string; sold: number; revenueCents: number }[]
   recentOrders: Order[]
-  activity: { kind: string; actor: string; message: string; at: string }[]
+  activity: Activity[]
   markets: { country: string; name: string; sharePct: number }[]
   target: { label: string; bookedCents: number; goalCents: number; pacePct: number }
+}
+
+export type ActivityKind =
+  | 'product'
+  | 'publish'
+  | 'image'
+  | 'import'
+  | 'order'
+  | 'refund'
+  | 'note'
+  | 'team'
+  | 'role'
+  | 'target'
+  | 'settings'
+  | 'auth'
+  | 'deploy'
+  | 'stock'
+
+/** One audit-log entry; `entity` + `entityId` say what a click opens. */
+export interface Activity {
+  id: number
+  kind: ActivityKind
+  actorId: number
+  actor: string
+  message: string
+  entity: '' | 'product' | 'order' | 'customer' | 'member'
+  entityId: number
+  at: string
 }
 
 export interface RuntimeStats {
@@ -380,6 +408,9 @@ export const api = {
   createMember: (in_: MemberInput) => request<Member>('/team', json('POST', in_)),
   updateMember: (id: number, in_: MemberInput) => request<Member>(`/team/${id}`, json('PUT', in_)),
   deleteMember: (id: number) => request<void>(`/team/${id}`, { method: 'DELETE' }),
+
+  activity: (f: { actor?: number; kind?: string; q?: string; limit?: number; offset?: number }) =>
+    request<{ items: Activity[]; total: number; kinds: ActivityKind[] }>(`/activity${qs(f)}`),
 
   requests: (f: { q?: string; class?: string; method?: string; limit?: number }) =>
     request<{ items: RequestSummary[]; stats: RequestStats }>(`/requests${qs(f)}`),

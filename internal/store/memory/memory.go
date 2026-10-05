@@ -17,18 +17,19 @@ import (
 )
 
 type Store struct {
-	mu            sync.RWMutex
-	products      []d.Product
-	orders        []d.Order // newest first
-	customers     []d.Customer
-	members       []d.Member
-	revenue       []d.RevenuePoint
-	heatmap       [7][24]int
-	activity      []d.Activity
-	nextProductID int64
-	nextMemberID  int64
-	nextNoteID    int64
-	now           func() time.Time
+	mu             sync.RWMutex
+	products       []d.Product
+	orders         []d.Order // newest first
+	customers      []d.Customer
+	members        []d.Member
+	revenue        []d.RevenuePoint
+	heatmap        [7][24]int
+	activity       []d.Activity
+	nextProductID  int64
+	nextMemberID   int64
+	nextNoteID     int64
+	nextActivityID int64
+	now            func() time.Time
 }
 
 func New(now time.Time) *Store {
@@ -47,6 +48,10 @@ func New(now time.Time) *Store {
 		for _, n := range c.Notes {
 			s.nextNoteID = max(s.nextNoteID, n.ID+1)
 		}
+	}
+	slices.SortFunc(s.activity, func(a, b d.Activity) int { return cmp.Or(b.At.Compare(a.At), cmp.Compare(b.ID, a.ID)) })
+	for _, a := range s.activity {
+		s.nextActivityID = max(s.nextActivityID, a.ID+1)
 	}
 	return s
 }
@@ -508,6 +513,45 @@ func (s *Store) DeleteMember(_ context.Context, id int64) error {
 	return nil
 }
 
+// ── Activity ────────────────────────────────────────────────────────────────
+
+func (s *Store) RecordActivity(_ context.Context, a d.Activity) (d.Activity, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a.ID = s.nextActivityID
+	a.At = s.now()
+	s.nextActivityID++
+	s.activity = slices.Insert(s.activity, 0, a)
+	return a, nil
+}
+
+func (s *Store) ListActivity(_ context.Context, f d.ActivityFilter) ([]d.Activity, int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out, total := s.listActivity(f)
+	return out, total, nil
+}
+
+// listActivity filters the newest-first log. Caller holds a lock.
+func (s *Store) listActivity(f d.ActivityFilter) ([]d.Activity, int) {
+	var matched []d.Activity
+	for _, a := range s.activity {
+		if (f.ActorID == 0 || a.ActorID == f.ActorID) &&
+			(f.Kind == "" || a.Kind == f.Kind) &&
+			(!f.ExcludeAuth || a.Kind != d.ActAuth) &&
+			contains(a.Actor+" "+a.Message, f.Query) {
+			matched = append(matched, a)
+		}
+	}
+	total := len(matched)
+	lo := min(max(f.Offset, 0), total)
+	hi := total
+	if f.Limit > 0 {
+		hi = min(lo+f.Limit, total)
+	}
+	return append([]d.Activity{}, matched[lo:hi]...), total
+}
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
@@ -517,7 +561,7 @@ func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	days = min(max(days, 7), len(s.revenue))
 	dash := d.BuildDashboard(slices.Clone(s.revenue[len(s.revenue)-days:]), seed.Markets())
 	dash.OrdersHeatmap = s.heatmap
-	dash.Activity = slices.Clone(s.activity)
+	dash.Activity, _ = s.listActivity(d.ActivityFilter{ExcludeAuth: true, Limit: d.DashboardActivity})
 
 	sales := map[d.Category]int64{}
 	for _, p := range s.products {

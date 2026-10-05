@@ -128,14 +128,18 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 
 	rows = nil
 	for _, a := range ds.Activity {
-		rows = append(rows, []any{a.Kind, a.Actor, a.Message, a.At})
+		var actorID *int64
+		if a.ActorID != 0 {
+			actorID = &a.ActorID
+		}
+		rows = append(rows, []any{a.ID, a.Kind, a.Actor, actorID, a.Message, a.Entity, a.EntityID, a.At})
 	}
-	if err := copyRows("activity", []string{"kind", "actor", "message", "at"}, rows); err != nil {
+	if err := copyRows("activity", []string{"id", "kind", "actor", "actor_id", "message", "entity", "entity_id", "at"}, rows); err != nil {
 		return err
 	}
 
 	// Explicit ids were inserted, so advance the identity sequences past them.
-	for _, t := range []string{"members", "products", "customers", "customer_notes", "orders"} {
+	for _, t := range []string{"members", "products", "customers", "customer_notes", "orders", "activity"} {
 		q := fmt.Sprintf(`SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), coalesce((SELECT max(id) FROM %[1]s), 0) + 1, false)`, t)
 		if _, err := tx.Exec(ctx, q); err != nil {
 			return fmt.Errorf("reset %s sequence: %w", t, err)

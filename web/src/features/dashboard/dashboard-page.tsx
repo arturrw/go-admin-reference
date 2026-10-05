@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, ChevronRight, Download, type LucideIcon, PackagePlus, Rocket, TriangleAlert, Undo2, UserCheck } from 'lucide-react'
+import { ArrowRight, ChevronRight, Download } from 'lucide-react'
 import { useState } from 'react'
 import { AreaChart } from '@/components/charts/area-chart'
 import { Donut, ProgressRing, SERIES_COLORS } from '@/components/charts/donut'
@@ -8,9 +8,10 @@ import { Sparkline } from '@/components/charts/sparkline'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader } from '@/components/ui/card'
 import { Avatar, Delta, IconTile, PageHeader, Skeleton } from '@/components/ui/misc'
-import { StatusPill, type Tone, toneColor } from '@/components/ui/pill'
+import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
+import { ActivityItem } from '@/features/activity/activity-item'
 import type { Dashboard, KPI } from '@/lib/api'
 import { useCan, useMe } from '@/lib/auth'
 import { downloadCsv } from '@/lib/download'
@@ -334,34 +335,22 @@ function RecentOrdersCard({ data, className }: { data: Dashboard; className?: st
   )
 }
 
-const ACTIVITY: Record<string, { icon: LucideIcon; tone: Tone }> = {
-  role: { icon: UserCheck, tone: 'lime' },
-  publish: { icon: PackagePlus, tone: 'blue' },
-  deploy: { icon: Rocket, tone: 'violet' },
-  stock: { icon: TriangleAlert, tone: 'amber' },
-  refund: { icon: Undo2, tone: 'red' },
-}
-
 function ActivityCard({ data, className }: { data: Dashboard; className?: string }) {
+  const canAll = useCan('team:read')
   return (
     <Card className={className}>
-      <CardHeader title="Activity" />
+      <CardHeader title="Activity" sub="live">
+        {canAll && (
+          <Link to="/activity" className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12.5px] text-muted hover:bg-panel-2 hover:text-fg">
+            View all <ArrowRight className="size-3.5" />
+          </Link>
+        )}
+      </CardHeader>
       <div className="flex flex-col">
-        {data.activity.map((a, i) => {
-          const { icon: Icon, tone } = ACTIVITY[a.kind] ?? ACTIVITY.role
-          const c = toneColor(tone)
-          return (
-            <div key={i} className="relative flex gap-3 py-2 not-last:after:absolute not-last:after:top-9 not-last:after:-bottom-1.5 not-last:after:left-[13px] not-last:after:w-px not-last:after:bg-line-2">
-              <IconTile icon={Icon} color={c} size={27} />
-              <div>
-                <p className="text-[13px] text-muted">
-                  <b className="font-medium text-fg">{a.actor}</b> {a.message}
-                </p>
-                <small className="num text-[11px] text-dim">{timeAgo(a.at)}</small>
-              </div>
-            </div>
-          )
-        })}
+        {data.activity.length === 0 && <p className="py-6 text-center text-[13px] text-dim">Nothing yet.</p>}
+        {data.activity.map((a) => (
+          <ActivityItem key={a.id} a={a} />
+        ))}
       </div>
     </Card>
   )

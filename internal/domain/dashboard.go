@@ -1,9 +1,6 @@
 package domain
 
-import (
-	"math"
-	"time"
-)
+import "math"
 
 type RevenuePoint struct {
 	Date     string `json:"date"` // YYYY-MM-DD
@@ -40,13 +37,6 @@ type TopProduct struct {
 	ImageURL     string   `json:"imageUrl"`
 	Sold         int      `json:"sold"`
 	RevenueCents int64    `json:"revenueCents"`
-}
-
-type Activity struct {
-	Kind    string    `json:"kind"` // role | publish | deploy | stock | refund
-	Actor   string    `json:"actor"`
-	Message string    `json:"message"`
-	At      time.Time `json:"at"`
 }
 
 type Market struct {

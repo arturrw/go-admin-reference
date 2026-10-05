@@ -358,6 +358,7 @@ func (s *server) importProducts(w http.ResponseWriter, r *http.Request) {
 	}
 	me, _ := CurrentMember(r.Context())
 	s.log.InfoContext(r.Context(), "products imported", "created", res.Created, "updated", res.Updated, "actor", me.Email)
+	s.audit(r.Context(), d.ActImport, "", 0, "imported %d products from CSV (%d created, %d updated)", res.Created+res.Updated, res.Created, res.Updated)
 	writeJSON(w, http.StatusOK, res)
 }
 

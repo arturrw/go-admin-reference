@@ -1,7 +1,7 @@
-import { Activity, LayoutDashboard, type LucideIcon, Package, Settings, ShieldCheck, ShoppingBag, UsersRound } from 'lucide-react'
+import { Activity, History, LayoutDashboard, type LucideIcon, Package, Settings, ShieldCheck, ShoppingBag, UsersRound } from 'lucide-react'
 import type { Permission } from './api'
 
-export type AppPath = '/' | '/products' | '/orders' | '/customers' | '/team' | '/requests' | '/settings'
+export type AppPath = '/' | '/products' | '/orders' | '/customers' | '/team' | '/activity' | '/requests' | '/settings'
 
 export interface NavItem {
   to: AppPath
@@ -26,6 +26,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
     label: 'System',
     items: [
       { to: '/team', label: 'Team & roles', icon: ShieldCheck, perm: 'team:read' },
+      { to: '/activity', label: 'Activity log', icon: History, perm: 'team:read' },
       { to: '/requests', label: 'Request log', icon: Activity, perm: 'requests:read' },
       { to: '/settings', label: 'Settings', icon: Settings },
     ],

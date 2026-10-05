@@ -45,6 +45,9 @@ type Store interface {
 	UpdateMember(ctx context.Context, id int64, in d.MemberInput) (d.Member, error)
 	DeleteMember(ctx context.Context, id int64) error
 
+	RecordActivity(ctx context.Context, a d.Activity) (d.Activity, error)
+	ListActivity(ctx context.Context, f d.ActivityFilter) ([]d.Activity, int, error)
+
 	Dashboard(ctx context.Context, days int) (d.Dashboard, error)
 }
 
@@ -145,6 +148,8 @@ func New(deps Deps) http.Handler {
 	route("POST /api/v1/team", d.PermTeamWrite, s.createMember)
 	route("PUT /api/v1/team/{id}", d.PermTeamWrite, s.updateMember)
 	route("DELETE /api/v1/team/{id}", d.PermTeamWrite, s.deleteMember)
+
+	route("GET /api/v1/activity", d.PermTeamRead, s.listActivity)
 
 	route("GET /api/v1/settings/log-level", "", s.getLogLevel)
 	route("PUT /api/v1/settings/log-level", d.PermSettingsWrite, s.setLogLevel)

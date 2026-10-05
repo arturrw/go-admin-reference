@@ -132,6 +132,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	s.setCookie(w, token)
 	s.store.TouchMember(r.Context(), m.ID)
+	s.auditAs(r.Context(), m, d.ActAuth, "member", m.ID, "signed in")
 	if info := reqInfoFrom(r.Context()); info != nil {
 		info.actor, info.role = m.Email, string(m.Role)
 	}

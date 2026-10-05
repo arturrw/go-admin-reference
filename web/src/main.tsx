@@ -23,7 +23,14 @@ const onAuthError = (err: unknown, key?: readonly unknown[]) => {
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({ onError: (err, query) => onAuthError(err, query.queryKey) }),
-  mutationCache: new MutationCache({ onError: (err) => onAuthError(err) }),
+  mutationCache: new MutationCache({
+    onError: (err) => onAuthError(err),
+    // Every change is written to the activity log, which the dashboard feed shows too.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activity'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 15_000,
