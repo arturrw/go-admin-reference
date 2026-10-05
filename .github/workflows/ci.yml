@@ -28,8 +28,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U goadmin -d goadmin_test"
           --health-interval 2s --health-timeout 3s --health-retries 30
-    env:
-      TEST_DATABASE_URL: postgres://goadmin:goadmin@localhost:5432/goadmin_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -40,9 +38,13 @@ jobs:
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then echo "Run gofmt on:"; echo "$unformatted"; exit 1; fi
       - run: go vet ./...
+      # Without TEST_DATABASE_URL the Postgres-only tests skip and the API tests use the in-memory store.
       - name: Tests on the in-memory store
         run: go test -count=1 ./...
-      - name: Tests on Postgres (one package at a time, they share the database)
+      # One package at a time: they share the database.
+      - name: Tests on Postgres
+        env:
+          TEST_DATABASE_URL: postgres://goadmin:goadmin@localhost:5432/goadmin_test?sslmode=disable
         run: go test -count=1 -p 1 ./...
 
   sqlc:
