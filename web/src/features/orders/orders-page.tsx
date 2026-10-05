@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, Download, Inbox } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Inbox, Undo2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, TableCard } from '@/components/ui/card'
@@ -112,6 +112,16 @@ export function OrdersPage() {
                     <td className="text-muted">{o.payment}</td>
                     <td>
                       <StatusPill status={o.status} />
+                      {o.status === 'refunded' && (
+                        <small
+                          className="mt-1 flex max-w-56 items-center gap-1 text-[11.5px] text-violet"
+                          title={o.refund ? `${o.refund.reason} · refunded by ${o.refund.by}` : undefined}
+                          data-testid="refund-reason"
+                        >
+                          <Undo2 className="size-3 shrink-0" />
+                          <span className="truncate">{o.refund?.reason ?? 'No reason recorded'}</span>
+                        </small>
+                      )}
                     </td>
                     <td className="num">{money(o.totalCents, 2)}</td>
                     <td className="num text-muted">{timeAgo(o.placedAt)}</td>

@@ -29,4 +29,11 @@ test('a refund asks for a reason that stays in the order and the customer histor
   const customer = page.getByRole('dialog')
   await customer.getByRole('tab', { name: /Orders/ }).click()
   await expect(customer.getByRole('button', { name: `Open order #${order.id}` }).getByTestId('refund-reason')).toContainText('Wrong item sent: sent the blue one')
+
+  // …and so does the orders list, as does every seeded refund.
+  await page.goto('/orders')
+  await page.getByRole('radio', { name: /Refunded/ }).click()
+  const row = page.locator('tbody tr', { hasText: `#${order.id}` })
+  await expect(row.getByTestId('refund-reason')).toHaveText('Wrong item sent: sent the blue one')
+  for (const reason of await page.getByTestId('refund-reason').allInnerTexts()) expect(reason).not.toBe('No reason recorded')
 })

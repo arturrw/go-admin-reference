@@ -81,7 +81,11 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
           <div>
             <StatusPill status={o.status} />
           </div>
-          {o.refund && <RefundNote refund={o.refund} />}
+          {o.refund ? (
+            <RefundNote refund={o.refund} />
+          ) : (
+            o.status === 'refunded' && <p className="text-[12.5px] text-dim">Refunded before reasons were recorded.</p>
+          )}
           <RefundDialog key={String(refunding)} order={o} open={refunding} onOpenChange={setRefunding} />
           {canCustomers ? (
             <PeekButton
