@@ -108,3 +108,48 @@ func ids[T any](xs []T, id func(T) int64) []int64 {
 	}
 	return out
 }
+
+// Databases seeded before the audit log get the week of history once.
+func TestBackfillActivity(t *testing.T) {
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	pool, err := postgres.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := postgres.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if _, err := postgres.SeedIfEmpty(ctx, pool, now); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := postgres.BackfillActivity(ctx, pool, now); err != nil || n != 0 {
+		t.Fatalf("fresh seed: backfilled %d (%v), want 0", n, err)
+	}
+
+	// Simulate the first schema's feed: five rows with no actor or record.
+	if _, err := pool.Exec(ctx, `DELETE FROM activity;
+		INSERT INTO activity (kind, actor, message) VALUES ('refund', 'Priya Shah', 'issued a $129.99 refund'), ('deploy', 'CI', 'rolled out v1.4.2 to 3/3 pods')`); err != nil {
+		t.Fatal(err)
+	}
+	n, err := postgres.BackfillActivity(ctx, pool, now)
+	if err != nil || n == 0 {
+		t.Fatalf("backfill: %d %v", n, err)
+	}
+	var total, mark, legacy int
+	pool.QueryRow(ctx, `SELECT count(*), count(*) FILTER (WHERE actor_id = 2), count(*) FILTER (WHERE message = 'issued a $129.99 refund') FROM activity`).Scan(&total, &mark, &legacy)
+	if total != n || mark == 0 || legacy != 0 {
+		t.Fatalf("after backfill: %d rows (want %d), %d by Mark, %d legacy", total, n, mark, legacy)
+	}
+	if again, err := postgres.BackfillActivity(ctx, pool, now); err != nil || again != 0 {
+		t.Fatalf("second run added %d (%v)", again, err)
+	}
+}

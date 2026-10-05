@@ -127,6 +127,16 @@ func openStore(ctx context.Context, cfg config.Config, logger *slog.Logger, now 
 		if seeded {
 			logger.Info("seeded empty database with demo data")
 		}
+		if n, err := postgres.BackfillRefundReasons(ctx, pool); err != nil {
+			logger.Warn("backfill refund reasons", "err", err)
+		} else if n > 0 {
+			logger.Info("added demo reasons to earlier refunds", "orders", n)
+		}
+		if n, err := postgres.BackfillActivity(ctx, pool, now); err != nil {
+			logger.Warn("backfill activity history", "err", err)
+		} else if n > 0 {
+			logger.Info("added a week of demo activity history", "entries", n)
+		}
 		if n, err := postgres.UseSeedPhotos(ctx, pool); err != nil {
 			logger.Warn("replace seed artwork with photos", "err", err)
 		} else if n > 0 {

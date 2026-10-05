@@ -9,9 +9,9 @@ import (
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 )
 
-// seedActivity writes a week of audit-log history that points at records in
+// BuildActivity writes a week of audit-log history that points at records in
 // the dataset, so every entry opens something real.
-func seedActivity(s *Dataset, now time.Time) []d.Activity {
+func BuildActivity(s *Dataset, now time.Time) []d.Activity {
 	var out []d.Activity
 	member := map[string]d.Member{}
 	for _, m := range s.Members {

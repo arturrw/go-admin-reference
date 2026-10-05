@@ -358,6 +358,6 @@ func Generate(now time.Time) *Dataset {
 		}
 	}
 
-	s.Activity = seedActivity(s, now)
+	s.Activity = BuildActivity(s, now)
 	return s
 }
