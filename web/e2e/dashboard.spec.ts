@@ -65,8 +65,9 @@ test('live card opens live details with the hottest product', async ({ page }) =
   await sheet.getByRole('radio', { name: 'Hot product' }).click()
   await expect(sheet.getByRole('img', { name: 'Hot product over time' })).toBeVisible()
 
-  await sheet.getByRole('link', { name: /Open product/ }).click()
-  await expect(page).toHaveURL(/\/products\?edit=\d+/)
+  await sheet.getByRole('button', { name: /Open product/ }).click()
+  await expect(page.getByRole('dialog').getByText('Pricing')).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
 })
 
 test('top products and recent orders open their sheets on the dashboard itself', async ({ page }) => {
@@ -100,12 +101,12 @@ test('top products and recent orders open their sheets on the dashboard itself',
   await expect(dialog.getByText('Fulfillment')).toBeVisible()
 })
 
-test('the hottest product is its own target and opens the product', async ({ page }) => {
+test('the hottest product is its own target and opens on the dashboard', async ({ page }) => {
   await loginAs(page, 'owner', '/')
   const hot = page.getByTestId('hot-product')
   const name = (await hot.locator('b').first().innerText()).trim()
   await hot.click()
-  await expect(page).toHaveURL(/\/products\?edit=\d+/)
+  await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('dialog').getByRole('heading', { name })).toBeVisible()
 })
 

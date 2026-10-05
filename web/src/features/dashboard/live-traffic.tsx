@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { ChevronRight, Flame } from 'lucide-react'
 import { Bars } from '@/components/charts/bars'
 import { Card, CardHeader } from '@/components/ui/card'
@@ -6,6 +5,7 @@ import { Pill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { useCan } from '@/lib/auth'
 import { duration, int } from '@/lib/format'
+import { PeekButton } from '@/lib/peek'
 import { useLive, useRuntime } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -71,14 +71,14 @@ export function LiveTraffic({ onOpen }: { onOpen: () => void }) {
         />
       </div>
       {hot && (
-        <Link
-          to="/products"
-          search={{ edit: hot.id }}
+        <PeekButton
+          kind="product"
+          id={hot.id}
           disabled={!canProducts}
-          aria-label={`Hottest product: ${hot.name}, open product`}
+          label={`Hottest product: ${hot.name}, open product`}
           data-testid="hot-product"
           className={cn(
-            'group/hot flex items-center gap-2.5 rounded-[10px] border border-line bg-panel-2/50 px-2.5 py-2 transition-[border-color,background-color,box-shadow]',
+            'group/hot flex w-full items-center gap-2.5 rounded-[10px] text-left border border-line bg-panel-2/50 px-2.5 py-2 transition-[border-color,background-color,box-shadow]',
             canProducts && 'hover:border-warn/45 hover:bg-warn/7 hover:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-warn)_12%,transparent)]',
           )}
         >
@@ -96,7 +96,7 @@ export function LiveTraffic({ onOpen }: { onOpen: () => void }) {
             viewing
           </div>
           {canProducts && <ChevronRight className="size-3.5 text-dim opacity-0 transition-opacity group-hover/hot:opacity-100" />}
-        </Link>
+        </PeekButton>
       )}
     </Card>
   )

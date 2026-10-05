@@ -69,6 +69,7 @@ export function PeekButton({
   className,
   label,
   children,
+  ...rest
 }: {
   kind: PeekKind
   id: number
@@ -76,14 +77,21 @@ export function PeekButton({
   className?: string
   label?: string
   children: ReactNode
+  'data-testid'?: string
 }) {
   const open = usePeek()
-  if (disabled) return <span className={className}>{children}</span>
+  if (disabled)
+    return (
+      <span className={className} {...rest}>
+        {children}
+      </span>
+    )
   return (
     <button
       type="button"
       aria-label={label}
       className={className}
+      {...rest}
       onClick={(e) => {
         e.stopPropagation()
         open(kind, id)

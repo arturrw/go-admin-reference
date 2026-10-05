@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { ArrowRight, Flame, Star } from 'lucide-react'
 import { useState } from 'react'
 import { AreaChart } from '@/components/charts/area-chart'
@@ -13,6 +12,7 @@ import { Sheet } from '@/components/ui/sheet'
 import type { LiveStats } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { int, money } from '@/lib/format'
+import { PeekButton } from '@/lib/peek'
 import { useLive } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -131,9 +131,9 @@ function HotProduct({ live }: { live: LiveStats }) {
           </div>
         </div>
         {canOpen && (
-          <Link to="/products" search={{ edit: p.id }} className={buttonVariants({ size: 'sm' })}>
+          <PeekButton kind="product" id={p.id} className={buttonVariants({ size: 'sm' })}>
             Open product <ArrowRight />
-          </Link>
+          </PeekButton>
         )}
       </div>
 
