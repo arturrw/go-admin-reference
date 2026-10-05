@@ -51,3 +51,18 @@ test('an expired session redirects to login without crashing the page', async ({
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   expect(errors).toEqual([])
 })
+
+test('clicking the current page in the sidebar scrolls back to the top', async ({ page }) => {
+  await loginAs(page, 'owner', '/')
+  await expect(page.getByRole('heading', { name: 'Recent orders' })).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 1500))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300)
+  await page.locator('aside nav').getByRole('link', { name: 'Dashboard' }).click()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+
+  await expect(page.getByRole('heading', { name: 'Recent orders' })).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 1500))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300)
+  await page.getByRole('link', { name: /GoAdmin — go to dashboard/ }).click()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+})

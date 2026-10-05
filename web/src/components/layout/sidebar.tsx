@@ -1,5 +1,6 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { LogOut } from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
@@ -12,6 +13,17 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
   const { data: meta } = useMeta()
   const me = useMe()
   const logout = useLogout()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr })
+  // Clicking the page you're already on scrolls it back to the top. Navigating
+  // to the same URL would let scroll restoration put the old position back.
+  const go = (to: string) => (e: MouseEvent) => {
+    if (pathname === to && !searchStr) {
+      e.preventDefault()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    onNavigate()
+  }
 
   return (
     <aside
@@ -22,7 +34,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
         'md:sticky md:top-0',
       )}
     >
-      <Link to="/" onClick={onNavigate} aria-label="GoAdmin — go to dashboard" className="flex items-center gap-2.5 rounded-xl px-2 pt-1.5 pb-2.5 transition-opacity hover:opacity-85">
+      <Link to="/" onClick={go('/')} aria-label="GoAdmin — go to dashboard" className="flex items-center gap-2.5 rounded-xl px-2 pt-1.5 pb-2.5 transition-opacity hover:opacity-85">
         <div className="num grid size-8 place-items-center rounded-[9px] bg-accent text-[13px] font-bold text-accent-ink shadow-[0_8px_24px_-8px_color-mix(in_srgb,var(--color-accent)_70%,transparent)]">
           Go
         </div>
@@ -42,7 +54,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
                 <Link
                   key={item.to}
                   to={item.to}
-                  onClick={onNavigate}
+                  onClick={go(item.to)}
                   activeOptions={{ exact: item.to === '/', includeSearch: false }}
                   className="group relative flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 font-medium text-muted transition-colors hover:bg-panel-2 hover:text-fg data-[status=active]:bg-panel-3 data-[status=active]:text-fg"
                 >
