@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math"
 	"net/http"
@@ -147,14 +148,36 @@ func (s *server) live(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, st)
 }
 
-// hotProduct picks the best-selling active product and derives its live
-// numbers: today's sales grow with the time of day from its real 30-day rate.
+// hotCandidates is how many best sellers compete for "hottest right now".
+const hotCandidates = 6
+
+// hotProduct picks the product most viewed right now: the best sellers that
+// are live and in stock compete, weighted by a demand signal that drifts
+// minute to minute. So the pick follows the real catalogue (publish, archive,
+// sell out, sales) and also changes over time. Today's sales grow with the
+// time of day from the product's real 30-day rate.
 func (s *server) hotProduct(r *http.Request, now time.Time, slot int64, online int) (*hotProduct, error) {
 	items, err := s.store.ListProducts(r.Context(), d.ProductFilter{Status: d.ProductActive, Sort: "sales"})
-	if err != nil || len(items) == 0 {
+	if err != nil {
 		return nil, err
 	}
-	p := items[0]
+	var p d.Product
+	best := -1.0
+	n := 0
+	for _, c := range items {
+		if c.Stock == 0 {
+			continue
+		}
+		if score := float64(c.Sold30d) * wave(fmt.Sprintf("hot-%d", c.ID), slot/30, .45); score > best {
+			p, best = c, score
+		}
+		if n++; n == hotCandidates {
+			break
+		}
+	}
+	if best < 0 {
+		return nil, nil
+	}
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	dayFrac := now.Sub(midnight).Hours() / 24
 	soldToday := int(float64(p.Sold30d) / 30 * dayFrac)

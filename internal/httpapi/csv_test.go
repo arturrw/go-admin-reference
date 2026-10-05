@@ -176,3 +176,21 @@ func TestLive(t *testing.T) {
 		t.Fatal("history changed between polls")
 	}
 }
+
+// The hottest product comes from the live catalogue: archiving it hands the
+// spot to another product.
+func TestHotProductFollowsCatalogue(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("mark@acme.io")
+	_, a := c.do("GET", "/api/v1/live", nil)
+	hot := a["hot"].(map[string]any)["id"]
+
+	if code, _ := c.do("POST", "/api/v1/products/bulk", map[string]any{"ids": []any{hot}, "action": "archive"}); code != http.StatusOK {
+		t.Fatalf("archive: %d", code)
+	}
+	_, b := c.do("GET", "/api/v1/live", nil)
+	if next := b["hot"].(map[string]any)["id"]; next == hot {
+		t.Fatalf("archived product %v is still the hottest", hot)
+	}
+}

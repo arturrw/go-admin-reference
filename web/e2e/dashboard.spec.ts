@@ -54,7 +54,7 @@ test('KPI cards open a detailed chart', async ({ page }) => {
 test('live card opens live details with the hottest product', async ({ page }) => {
   await loginAs(page, 'owner', '/')
   const card = page.getByRole('button', { name: 'Open live traffic details' })
-  await expect(card.getByText('Hottest product')).toBeVisible()
+  await expect(page.getByTestId('hot-product')).toContainText('Hottest product')
   await card.click()
 
   const sheet = page.getByRole('dialog')
@@ -98,4 +98,13 @@ test('top products and recent orders open their sheets on the dashboard itself',
   await expect(dialog.getByRole('heading', { name: customer })).toBeVisible()
   await dialog.getByRole('button', { name: 'Close' }).click()
   await expect(dialog.getByText('Fulfillment')).toBeVisible()
+})
+
+test('the hottest product is its own target and opens the product', async ({ page }) => {
+  await loginAs(page, 'owner', '/')
+  const hot = page.getByTestId('hot-product')
+  const name = (await hot.locator('b').first().innerText()).trim()
+  await hot.click()
+  await expect(page).toHaveURL(/\/products\?edit=\d+/)
+  await expect(page.getByRole('dialog').getByRole('heading', { name })).toBeVisible()
 })

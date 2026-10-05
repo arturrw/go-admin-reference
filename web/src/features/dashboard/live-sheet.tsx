@@ -27,7 +27,7 @@ const METRICS: { value: Metric; label: string; color: string }[] = [
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
-/** Detailed live view: storefront counters, a two-minute chart and the best seller's live numbers. */
+/** Detailed live view: storefront counters, a two-minute chart and the hottest product's live numbers. */
 export function LiveSheet({ onClose }: { onClose: () => void }) {
   const { data } = useLive()
   const [metric, setMetric] = useState<Metric>('onlineUsers')
@@ -116,7 +116,7 @@ function HotProduct({ live }: { live: LiveStats }) {
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-muted">
         <Flame className="size-4 text-warn" />
         Hottest product right now
-        <span className="ml-auto text-[11.5px] text-dim">best seller · last 30 days</span>
+        <span className="ml-auto text-[11.5px] text-dim">most viewed among the best sellers · changes live</span>
       </div>
       <div className="flex flex-wrap items-center gap-3.5">
         <ProductThumb category={p.category} hue={p.hue} src={p.imageUrl} alt={p.name} size={64} className="rounded-xl" />
