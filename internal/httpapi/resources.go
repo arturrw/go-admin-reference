@@ -309,6 +309,29 @@ func (s *server) createOrder(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, o)
 }
 
+func (s *server) editOrderItems(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var in d.OrderEdit
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	items, err := d.ValidateLines(in.Items)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	o, err := s.store.EditOrderItems(r.Context(), id, items)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	s.audit(r.Context(), d.ActOrder, "order", o.ID, "changed the items of order #%d (now %s)", o.ID, d.USD(o.TotalCents))
+	writeJSON(w, http.StatusOK, o)
+}
+
 func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {
@@ -355,6 +378,8 @@ func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if refund != nil {
 		s.audit(r.Context(), d.ActRefund, "order", o.ID, "refunded order #%d (%s) — %s", o.ID, d.USD(o.TotalCents), refund.Reason)
+	} else if o.Status == d.OrderCancelled {
+		s.audit(r.Context(), d.ActOrder, "order", o.ID, "cancelled order #%d (%s)", o.ID, d.USD(o.TotalCents))
 	} else {
 		s.audit(r.Context(), d.ActOrder, "order", o.ID, "marked order #%d as %s", o.ID, o.Status)
 	}

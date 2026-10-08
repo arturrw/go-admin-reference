@@ -66,6 +66,19 @@ RETURNING id;
 INSERT INTO order_items (order_id, line, product_id, name, sku, category, hue, image_url, qty, price_cents)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
+-- name: LockOrder :one
+-- Serialises edits and status changes of one order.
+SELECT status FROM orders WHERE id = $1 FOR UPDATE;
+
+-- name: RestockProduct :exec
+UPDATE products SET stock = stock + sqlc.arg(qty)::int, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: DeleteOrderItems :exec
+DELETE FROM order_items WHERE order_id = $1;
+
+-- name: SetOrderTotal :exec
+UPDATE orders SET total_cents = $2 WHERE id = $1;
+
 -- name: RestockOrder :exec
 -- Puts a refunded order's units back on the shelf. Lines whose product was
 -- deleted have nothing to go back to.

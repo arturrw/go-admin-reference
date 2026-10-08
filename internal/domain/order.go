@@ -17,12 +17,29 @@ const (
 	OrderDelivered OrderStatus = "delivered"
 	OrderRefunded  OrderStatus = "refunded"
 	OrderFailed    OrderStatus = "failed"
+	OrderCancelled OrderStatus = "cancelled"
 )
 
-var OrderStatuses = []OrderStatus{OrderPending, OrderPaid, OrderShipped, OrderDelivered, OrderRefunded, OrderFailed}
+var OrderStatuses = []OrderStatus{OrderPending, OrderPaid, OrderShipped, OrderDelivered, OrderRefunded, OrderFailed, OrderCancelled}
 
 // Counts toward revenue / lifetime value.
-func (s OrderStatus) Billable() bool { return s != OrderRefunded && s != OrderFailed }
+func (s OrderStatus) Billable() bool {
+	return s != OrderRefunded && s != OrderFailed && s != OrderCancelled
+}
+
+// Placed is whether the order counts as an order at all: a failed payment or a
+// cancellation never became one.
+func (s OrderStatus) Placed() bool { return s != OrderFailed && s != OrderCancelled }
+
+// ReleasesStock is whether an order in this status no longer holds its units:
+// they went back to the shelf (stock is taken when an order is entered).
+func (s OrderStatus) ReleasesStock() bool {
+	return s == OrderRefunded || s == OrderFailed || s == OrderCancelled
+}
+
+// Editable is whether the lines of an order may still be changed: only before
+// it is paid.
+func (s OrderStatus) Editable() bool { return s == OrderPending }
 
 // OrderItem is a snapshot of the product at purchase time.
 type OrderItem struct {
@@ -88,9 +105,10 @@ type OrderEvent struct {
 	By     string      `json:"by"`
 }
 
-// transitions are the moves staff can make. Refunded and failed are final.
+// transitions are the moves staff can make. Refunded, failed and cancelled are
+// final; only an unpaid order can be cancelled (a paid one is refunded).
 var transitions = map[OrderStatus][]OrderStatus{
-	OrderPending:   {OrderPaid, OrderFailed},
+	OrderPending:   {OrderPaid, OrderFailed, OrderCancelled},
 	OrderPaid:      {OrderShipped, OrderRefunded},
 	OrderShipped:   {OrderDelivered, OrderRefunded},
 	OrderDelivered: {OrderRefunded},

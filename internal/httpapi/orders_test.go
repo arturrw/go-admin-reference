@@ -527,3 +527,134 @@ func TestRefundRestocksProducts(t *testing.T) {
 		}
 	}
 }
+
+// sellable picks two active products with plenty of stock.
+func sellable(t *testing.T, c *client) (a, b map[string]any) {
+	t.Helper()
+	_, prods := c.do("GET", "/api/v1/products?status=active", nil)
+	for _, p := range prods["items"].([]any) {
+		p := p.(map[string]any)
+		if p["stock"].(float64) < 10 {
+			continue
+		}
+		if a == nil {
+			a = p
+		} else if b == nil {
+			b = p
+			return
+		}
+	}
+	t.Fatal("need two active products with stock")
+	return
+}
+
+// A pending order can be cancelled: it stops being an order, its units go
+// back to the shelf, and only an unpaid order can be cancelled.
+func TestCancelOrder(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+	a, _ := sellable(t, c)
+	stock := func() float64 {
+		_, p := c.do("GET", fmt.Sprintf("/api/v1/products/%v", a["id"]), nil)
+		return p["stock"].(float64)
+	}
+	count := func() float64 {
+		_, d := c.do("GET", "/api/v1/dashboard?range=30", nil)
+		return d["kpis"].([]any)[0].(map[string]any)["value"].(float64)
+	}
+	orders0, stock0 := count(), stock()
+
+	_, custs := c.do("GET", "/api/v1/customers", nil)
+	cid := custs["items"].([]any)[0].(map[string]any)["id"]
+	_, o := c.do("POST", "/api/v1/orders", map[string]any{"customerId": cid, "payment": "PayPal", "items": []any{map[string]any{"productId": a["id"], "qty": 3}}})
+	if stock() != stock0-3 || count() != orders0+1 {
+		t.Fatalf("the new order should take 3 units and count: stock %v, orders %v", stock(), count())
+	}
+
+	path := fmt.Sprintf("/api/v1/orders/%v/status", o["id"])
+	if code, _ := c.do("PATCH", path, map[string]any{"status": "cancelled"}); code != http.StatusOK {
+		t.Fatalf("cancel: %d", code)
+	}
+	if stock() != stock0 || count() != orders0 {
+		t.Fatalf("cancelling should give the units back and stop counting: stock %v (want %v), orders %v (want %v)", stock(), stock0, count(), orders0)
+	}
+	if code, _ := c.do("PATCH", path, map[string]any{"status": "paid"}); code != http.StatusConflict {
+		t.Fatalf("cancelled -> paid: got %d, want 409", code)
+	}
+	_, got := c.do("GET", fmt.Sprintf("/api/v1/orders/%v", o["id"]), nil)
+	if evs := got["events"].([]any); got["status"] != "cancelled" || evs[len(evs)-1].(map[string]any)["status"] != "cancelled" {
+		t.Fatalf("order after cancel = %v", got)
+	}
+
+	// A paid order is refunded, not cancelled.
+	_, list := c.do("GET", "/api/v1/orders?status=paid&limit=1", nil)
+	paid := list["items"].([]any)[0].(map[string]any)
+	if code, _ := c.do("PATCH", fmt.Sprintf("/api/v1/orders/%v/status", paid["id"]), map[string]any{"status": "cancelled"}); code != http.StatusConflict {
+		t.Fatalf("paid -> cancelled: got %d, want 409", code)
+	}
+}
+
+// Editing a pending order moves stock by the difference, keeps the price of a
+// product already in the order, and is refused once the order is paid.
+func TestEditOrderItems(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+	a, b := sellable(t, c)
+	stock := func(p map[string]any) float64 {
+		_, x := c.do("GET", fmt.Sprintf("/api/v1/products/%v", p["id"]), nil)
+		return x["stock"].(float64)
+	}
+	a0, b0 := stock(a), stock(b)
+	pa, pb := a["priceCents"].(float64), b["priceCents"].(float64)
+
+	_, custs := c.do("GET", "/api/v1/customers", nil)
+	cid := custs["items"].([]any)[0].(map[string]any)["id"]
+	_, o := c.do("POST", "/api/v1/orders", map[string]any{"customerId": cid, "payment": "PayPal", "items": []any{map[string]any{"productId": a["id"], "qty": 4}}})
+	path := fmt.Sprintf("/api/v1/orders/%v/items", o["id"])
+	line := func(p map[string]any, qty float64) map[string]any {
+		return map[string]any{"productId": p["id"], "qty": qty}
+	}
+
+	// 4 x A  ->  1 x A + 2 x B: three A come back, two B go out.
+	code, edited := c.do("PUT", path, map[string]any{"items": []any{line(a, 1), line(b, 2)}})
+	if code != http.StatusOK {
+		t.Fatalf("edit: %d %v", code, edited)
+	}
+	if got, want := edited["totalCents"].(float64), pa+2*pb; got != want {
+		t.Fatalf("total = %v, want %v", got, want)
+	}
+	if stock(a) != a0-1 || stock(b) != b0-2 {
+		t.Fatalf("stock after edit: A %v (want %v), B %v (want %v)", stock(a), a0-1, stock(b), b0-2)
+	}
+
+	for name, body := range map[string]map[string]any{
+		"empty":           {"items": []any{}},
+		"unknown product": {"items": []any{line(a, 1), map[string]any{"productId": 999999, "qty": 1}}},
+	} {
+		if code, _ := c.do("PUT", path, body); code != http.StatusUnprocessableEntity {
+			t.Errorf("%s: got %d, want 422", name, code)
+		}
+	}
+	if code, _ := c.do("PUT", path, map[string]any{"items": []any{line(a, a0+1000)}}); code != http.StatusUnprocessableEntity {
+		t.Errorf("quantity beyond 99: got %d, want 422", code)
+	}
+	if stock(a) != a0-1 || stock(b) != b0-2 {
+		t.Fatalf("refused edits must not move stock: A %v, B %v", stock(a), stock(b))
+	}
+
+	// Once the order is paid, its lines are fixed.
+	if code, _ := c.do("PATCH", fmt.Sprintf("/api/v1/orders/%v/status", o["id"]), map[string]any{"status": "paid"}); code != http.StatusOK {
+		t.Fatalf("pay: %d", code)
+	}
+	if code, _ := c.do("PUT", path, map[string]any{"items": []any{line(a, 1)}}); code != http.StatusConflict {
+		t.Fatalf("editing a paid order: got %d, want 409", code)
+	}
+
+	viewer := newClient(t, srv)
+	viewer.login("jon@acme.io")
+	if code, _ := viewer.do("PUT", path, map[string]any{"items": []any{line(a, 1)}}); code != http.StatusForbidden {
+		t.Fatalf("viewer: got %d, want 403", code)
+	}
+}

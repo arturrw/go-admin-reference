@@ -121,6 +121,15 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (int64
 	return id, err
 }
 
+const deleteOrderItems = `-- name: DeleteOrderItems :exec
+DELETE FROM order_items WHERE order_id = $1
+`
+
+func (q *Queries) DeleteOrderItems(ctx context.Context, orderID int64) error {
+	_, err := q.db.Exec(ctx, deleteOrderItems, orderID)
+	return err
+}
+
 const getOrder = `-- name: GetOrder :one
 SELECT o.id, o.status, o.payment, o.total_cents, o.placed_at, o.refund_reason, o.refunded_by, o.refunded_at,
        c.id AS customer_id, c.name AS customer_name, c.email AS customer_email,
@@ -340,6 +349,18 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListO
 	return items, nil
 }
 
+const lockOrder = `-- name: LockOrder :one
+SELECT status FROM orders WHERE id = $1 FOR UPDATE
+`
+
+// Serialises edits and status changes of one order.
+func (q *Queries) LockOrder(ctx context.Context, id int64) (string, error) {
+	row := q.db.QueryRow(ctx, lockOrder, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
 const orderCounts = `-- name: OrderCounts :many
 SELECT status, count(*)::int AS n FROM orders GROUP BY status
 `
@@ -418,6 +439,34 @@ WHERE p.id = r.product_id
 // deleted have nothing to go back to.
 func (q *Queries) RestockOrder(ctx context.Context, orderID int64) error {
 	_, err := q.db.Exec(ctx, restockOrder, orderID)
+	return err
+}
+
+const restockProduct = `-- name: RestockProduct :exec
+UPDATE products SET stock = stock + $1::int, updated_at = now() WHERE id = $2
+`
+
+type RestockProductParams struct {
+	Qty int32
+	ID  int64
+}
+
+func (q *Queries) RestockProduct(ctx context.Context, arg RestockProductParams) error {
+	_, err := q.db.Exec(ctx, restockProduct, arg.Qty, arg.ID)
+	return err
+}
+
+const setOrderTotal = `-- name: SetOrderTotal :exec
+UPDATE orders SET total_cents = $2 WHERE id = $1
+`
+
+type SetOrderTotalParams struct {
+	ID         int64
+	TotalCents int64
+}
+
+func (q *Queries) SetOrderTotal(ctx context.Context, arg SetOrderTotalParams) error {
+	_, err := q.db.Exec(ctx, setOrderTotal, arg.ID, arg.TotalCents)
 	return err
 }
 

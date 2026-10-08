@@ -34,6 +34,9 @@ type Store interface {
 	// stock; by is who entered it. Unknown customer or product is a validation
 	// error, too little stock a ConflictError.
 	CreateOrder(ctx context.Context, in d.NewOrder, by string) (d.Order, error)
+	// EditOrderItems replaces the lines of a pending order, moving stock by the
+	// difference; any other status is a ConflictError.
+	EditOrderItems(ctx context.Context, id int64, items []d.NewOrderLine) (d.Order, error)
 	// UpdateOrderStatus sets the status; refund is recorded with a refund and nil otherwise.
 	UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error)
 
@@ -179,6 +182,7 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/orders/export", d.PermOrdersRead, s.exportOrders)
 	route("GET /api/v1/orders/{id}", d.PermOrdersRead, s.getOrder)
 	route("PATCH /api/v1/orders/{id}/status", d.PermOrdersWrite, s.updateOrderStatus)
+	route("PUT /api/v1/orders/{id}/items", d.PermOrdersWrite, s.editOrderItems)
 	route("GET /api/v1/orders/{id}/invoice", d.PermOrdersRead, s.invoice)
 
 	route("GET /api/v1/customers", d.PermCustomersRead, s.listCustomers)

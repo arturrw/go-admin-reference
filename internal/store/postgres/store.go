@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -393,6 +394,76 @@ func (s *Store) whyNotSellable(ctx context.Context, q *db.Queries, l d.NewOrderL
 	return &d.ConflictError{Message: "stock changed while the order was placed, try again"}
 }
 
+func (s *Store) EditOrderItems(ctx context.Context, id int64, want []d.NewOrderLine) (d.Order, error) {
+	err := s.tx(ctx, func(q *db.Queries) error {
+		status, err := q.LockOrder(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !d.OrderStatus(status).Editable() {
+			return &d.ConflictError{Message: fmt.Sprintf("only a pending order can be edited, this one is %s", status)}
+		}
+		rows, err := q.ListOrderItems(ctx, []int64{id})
+		if err != nil {
+			return err
+		}
+		cur := make([]d.OrderItem, len(rows))
+		for i, r := range rows {
+			cur[i] = d.OrderItem{
+				ProductID: r.ProductID.Int64, Name: r.Name, SKU: r.Sku, Category: d.Category(r.Category), Hue: int(r.Hue),
+				ImageURL: r.ImageUrl, Qty: int(r.Qty), PriceCents: r.PriceCents,
+			}
+		}
+		if d.HasDeletedProduct(cur) {
+			return &d.ConflictError{Message: "this order has an item whose product was deleted, so it can't be edited"}
+		}
+		catalogue := map[int64]d.Product{}
+		for _, l := range want {
+			if slices.ContainsFunc(cur, func(it d.OrderItem) bool { return it.ProductID == l.ProductID }) {
+				continue
+			}
+			p, err := q.GetProduct(ctx, l.ProductID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue // EditedItems reports it as unknown
+			} else if err != nil {
+				return err
+			}
+			catalogue[l.ProductID] = toProduct(p, nil)
+		}
+		next, err := d.EditedItems(cur, want, func(pid int64) (d.Product, bool) { p, ok := catalogue[pid]; return p, ok })
+		if err != nil {
+			return err
+		}
+		for pid, delta := range d.StockDeltas(cur, next) {
+			if delta < 0 {
+				if err := q.RestockProduct(ctx, db.RestockProductParams{ID: pid, Qty: int32(-delta)}); err != nil {
+					return err
+				}
+			} else if _, err := q.ReserveStock(ctx, db.ReserveStockParams{ID: pid, Qty: int32(delta)}); errors.Is(err, pgx.ErrNoRows) {
+				return s.whyNotSellable(ctx, q, d.NewOrderLine{ProductID: pid, Qty: delta})
+			} else if err != nil {
+				return err
+			}
+		}
+		if err := q.DeleteOrderItems(ctx, id); err != nil {
+			return err
+		}
+		for i, it := range next {
+			if err := q.AddOrderItem(ctx, db.AddOrderItemParams{
+				OrderID: id, Line: int32(i), ProductID: pgtype.Int8{Int64: it.ProductID, Valid: true}, Name: it.Name, Sku: it.SKU,
+				Category: string(it.Category), Hue: int32(it.Hue), ImageUrl: it.ImageURL, Qty: int32(it.Qty), PriceCents: it.PriceCents,
+			}); err != nil {
+				return err
+			}
+		}
+		return q.SetOrderTotal(ctx, db.SetOrderTotalParams{ID: id, TotalCents: d.Total(next)})
+	})
+	if err != nil {
+		return d.Order{}, mapErr(err)
+	}
+	return s.GetOrder(ctx, id)
+}
+
 func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {
 	p := db.UpdateOrderStatusParams{ID: id, Status: string(status)}
 	if refund != nil {
@@ -409,7 +480,7 @@ func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderS
 		if cur.Status == string(status) {
 			return nil // nothing changed, so nothing to record
 		}
-		if status == d.OrderRefunded {
+		if status.ReleasesStock() && !d.OrderStatus(cur.Status).ReleasesStock() {
 			if err := q.RestockOrder(ctx, id); err != nil {
 				return err
 			}

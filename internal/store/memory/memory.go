@@ -415,13 +415,63 @@ func (s *Store) restock(o d.Order) {
 	}
 }
 
+func (s *Store) EditOrderItems(_ context.Context, id int64, want []d.NewOrderLine) (d.Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oi := slices.IndexFunc(s.orders, func(o d.Order) bool { return o.ID == id })
+	if oi < 0 {
+		return d.Order{}, d.ErrNotFound
+	}
+	o := s.orders[oi]
+	if !o.Status.Editable() {
+		return d.Order{}, &d.ConflictError{Message: fmt.Sprintf("only a pending order can be edited, this one is %s", o.Status)}
+	}
+	if d.HasDeletedProduct(o.Items) {
+		return d.Order{}, &d.ConflictError{Message: "this order has an item whose product was deleted, so it can't be edited"}
+	}
+	next, err := d.EditedItems(o.Items, want, func(pid int64) (d.Product, bool) {
+		if pi := s.productIndex(pid); pi >= 0 {
+			return s.products[pi], true
+		}
+		return d.Product{}, false
+	})
+	if err != nil {
+		return d.Order{}, err
+	}
+	deltas := d.StockDeltas(o.Items, next)
+	// Check everything before touching stock, so a refused edit takes nothing.
+	for pid, delta := range deltas {
+		if delta > 0 {
+			pi := s.productIndex(pid)
+			if pi < 0 {
+				return d.Order{}, d.NewValidationError("items", fmt.Sprintf("product #%d does not exist", pid))
+			}
+			if err := d.CheckSellable(s.products[pi], delta); err != nil {
+				return d.Order{}, err
+			}
+		}
+	}
+	for pid, delta := range deltas {
+		if pi := s.productIndex(pid); pi >= 0 {
+			s.products[pi].Stock -= delta
+			s.products[pi].UpdatedAt = s.now()
+		}
+	}
+	s.orders[oi].Items, s.orders[oi].TotalCents = next, d.Total(next)
+	if ci := s.customerIndex(o.Customer.ID); ci >= 0 {
+		s.recomputeCustomer(ci, s.now())
+	}
+	return s.withCovers(s.orders[oi])[0], nil
+}
+
 func (s *Store) UpdateOrderStatus(_ context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.orders {
 		if s.orders[i].ID == id {
 			if s.orders[i].Status != status {
-				if status == d.OrderRefunded {
+				if status.ReleasesStock() && !s.orders[i].Status.ReleasesStock() {
 					s.restock(s.orders[i])
 				}
 				s.orders[i].Events = append(slices.Clone(s.orders[i].Events), d.OrderEvent{Status: status, At: s.now(), By: by})

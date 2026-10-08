@@ -64,7 +64,7 @@ var countryNames = map[string]string{
 // ending today; the previous period is the same number of days before them.
 // Revenue and sales count orders that are not refunded or failed (the rule the
 // customers' lifetime value uses); the order count and heatmap count every
-// order that was not a failed payment.
+// order that was not a failed payment or a cancellation.
 func BuildDashboard(in DashboardInput) Dashboard {
 	days := DashboardDays(in.Days)
 	today := utcDay(in.Now)
@@ -102,7 +102,7 @@ func BuildDashboard(in DashboardInput) Dashboard {
 		if i < 0 || i >= 2*days {
 			continue
 		}
-		if s.Status != OrderFailed {
+		if s.Status.Placed() {
 			orders[i]++
 		}
 		if s.Status.Billable() {
@@ -113,7 +113,7 @@ func BuildDashboard(in DashboardInput) Dashboard {
 			continue
 		}
 		// The current period only.
-		if s.Status != OrderFailed {
+		if s.Status.Placed() {
 			t := s.PlacedAt.UTC()
 			heat[(int(t.Weekday())+6)%7][t.Hour()]++
 			byCountry[s.Country]++
