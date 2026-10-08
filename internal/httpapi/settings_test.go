@@ -249,3 +249,52 @@ func TestLoginAlerts(t *testing.T) {
 		}
 	}
 }
+
+func TestDangerZone(t *testing.T) {
+	srv := newServer(t)
+	owner := newClient(t, srv)
+	owner.login("artur@acme.io")
+	admin := newClient(t, srv)
+	admin.login("mark@acme.io")
+	viewer := newClient(t, srv)
+	viewer.login("jon@acme.io")
+
+	// Owner only.
+	for _, path := range []string{"/api/v1/danger/clear-request-log", "/api/v1/danger/sign-out-everyone"} {
+		if code, _ := admin.do("POST", path, nil); code != http.StatusForbidden {
+			t.Fatalf("admin on %s: got %d, want 403", path, code)
+		}
+	}
+
+	_, before := owner.do("GET", "/api/v1/requests?limit=500", nil)
+	had := len(before["items"].([]any))
+	if had == 0 {
+		t.Fatal("expected requests in the log")
+	}
+	code, res := owner.do("POST", "/api/v1/danger/clear-request-log", nil)
+	if code != http.StatusOK || int(res["cleared"].(float64)) < had {
+		t.Fatalf("clear: %d %v", code, res)
+	}
+	_, after := owner.do("GET", "/api/v1/requests?limit=500", nil)
+	if n := len(after["items"].([]any)); n > 2 { // the clearing call itself is logged after it ran
+		t.Fatalf("request log still has %d entries", n)
+	}
+
+	code, res = owner.do("POST", "/api/v1/danger/sign-out-everyone", nil)
+	if code != http.StatusOK || res["signedOut"].(float64) < 2 {
+		t.Fatalf("sign out everyone: %d %v", code, res)
+	}
+	if code, _ := viewer.do("GET", "/api/v1/auth/me", nil); code != http.StatusUnauthorized {
+		t.Fatalf("viewer after sign-out: got %d, want 401", code)
+	}
+	if code, _ := admin.do("GET", "/api/v1/auth/me", nil); code != http.StatusUnauthorized {
+		t.Fatalf("admin after sign-out: got %d, want 401", code)
+	}
+	if code, _ := owner.do("GET", "/api/v1/auth/me", nil); code != http.StatusOK {
+		t.Fatalf("the caller stays signed in: got %d", code)
+	}
+	_, act := owner.do("GET", "/api/v1/activity?kind=settings&limit=2", nil)
+	if m := act["items"].([]any)[0].(map[string]any)["message"].(string); !strings.HasPrefix(m, "signed everyone else out (") {
+		t.Fatalf("activity = %q", m)
+	}
+}

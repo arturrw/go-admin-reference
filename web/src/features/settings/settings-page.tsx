@@ -11,12 +11,12 @@ import { ACCENTS, getAccent, getDensity, setAccent, setDensity } from '@/lib/the
 import { cn } from '@/lib/utils'
 import { ApiKeys } from './api-keys'
 import { GeneralSettings } from './general'
-import { DangerRow, ToggleRow } from './rows'
+import { DangerZone } from './danger'
+import { ToggleRow } from './rows'
 import { SecuritySettings } from './security'
 
-// Settings are local-only in this reference build except the log level,
-// which is applied to the running server (PUT /api/v1/settings/log-level).
-// Wire the rest to an API endpoint when you need persistence.
+// Accent and density are personal and stay in this browser. Everything else is
+// saved on the server (/api/v1/settings, the log level, API keys, danger zone).
 
 const LOG_LEVELS: { value: LogLevel; hint: string }[] = [
   { value: 'debug', hint: 'Everything, including static files and the UI’s polling requests' },
@@ -135,8 +135,7 @@ export function SettingsPage() {
           </Section>
 
           <Section id="danger" title="Danger zone" description={canDanger ? 'Irreversible actions. Be careful.' : 'Owner only.'} locked={!canDanger}>
-            <DangerRow title="Flush cache" description="Clears cached keys under goadmin:*" action="Flush" onClick={() => toast('Cache flushed')} />
-            <DangerRow title="Delete workspace" description="Removes all data. This cannot be undone." action="Delete" onClick={() => toast.error('Disabled in the reference build')} />
+            <DangerZone enabled={canDanger} />
           </Section>
         </div>
       </div>

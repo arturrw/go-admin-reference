@@ -42,3 +42,6 @@ DELETE FROM sessions WHERE member_id = $1;
 
 -- name: DeleteExpiredSessions :execrows
 DELETE FROM sessions WHERE expires_at <= now();
+
+-- name: DeleteOtherSessions :execrows
+DELETE FROM sessions WHERE token_hash <> $1;

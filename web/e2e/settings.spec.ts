@@ -184,3 +184,40 @@ test('compact density tightens tables and cards and is remembered', async ({ pag
   await expect(page.locator('tbody tr').first()).toBeVisible()
   expect(await rowHeight()).toBeGreaterThanOrEqual(comfortable - 1)
 })
+
+test('danger zone: clear the request log and sign everyone out, with confirmation', async ({ page, browser }) => {
+  const viewer = await browser.newContext()
+  await viewer.request.post('/api/v1/auth/login', { data: { email: 'jon@acme.io', password: 'goadmin' } })
+  expect((await viewer.request.get('/api/v1/auth/me')).status()).toBe(200)
+
+  await loginAs(page, 'owner', '/settings')
+  const zone = page.locator('section', { has: page.getByRole('heading', { name: 'Danger zone' }) })
+  await expect(zone.getByRole('button', { name: 'Delete' })).toBeDisabled() // a deliberate refusal, not a fake
+
+  // Cancelling does nothing.
+  await zone.getByRole('button', { name: 'Clear', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Clear the request log?' }).getByRole('button', { name: 'Cancel' }).click()
+  await page.goto('/requests')
+  await expect(page.getByTestId('request-rows').getByRole('button').first()).toBeVisible()
+
+  await page.goto('/settings')
+  await zone.getByRole('button', { name: 'Clear', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Clear the request log?' }).getByRole('button', { name: 'Clear log' }).click()
+  await expect(page.getByText(/Request log cleared \(\d+ entries\)/)).toBeVisible()
+  await page.goto('/requests')
+  await expect(page.getByTestId('request-rows').getByRole('button')).not.toHaveCount(0) // only what happened since
+  await expect(page.getByText('Requests (buffer)')).toBeVisible()
+  expect(await page.getByTestId('request-rows').getByRole('button').count()).toBeLessThan(15)
+
+  await page.goto('/settings')
+  await zone.getByRole('button', { name: 'Sign out', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Sign everyone else out?' }).getByRole('button', { name: 'Sign everyone out' }).click()
+  await expect(page.getByText(/Signed out \d+ sessions?/)).toBeVisible()
+  expect((await viewer.request.get('/api/v1/auth/me')).status()).toBe(401)
+  expect((await page.request.get('/api/v1/auth/me')).status()).toBe(200) // the owner stays signed in
+  await viewer.close()
+
+  // Admins can't reach it.
+  await loginAs(page, 'admin', '/settings')
+  await expect(zone.getByRole('button', { name: 'Clear', exact: true })).toBeDisabled()
+})

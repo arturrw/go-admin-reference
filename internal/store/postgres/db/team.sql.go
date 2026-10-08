@@ -87,6 +87,18 @@ func (q *Queries) DeleteMemberSessions(ctx context.Context, memberID int64) erro
 	return err
 }
 
+const deleteOtherSessions = `-- name: DeleteOtherSessions :execrows
+DELETE FROM sessions WHERE token_hash <> $1
+`
+
+func (q *Queries) DeleteOtherSessions(ctx context.Context, tokenHash []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOtherSessions, tokenHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions WHERE token_hash = $1
 `

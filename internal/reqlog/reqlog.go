@@ -64,6 +64,19 @@ func (l *Log) Add(e Entry) {
 	l.mu.Unlock()
 }
 
+// Clear empties the log and reports how many entries it held.
+func (l *Log) Clear() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := l.next
+	if l.full {
+		n = len(l.buf)
+	}
+	clear(l.buf)
+	l.next, l.full = 0, false
+	return n
+}
+
 func (l *Log) each(fn func(Entry) bool) {
 	n := l.next
 	if l.full {

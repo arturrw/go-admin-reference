@@ -153,7 +153,7 @@ var Permissions = []PermissionInfo{
 	{PermTeamWrite, "Team", "Manage team", "Invite, edit and remove members"},
 	{PermRequestsRead, "System", "Request log", "Inspect API traffic, headers and bodies"},
 	{PermSettingsWrite, "System", "Edit settings", "Service, security and API keys"},
-	{PermWorkspaceManage, "System", "Danger zone", "Flush cache, delete workspace"},
+	{PermWorkspaceManage, "System", "Danger zone", "Clear the request log, sign everyone out, set the quarterly target"},
 }
 
 // RolePermissions is the access matrix enforced by the API and mirrored in the UI.

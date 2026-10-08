@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arturrw/go-admin-reference/internal/auth"
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 )
 
@@ -100,4 +101,23 @@ func (s *server) patchSettings(w http.ResponseWriter, r *http.Request) {
 		s.record(r.Context(), me, d.ActSettings, "", 0, "%s", c)
 	}
 	writeJSON(w, http.StatusOK, s.view(after))
+}
+
+// clearRequestLog: POST /api/v1/danger/clear-request-log
+func (s *server) clearRequestLog(w http.ResponseWriter, r *http.Request) {
+	n := s.requests.Clear()
+	s.audit(r.Context(), d.ActSettings, "", 0, "cleared the request log (%d entries)", n)
+	writeJSON(w, http.StatusOK, map[string]int{"cleared": n})
+}
+
+// signOutEveryone: POST /api/v1/danger/sign-out-everyone ends every session
+// but the caller's own. API keys keep working; revoke them separately.
+func (s *server) signOutEveryone(w http.ResponseWriter, r *http.Request) {
+	keep := ""
+	if c, err := r.Cookie(auth.CookieName); err == nil {
+		keep = c.Value
+	}
+	n := s.sessions.DeleteOthers(r.Context(), keep)
+	s.audit(r.Context(), d.ActSettings, "", 0, "signed everyone else out (%d sessions)", n)
+	writeJSON(w, http.StatusOK, map[string]int64{"signedOut": n})
 }

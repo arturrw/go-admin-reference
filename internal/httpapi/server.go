@@ -74,6 +74,8 @@ type SessionStore interface {
 	Lookup(ctx context.Context, token string) (memberID int64, err error)
 	Delete(ctx context.Context, token string)
 	DeleteMember(ctx context.Context, memberID int64)
+	// DeleteOthers ends every session except the one with token keep.
+	DeleteOthers(ctx context.Context, keep string) int64
 	TTL() time.Duration
 	SetTTL(ttl time.Duration)
 }
@@ -180,6 +182,8 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/settings/api-keys", d.PermSettingsWrite, s.listAPIKeys)
 	route("POST /api/v1/settings/api-keys", d.PermSettingsWrite, s.createAPIKey)
 	route("DELETE /api/v1/settings/api-keys/{id}", d.PermSettingsWrite, s.revokeAPIKey)
+	route("POST /api/v1/danger/clear-request-log", d.PermWorkspaceManage, s.clearRequestLog)
+	route("POST /api/v1/danger/sign-out-everyone", d.PermWorkspaceManage, s.signOutEveryone)
 	route("GET /api/v1/settings", d.PermSettingsWrite, s.getSettings)
 	route("PATCH /api/v1/settings", d.PermSettingsWrite, s.patchSettings)
 	route("GET /api/v1/settings/log-level", "", s.getLogLevel)

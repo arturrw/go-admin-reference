@@ -55,6 +55,15 @@ func (s *Sessions) Delete(ctx context.Context, token string) {
 	_ = s.q.DeleteSession(ctx, auth.HashToken(token))
 }
 
+// DeleteOthers ends every session except the one with token keep.
+func (s *Sessions) DeleteOthers(ctx context.Context, keep string) int64 {
+	n, err := s.q.DeleteOtherSessions(ctx, auth.HashToken(keep))
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
 func (s *Sessions) DeleteMember(ctx context.Context, memberID int64) {
 	_ = s.q.DeleteMemberSessions(ctx, memberID)
 }

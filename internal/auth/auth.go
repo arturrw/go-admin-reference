@@ -144,6 +144,21 @@ func (s *MemorySessions) Delete(_ context.Context, token string) {
 	s.mu.Unlock()
 }
 
+// DeleteOthers ends every session except the one with token keep, and reports
+// how many it ended.
+func (s *MemorySessions) DeleteOthers(_ context.Context, keep string) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var n int64
+	for t := range s.m {
+		if t != keep {
+			delete(s.m, t)
+			n++
+		}
+	}
+	return n
+}
+
 // DeleteMember ends every session of a member (e.g. after removal or suspension).
 func (s *MemorySessions) DeleteMember(_ context.Context, memberID int64) {
 	s.mu.Lock()
