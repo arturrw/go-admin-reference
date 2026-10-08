@@ -3,14 +3,19 @@ import { Bell, ChevronRight, CircleHelp, PanelLeft, Search } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { useMe } from '@/lib/auth'
 import { NAV_ITEMS } from '@/lib/nav'
 import { PeekProvider } from '@/lib/peek'
+import { useMeta } from '@/lib/queries'
+import { MaintenanceBanner, MaintenancePage } from './maintenance'
 import { Sidebar } from './sidebar'
 
 // cmdk is only needed once the menu is opened, so it is its own chunk.
 const CommandMenu = lazy(() => import('./command-menu').then((m) => ({ default: m.CommandMenu })))
 
 export function AppShell() {
+  const { data: meta } = useMeta()
+  const me = useMe()
   const [sideOpen, setSideOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
   const [cmdUsed, setCmdUsed] = useState(false)
@@ -33,6 +38,10 @@ export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const current = NAV_ITEMS.find((i) => (i.to === '/' ? pathname === '/' : pathname.startsWith(i.to)))
 
+  // Owners and admins keep working (with a banner); everyone else sees a holding page.
+  const locked = !!meta?.maintenance && me.user.role !== 'owner' && me.user.role !== 'admin'
+  if (locked) return <MaintenancePage serviceName={meta?.serviceName} />
+
   return (
     <PeekProvider>
       <div className="grid min-h-screen md:grid-cols-[252px_minmax(0,1fr)]">
@@ -54,7 +63,7 @@ export function AppShell() {
               <PanelLeft />
             </Button>
             <div className="flex items-center gap-2 text-[13px] whitespace-nowrap text-dim">
-              <span className="max-sm:hidden">Acme Inc</span>
+              <span className="max-sm:hidden">{meta?.serviceName ?? ''}</span>
               <ChevronRight className="size-3.5 max-sm:hidden" />
               <b className="font-medium text-fg">{current?.label ?? 'Not found'}</b>
             </div>
@@ -76,6 +85,7 @@ export function AppShell() {
           </header>
 
           <main className="relative w-full max-w-[1560px] px-4 pt-5 pb-12 md:px-7 md:pt-6.5">
+            {meta?.maintenance && <MaintenanceBanner />}
             <Outlet />
           </main>
         </div>

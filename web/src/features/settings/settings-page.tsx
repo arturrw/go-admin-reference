@@ -7,7 +7,7 @@ import { PageHeader, Switch } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
 import type { LogLevel } from '@/lib/api'
 import { useCan } from '@/lib/auth'
-import { useLogLevel, useSetLogLevel } from '@/lib/queries'
+import { useLogLevel, usePatchSettings, useSetLogLevel, useSettings } from '@/lib/queries'
 import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { ApiKeys } from './api-keys'
@@ -40,7 +40,9 @@ export function SettingsPage() {
   const setLogLevel = useSetLogLevel()
   const level = setLogLevel.isPending ? setLogLevel.variables : logLevel.data?.level
   const [density, setDensity] = useState('comfortable')
-  const [toggles, setToggles] = useState({ maint: false, mfa: true, audit: true, alerts: true, webhooks: false })
+  const settings = useSettings(canEdit)
+  const patch = usePatchSettings()
+  const [toggles, setToggles] = useState({ mfa: true, audit: true, alerts: true, webhooks: false })
   const flip = (k: keyof typeof toggles, label: string) => (v: boolean) => {
     setToggles((t) => ({ ...t, [k]: v }))
     toast(`${label}: ${v ? 'on' : 'off'}`)
@@ -81,7 +83,12 @@ export function SettingsPage() {
                 options={LOG_LEVELS.map((l) => ({ value: l.value, label: l.value }))}
               />
             </Field>
-            <ToggleRow title="Maintenance mode" description="Storefront returns 503 with a friendly page" checked={toggles.maint} onChange={flip('maint', 'Maintenance mode')} />
+            <ToggleRow
+              title="Maintenance mode"
+              description="Locks out everyone except owners and admins: they see a holding page and API keys get 503"
+              checked={settings.data?.maintenance ?? false}
+              onChange={(v) => patch.mutate({ maintenance: v })}
+            />
           </Section>
 
           <Section id="appearance" title="Appearance" description="Accent color for this workspace. Applied instantly and remembered in this browser.">

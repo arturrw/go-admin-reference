@@ -34,6 +34,10 @@ func (s *server) authorize(perm d.Permission, next http.HandlerFunc) http.Handle
 			if info := reqInfoFrom(r.Context()); info != nil {
 				info.actor, info.role = m.Email, string(m.Role)
 			}
+			if s.blockedByMaintenance(r, m) {
+				writeMaintenance(w)
+				return
+			}
 			if perm != "" && !m.Can(perm) {
 				writeError(w, http.StatusForbidden, "this API key doesn't have permission to do this")
 				return
@@ -69,6 +73,10 @@ func (s *server) authorize(perm d.Permission, next http.HandlerFunc) http.Handle
 		// Presence for the team page: at most one write a minute per member.
 		if m.LastActiveAt == nil || time.Since(*m.LastActiveAt) > time.Minute {
 			s.store.TouchMember(r.Context(), m.ID)
+		}
+		if s.blockedByMaintenance(r, m) {
+			writeMaintenance(w)
+			return
 		}
 		if perm != "" && !m.Can(perm) {
 			writeError(w, http.StatusForbidden, "you don't have permission to do this")
@@ -143,6 +151,10 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "this account is "+string(m.Status))
 		return
 	}
+	if s.settings(r.Context()).Maintenance && !d.CanUseDuringMaintenance(m.Role) {
+		writeMaintenance(w)
+		return
+	}
 	token, err := s.sessions.Create(r.Context(), m.ID)
 	if err != nil {
 		s.writeDomainError(w, r, err)
@@ -203,4 +215,18 @@ func (s *server) roles(w http.ResponseWriter, _ *http.Request) {
 		"permissions": d.Permissions,
 		"matrix":      d.RolePermissions,
 	})
+}
+
+// Paths the UI needs to explain maintenance mode instead of failing.
+var maintenanceExempt = map[string]bool{"/api/v1/auth/me": true, "/api/v1/meta": true}
+
+// blockedByMaintenance is true for members who must not work while the
+// workspace is in maintenance mode.
+func (s *server) blockedByMaintenance(r *http.Request, m d.Member) bool {
+	return !maintenanceExempt[r.URL.Path] && !d.CanUseDuringMaintenance(m.Role) && s.settings(r.Context()).Maintenance
+}
+
+func writeMaintenance(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "300")
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "the workspace is in maintenance mode", "maintenance": true})
 }

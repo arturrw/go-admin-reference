@@ -27,7 +27,8 @@ export const keys = {
   member: (id: number) => ['member', id] as const,
 }
 
-export const useMeta = () => useQuery({ queryKey: keys.meta, queryFn: api.meta, staleTime: 30_000 })
+// Polled so maintenance mode (and the sidebar counters) reach open tabs.
+export const useMeta = () => useQuery({ queryKey: keys.meta, queryFn: api.meta, staleTime: 10_000, refetchInterval: 15_000 })
 
 export const useRuntime = (enabled = true) =>
   useQuery({ queryKey: keys.runtime, queryFn: api.runtime, refetchInterval: 2000, enabled })

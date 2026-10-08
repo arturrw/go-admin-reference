@@ -10,7 +10,14 @@ import (
 type Settings struct {
 	ServiceName   string `json:"serviceName"`
 	PublicBaseURL string `json:"publicBaseUrl"` // no trailing slash; "" = unset
+	// Maintenance locks everyone but owners and admins out with 503, API keys
+	// included. See httpapi.authorize.
+	Maintenance bool `json:"maintenance"`
 }
+
+// CanUseDuringMaintenance reports whether the role may keep working while
+// maintenance mode is on.
+func CanUseDuringMaintenance(r Role) bool { return r == RoleOwner || r == RoleAdmin }
 
 func DefaultSettings() Settings { return Settings{ServiceName: "goadmin-api"} }
 
@@ -18,6 +25,7 @@ func DefaultSettings() Settings { return Settings{ServiceName: "goadmin-api"} }
 type SettingsPatch struct {
 	ServiceName   *string `json:"serviceName"`
 	PublicBaseURL *string `json:"publicBaseUrl"`
+	Maintenance   *bool   `json:"maintenance"`
 }
 
 func (p *SettingsPatch) Normalize() {
@@ -53,6 +61,9 @@ func (s Settings) Apply(p SettingsPatch) Settings {
 	if p.PublicBaseURL != nil {
 		s.PublicBaseURL = *p.PublicBaseURL
 	}
+	if p.Maintenance != nil {
+		s.Maintenance = *p.Maintenance
+	}
 	return s
 }
 
@@ -67,6 +78,13 @@ func (s Settings) Changes(next Settings) []string {
 			out = append(out, "cleared the public base URL")
 		} else {
 			out = append(out, "set the public base URL to "+next.PublicBaseURL)
+		}
+	}
+	if s.Maintenance != next.Maintenance {
+		if next.Maintenance {
+			out = append(out, "turned maintenance mode on")
+		} else {
+			out = append(out, "turned maintenance mode off")
 		}
 	}
 	return out

@@ -83,3 +83,35 @@ test('general settings are saved and used by the UI', async ({ page }) => {
   await expect(general.getByLabel('Service name')).toBeDisabled()
   await expect(general.getByLabel('Public base URL')).toHaveCount(0)
 })
+
+test('maintenance mode locks out other roles and shows owners a banner', async ({ page, browser }) => {
+  test.setTimeout(90_000) // open tabs notice on the next 15 s poll
+  const editor = await browser.newContext()
+  const ep = await editor.newPage()
+  await loginAs(ep, 'editor', '/products')
+  await expect(ep.getByRole('heading', { name: 'Products' })).toBeVisible()
+
+  await loginAs(page, 'owner', '/settings')
+  const toggle = page.getByRole('switch', { name: 'Maintenance mode' })
+  try {
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByTestId('maintenance-banner')).toBeVisible()
+
+    // The editor's open tab swaps to the holding page on its next poll.
+    await expect(ep.getByTestId('maintenance-page')).toBeVisible({ timeout: 25_000 })
+    await expect(ep.getByRole('heading', { name: 'Down for maintenance' })).toBeVisible()
+    expect((await ep.request.get('/api/v1/orders')).status()).toBe(503)
+
+    // The owner keeps working.
+    await page.goto('/orders')
+    await expect(page.getByRole('heading', { name: 'Orders' })).toBeVisible()
+    await expect(page.getByTestId('maintenance-banner')).toBeVisible()
+  } finally {
+    await page.request.patch('/api/v1/settings', { data: { maintenance: false } })
+  }
+  await expect(page.getByTestId('maintenance-banner')).toBeHidden({ timeout: 25_000 })
+  await ep.reload()
+  await expect(ep.getByRole('heading', { name: 'Products' })).toBeVisible()
+  await editor.close()
+})

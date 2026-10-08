@@ -294,6 +294,7 @@ export interface LiveStats {
 export interface WorkspaceSettings {
   serviceName: string
   publicBaseUrl: string
+  maintenance: boolean
   listenAddr: string
   env: string
 }
@@ -329,6 +330,7 @@ export interface ImportResult {
 
 export interface Meta {
   serviceName: string
+  maintenance: boolean
   version: string
   env: string
   goVersion: string
@@ -426,7 +428,7 @@ export const api = {
   runtime: () => request<RuntimeStats>('/runtime'),
   live: () => request<LiveStats>('/live'),
   settings: () => request<WorkspaceSettings>('/settings'),
-  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
+  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl' | 'maintenance'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
   apiKeys: () => request<{ items: ApiKey[] }>('/settings/api-keys'),
   createApiKey: (in_: { name: string; scope: ApiKeyScope }) => request<{ key: ApiKey; masked: string; secret: string }>('/settings/api-keys', json('POST', in_)),
   revokeApiKey: (id: number) => request<void>(`/settings/api-keys/${id}`, { method: 'DELETE' }),
