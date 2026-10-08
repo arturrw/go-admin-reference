@@ -99,7 +99,7 @@ function Bento({ data }: { data: Dashboard }) {
       </div>
 
       <Card className="col-span-12 lg:col-span-6 xl:col-span-5">
-        <CardHeader title="Orders by hour" sub="last 4 weeks">
+        <CardHeader title="Orders by hour" sub={`last ${data.rangeDays} days`}>
           <HeatmapScale />
         </CardHeader>
         <Heatmap data={data.ordersHeatmap} />
@@ -167,6 +167,11 @@ function KpiCard({ kpi, onOpen }: { kpi: KPI; onOpen: () => void }) {
       <div className="flex items-center gap-2 text-[12.5px] text-muted">
         <IconTile icon={Icon} color={color} />
         {kpi.label}
+        {kpi.synthetic && (
+          <span className="rounded-md border border-line-2 px-1.5 py-px text-[10px] text-dim" title="A fixed sample: there is no storefront traffic behind this app">
+            sample
+          </span>
+        )}
         <ChevronRight className="ml-auto size-3.5 text-dim opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
       <div className="num mt-1 text-2xl font-semibold tracking-[-0.03em]">{formatKpi(kpi)}</div>

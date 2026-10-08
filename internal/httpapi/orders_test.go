@@ -312,3 +312,43 @@ func TestOrderTimeline(t *testing.T) {
 		}
 	}
 }
+
+// The dashboard is computed from orders: a refund takes the order out of the
+// revenue and the product sales, and the daily series adds up to the total.
+func TestDashboardFollowsOrders(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	dash := func() map[string]any {
+		_, d := c.do("GET", "/api/v1/dashboard?range=90", nil)
+		return d
+	}
+	revenue := func(d map[string]any) (total, sum float64) {
+		for _, p := range d["revenue"].([]any) {
+			sum += p.(map[string]any)["current"].(float64)
+		}
+		return d["revenueCents"].(float64), sum
+	}
+	orderCount := func(d map[string]any) float64 { return d["kpis"].([]any)[0].(map[string]any)["value"].(float64) }
+
+	before := dash()
+	total, sum := revenue(before)
+	if total == 0 || total != sum {
+		t.Fatalf("revenue %v does not equal the daily series %v", total, sum)
+	}
+
+	// A paid order in the last 90 days: refunding it removes its total.
+	_, list := c.do("GET", "/api/v1/orders?status=paid&limit=1", nil)
+	o := list["items"].([]any)[0].(map[string]any)
+	if code, _ := c.do("PATCH", fmt.Sprintf("/api/v1/orders/%v/status", o["id"]), map[string]any{"status": "refunded", "reason": "Duplicate order"}); code != http.StatusOK {
+		t.Fatalf("refund: %d", code)
+	}
+	after := dash()
+	if got, _ := revenue(after); got != total-o["totalCents"].(float64) {
+		t.Fatalf("revenue after refund = %v, want %v", got, total-o["totalCents"].(float64))
+	}
+	if orderCount(after) != orderCount(before) {
+		t.Fatalf("a refunded order still counts as placed: %v → %v", orderCount(before), orderCount(after))
+	}
+}

@@ -127,12 +127,6 @@ type OrderItem struct {
 	PriceCents int64
 }
 
-type OrdersHeatmap struct {
-	Dow    int16
-	Hour   int16
-	Orders int32
-}
-
 type Product struct {
 	ID             int64
 	Name           string
@@ -164,12 +158,6 @@ type ProductImage struct {
 	Generated bool
 	SizeBytes int64
 	CreatedAt time.Time
-}
-
-type RevenueDaily struct {
-	Day           time.Time
-	CurrentCents  int64
-	PreviousCents int64
 }
 
 type Session struct {

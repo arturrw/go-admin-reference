@@ -36,56 +36,6 @@ func (q *Queries) GetTarget(ctx context.Context, quarter string) (Target, error)
 	return i, err
 }
 
-const ordersHeatmap = `-- name: OrdersHeatmap :many
-SELECT dow, hour, orders FROM orders_heatmap
-`
-
-func (q *Queries) OrdersHeatmap(ctx context.Context) ([]OrdersHeatmap, error) {
-	rows, err := q.db.Query(ctx, ordersHeatmap)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []OrdersHeatmap{}
-	for rows.Next() {
-		var i OrdersHeatmap
-		if err := rows.Scan(&i.Dow, &i.Hour, &i.Orders); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const revenueSeries = `-- name: RevenueSeries :many
-SELECT day, current_cents, previous_cents FROM (
-    SELECT day, current_cents, previous_cents FROM revenue_daily ORDER BY day DESC LIMIT $1::int
-) r ORDER BY day
-`
-
-func (q *Queries) RevenueSeries(ctx context.Context, days int32) ([]RevenueDaily, error) {
-	rows, err := q.db.Query(ctx, revenueSeries, days)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []RevenueDaily{}
-	for rows.Next() {
-		var i RevenueDaily
-		if err := rows.Scan(&i.Day, &i.CurrentCents, &i.PreviousCents); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const upsertTarget = `-- name: UpsertTarget :one
 INSERT INTO targets (quarter, goal_cents, updated_by) VALUES ($1, $2, $3)
 ON CONFLICT (quarter) DO UPDATE SET goal_cents = EXCLUDED.goal_cents, updated_by = EXCLUDED.updated_by, updated_at = now()

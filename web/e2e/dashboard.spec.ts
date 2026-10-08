@@ -121,7 +121,7 @@ test('the owner edits the quarterly target; other roles cannot', async ({ page }
   await expect(card.getByTestId('target-updated')).toContainText('Goal set by Artur DCS')
 
   const feed = page.locator('.card', { has: page.getByRole('heading', { name: 'Activity' }) })
-  await expect(feed.getByTestId('activity-item').first()).toContainText('target to $900,000.00 (was $1,200,000.00)')
+  await expect(feed.getByTestId('activity-item').first()).toContainText('target to $900,000.00 (was $120,000.00)')
 
   await loginAs(page, 'admin', '/')
   await expect(page.getByRole('button', { name: 'Edit target' })).toHaveCount(0)

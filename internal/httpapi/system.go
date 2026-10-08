@@ -137,7 +137,12 @@ func (s *server) setTarget(w http.ResponseWriter, r *http.Request) {
 	if prev != nil {
 		before = prev.GoalCents
 	}
-	t := domain.BuildTarget(now, &g)
+	dash, err := s.store.Dashboard(r.Context(), 7)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	t := dash.Target
 	s.audit(r.Context(), domain.ActTarget, "", 0, "set the %s target to %s (was %s)", key[5:]+" "+key[:4], domain.USD(g.GoalCents), domain.USD(before))
 	writeJSON(w, http.StatusOK, t)
 }

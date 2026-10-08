@@ -206,6 +206,8 @@ export interface KPI {
   value: number
   unit: 'count' | 'percent' | 'cents'
   deltaPct: number
+  /** A fixed sample: the orders cannot tell it (no storefront traffic behind this app). */
+  synthetic?: boolean
   trend: number[]
   series: { date: string; current: number; previous: number }[]
 }

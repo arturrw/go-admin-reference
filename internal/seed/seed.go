@@ -105,14 +105,9 @@ type Dataset struct {
 	Customers []d.Customer
 	Orders    []d.Order // newest first
 	Members   []d.Member
-	Revenue   []d.RevenuePoint
-	Heatmap   [7][24]int
 	Activity  []d.Activity
 	APIKeys   []d.APIKey
 }
-
-// Markets is the static revenue split shown on the dashboard.
-func Markets() []d.Market { return slices.Clone(markets[:7]) }
 
 // CategoryHue is the base artwork hue of a category.
 func CategoryHue(c d.Category) int { return catalog[c].hue }
@@ -242,9 +237,17 @@ func Generate(now time.Time) *Dataset {
 		}
 	}
 	r.Shuffle(len(owners), func(i, j int) { owners[i], owners[j] = owners[j], owners[i] })
+	const recent = 40
 	for i, ci := range owners {
 		c := s.Customers[ci]
-		placed := now.Add(-time.Duration(math.Pow(float64(i), 1.75)*7+2) * time.Minute)
+		// The newest orders are dense (the first ~3 days), the rest are spread
+		// evenly over six months so the dashboard has a history to compare.
+		mins := math.Pow(float64(i), 1.75)*7 + 2
+		if i >= recent {
+			head := math.Pow(recent, 1.75)*7 + 2
+			mins = head + float64(i-recent)/float64(len(owners)-recent)*(180*24*60-head)
+		}
+		placed := now.Add(-time.Duration(mins) * time.Minute)
 		age := now.Sub(placed)
 		var status d.OrderStatus
 		switch {
@@ -276,7 +279,8 @@ func Generate(now time.Time) *Dataset {
 				c.CreatedAt = o.PlacedAt
 			}
 		}
-		c.CreatedAt = c.CreatedAt.Add(-time.Duration(between(r, 1, 90)) * 24 * time.Hour)
+		// Signing up shortly before the first order keeps "new customers" real.
+		c.CreatedAt = c.CreatedAt.Add(-time.Duration(between(r, 1, 48)) * time.Hour)
 		if c.LastSeenAt.Before(c.LastOrderAt) {
 			c.LastSeenAt = c.LastOrderAt
 		}
@@ -333,33 +337,6 @@ func Generate(now time.Time) *Dataset {
 		if s.Members[i].Status != d.MemberInvited {
 			// One shared hash keeps boot fast; real members get their own salt.
 			s.Members[i].PasswordHash = hash
-		}
-	}
-
-	// ── Revenue for the last 90 days plus the preceding period ──
-	const days = 90
-	for i := range days {
-		day := now.AddDate(0, 0, -(days - 1 - i))
-		weekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday
-		v := 6200 + float64(i)*48 + math.Sin(float64(i)/6)*900 + (r.Float64()-.5)*1800
-		if weekend {
-			v -= 1100
-		} else {
-			v += 600
-		}
-		prev := v*.82 + math.Sin(float64(i)/5)*700 + (r.Float64()-.5)*1400
-		s.Revenue = append(s.Revenue, d.RevenuePoint{Date: day.Format(time.DateOnly), Current: int64(v * 100), Previous: int64(prev * 100)})
-	}
-
-	// ── Orders heatmap: midday peak plus an evening bump, quieter weekends ──
-	for day := range 7 {
-		for h := range 24 {
-			x := math.Exp(-math.Pow((float64(h)-13.5)/4.5, 2)) + .55*math.Exp(-math.Pow((float64(h)-20.5)/2, 2))
-			if day >= 5 {
-				x *= .7
-			}
-			x = math.Max(0, math.Min(1, x+(r.Float64()-.5)*.22))
-			s.Heatmap[day][h] = int(x * 140)
 		}
 	}
 

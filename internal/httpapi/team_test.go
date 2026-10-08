@@ -87,23 +87,23 @@ func TestQuarterTarget(t *testing.T) {
 
 	_, before := owner.do("GET", "/api/v1/dashboard", nil)
 	tg := before["target"].(map[string]any)
-	if tg["goalCents"].(float64) != 120_000_000 || tg["updatedBy"] != "" {
+	if tg["goalCents"].(float64) != 12_000_000 || tg["updatedBy"] != "" {
 		t.Fatalf("default target = %v", tg)
 	}
 
-	code, after := owner.do("PUT", "/api/v1/target", map[string]any{"goalCents": 60_000_000})
-	if code != http.StatusOK || after["goalCents"].(float64) != 60_000_000 || after["updatedBy"] != "Artur DCS" {
+	code, after := owner.do("PUT", "/api/v1/target", map[string]any{"goalCents": 6_000_000})
+	if code != http.StatusOK || after["goalCents"].(float64) != 6_000_000 || after["updatedBy"] != "Artur DCS" {
 		t.Fatalf("set target: %d %v", code, after)
 	}
 	if after["pacePct"].(float64) <= tg["pacePct"].(float64) {
 		t.Fatalf("halving the goal should improve the pace: %v → %v", tg["pacePct"], after["pacePct"])
 	}
 	_, dash := owner.do("GET", "/api/v1/dashboard", nil)
-	if dash["target"].(map[string]any)["goalCents"].(float64) != 60_000_000 {
+	if dash["target"].(map[string]any)["goalCents"].(float64) != 6_000_000 {
 		t.Fatalf("dashboard target = %v", dash["target"])
 	}
 	_, act := owner.do("GET", "/api/v1/activity?kind=target&limit=1", nil)
-	if msg := act["items"].([]any)[0].(map[string]any)["message"].(string); msg != "set the "+tg["label"].(string)[:2]+" "+tg["quarter"].(string)[:4]+" target to $600,000.00 (was $1,200,000.00)" {
+	if msg := act["items"].([]any)[0].(map[string]any)["message"].(string); msg != "set the "+tg["label"].(string)[:2]+" "+tg["quarter"].(string)[:4]+" target to $60,000.00 (was $120,000.00)" {
 		t.Fatalf("activity = %q", msg)
 	}
 

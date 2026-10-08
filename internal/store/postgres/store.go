@@ -1,12 +1,10 @@
 package postgres
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"io/fs"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -577,66 +575,6 @@ func (s *Store) DeleteMember(ctx context.Context, id int64) error {
 }
 
 // ── Dashboard ───────────────────────────────────────────────────────────────
-
-func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
-	days = min(max(days, 7), 90)
-	rev, err := s.q.RevenueSeries(ctx, int32(days))
-	if err != nil {
-		return d.Dashboard{}, err
-	}
-	series := make([]d.RevenuePoint, len(rev))
-	for i, r := range rev {
-		series[i] = d.RevenuePoint{Date: r.Day.Format("2006-01-02"), Current: r.CurrentCents, Previous: r.PreviousCents}
-	}
-	dash := d.BuildDashboard(series, seed.Markets())
-	key, _, _ := d.QuarterOf(s.now())
-	goal, err := s.TargetGoal(ctx, key)
-	if err != nil {
-		return d.Dashboard{}, err
-	}
-	dash.Target = d.BuildTarget(s.now(), goal)
-
-	cells, err := s.q.OrdersHeatmap(ctx)
-	if err != nil {
-		return d.Dashboard{}, err
-	}
-	for _, c := range cells {
-		dash.OrdersHeatmap[c.Dow][c.Hour] = int(c.Orders)
-	}
-
-	sales, err := s.q.ProductSalesByCategory(ctx)
-	if err != nil {
-		return d.Dashboard{}, err
-	}
-	byCat := map[d.Category]int64{}
-	for _, r := range sales {
-		byCat[d.Category(r.Category)] = r.SalesCents
-	}
-	for _, c := range d.Categories {
-		dash.Categories = append(dash.Categories, d.CategoryShare{Category: c, SalesCents: byCat[c]})
-	}
-	slices.SortFunc(dash.Categories, func(a, b d.CategoryShare) int { return cmp.Compare(b.SalesCents, a.SalesCents) })
-
-	topRows, err := s.q.TopProducts(ctx, 5)
-	if err != nil {
-		return d.Dashboard{}, err
-	}
-	top, err := s.withImages(ctx, s.q, topRows)
-	if err != nil {
-		return d.Dashboard{}, err
-	}
-	for _, p := range top {
-		dash.TopProducts = append(dash.TopProducts, d.TopProduct{ID: p.ID, Name: p.Name, Category: p.Category, Hue: p.Hue, ImageURL: p.ImageURL(), Sold: p.Sold30d, RevenueCents: p.Revenue30dCents()})
-	}
-
-	if dash.RecentOrders, _, err = s.ListOrders(ctx, d.OrderFilter{Limit: 6}); err != nil {
-		return d.Dashboard{}, err
-	}
-	if dash.Activity, _, err = s.ListActivity(ctx, d.ActivityFilter{ExcludeAuth: true, Limit: d.DashboardActivity}); err != nil {
-		return d.Dashboard{}, err
-	}
-	return dash, nil
-}
 
 // TargetGoal returns the stored goal for a quarter, or nil when none is set.
 func (s *Store) TargetGoal(ctx context.Context, quarter string) (*d.TargetGoal, error) {

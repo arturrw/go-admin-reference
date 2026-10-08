@@ -129,28 +129,6 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 	}
 
 	rows = nil
-	for _, r := range ds.Revenue {
-		day, err := time.Parse(time.DateOnly, r.Date)
-		if err != nil {
-			return err
-		}
-		rows = append(rows, []any{day, r.Current, r.Previous})
-	}
-	if err := copyRows("revenue_daily", []string{"day", "current_cents", "previous_cents"}, rows); err != nil {
-		return err
-	}
-
-	rows = nil
-	for dow, hours := range ds.Heatmap {
-		for h, n := range hours {
-			rows = append(rows, []any{int16(dow), int16(h), int32(n)})
-		}
-	}
-	if err := copyRows("orders_heatmap", []string{"dow", "hour", "orders"}, rows); err != nil {
-		return err
-	}
-
-	rows = nil
 	for _, a := range ds.Activity {
 		var actorID *int64
 		if a.ActorID != 0 {

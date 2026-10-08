@@ -23,8 +23,6 @@ type Store struct {
 	orders         []d.Order // newest first
 	customers      []d.Customer
 	members        []d.Member
-	revenue        []d.RevenuePoint
-	heatmap        [7][24]int
 	activity       []d.Activity
 	goals          map[string]d.TargetGoal // by quarter
 	apiKeys        []d.APIKey              // newest first
@@ -42,7 +40,7 @@ func New(now time.Time) *Store {
 	ds := seed.Generate(now)
 	s := &Store{
 		products: ds.Products, orders: ds.Orders, customers: ds.Customers, members: ds.Members,
-		revenue: ds.Revenue, heatmap: ds.Heatmap, activity: ds.Activity, now: time.Now,
+		activity: ds.Activity, now: time.Now,
 		goals: map[string]d.TargetGoal{}, nextKeyID: 1, settings: d.DefaultSettings(),
 	}
 	for _, p := range s.products {
@@ -694,33 +692,26 @@ func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	days = min(max(days, 7), len(s.revenue))
-	dash := d.BuildDashboard(slices.Clone(s.revenue[len(s.revenue)-days:]), seed.Markets())
-	dash.OrdersHeatmap = s.heatmap
-	key, _, _ := d.QuarterOf(s.now())
+	now := s.now()
+	days = d.DashboardDays(days)
+	since := d.SalesSince(now, days)
+	in := d.DashboardInput{Now: now, Days: days}
+	for _, o := range s.orders {
+		if !o.PlacedAt.Before(since) {
+			in.Sales = append(in.Sales, d.Sale{PlacedAt: o.PlacedAt, Status: o.Status, TotalCents: o.TotalCents, Country: o.Customer.Country, Items: o.Items})
+		}
+	}
+	for _, c := range s.customers {
+		if !c.CreatedAt.Before(since) {
+			in.CustomersSince = append(in.CustomersSince, c.CreatedAt)
+		}
+	}
+	key, _, _ := d.QuarterOf(now)
 	if g, ok := s.goals[key]; ok {
-		dash.Target = d.BuildTarget(s.now(), &g)
-	} else {
-		dash.Target = d.BuildTarget(s.now(), nil)
+		in.Goal = &g
 	}
+	dash := d.BuildDashboard(in)
 	dash.Activity, _ = s.listActivity(d.ActivityFilter{ExcludeAuth: true, Limit: d.DashboardActivity})
-
-	sales := map[d.Category]int64{}
-	for _, p := range s.products {
-		sales[p.Category] += p.Revenue30dCents()
-	}
-	for _, c := range d.Categories {
-		dash.Categories = append(dash.Categories, d.CategoryShare{Category: c, SalesCents: sales[c]})
-	}
-	slices.SortFunc(dash.Categories, func(a, b d.CategoryShare) int { return cmp.Compare(b.SalesCents, a.SalesCents) })
-
-	top := slices.Clone(s.products)
-	slices.SortFunc(top, func(a, b d.Product) int {
-		return cmp.Or(cmp.Compare(b.Revenue30dCents(), a.Revenue30dCents()), cmp.Compare(a.ID, b.ID))
-	})
-	for _, p := range top[:min(5, len(top))] {
-		dash.TopProducts = append(dash.TopProducts, d.TopProduct{ID: p.ID, Name: p.Name, Category: p.Category, Hue: p.Hue, ImageURL: p.ImageURL(), Sold: p.Sold30d, RevenueCents: p.Revenue30dCents()})
-	}
 	dash.RecentOrders = s.withCovers(s.orders[:min(6, len(s.orders))]...)
 	return dash, nil
 }
