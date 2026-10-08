@@ -12,6 +12,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addOrderEvent = `-- name: AddOrderEvent :exec
+INSERT INTO order_events (order_id, seq, status, at, by)
+VALUES ($1, (SELECT coalesce(max(seq), 0) + 1 FROM order_events WHERE order_id = $1), $2, $3, $4)
+`
+
+type AddOrderEventParams struct {
+	OrderID int64
+	Status  string
+	At      time.Time
+	By      string
+}
+
+func (q *Queries) AddOrderEvent(ctx context.Context, arg AddOrderEventParams) error {
+	_, err := q.db.Exec(ctx, addOrderEvent,
+		arg.OrderID,
+		arg.Status,
+		arg.At,
+		arg.By,
+	)
+	return err
+}
+
 const countOrders = `-- name: CountOrders :one
 SELECT count(*)::int
 FROM orders o
@@ -90,6 +112,36 @@ func (q *Queries) GetOrder(ctx context.Context, id int64) (GetOrderRow, error) {
 		&i.CustomerSegment,
 	)
 	return i, err
+}
+
+const listOrderEvents = `-- name: ListOrderEvents :many
+SELECT order_id, seq, status, at, by FROM order_events WHERE order_id = ANY($1::bigint[]) ORDER BY order_id, seq
+`
+
+func (q *Queries) ListOrderEvents(ctx context.Context, orderIds []int64) ([]OrderEvent, error) {
+	rows, err := q.db.Query(ctx, listOrderEvents, orderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderEvent{}
+	for rows.Next() {
+		var i OrderEvent
+		if err := rows.Scan(
+			&i.OrderID,
+			&i.Seq,
+			&i.Status,
+			&i.At,
+			&i.By,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listOrderItems = `-- name: ListOrderItems :many

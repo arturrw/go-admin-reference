@@ -269,3 +269,46 @@ func TestCreateCustomer(t *testing.T) {
 		t.Fatalf("viewer: got %d, want 403", code)
 	}
 }
+
+// An order's timeline is its recorded history, and only forward moves are allowed.
+func TestOrderTimeline(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	_, list := c.do("GET", "/api/v1/orders?status=pending&limit=1", nil)
+	o := list["items"].([]any)[0].(map[string]any)
+	path := fmt.Sprintf("/api/v1/orders/%v", o["id"])
+	set := func(status string) int {
+		code, _ := c.do("PATCH", path+"/status", map[string]any{"status": status})
+		return code
+	}
+
+	if code := set("delivered"); code != http.StatusConflict {
+		t.Fatalf("pending -> delivered: got %d, want 409", code)
+	}
+	if code := set("paid"); code != http.StatusOK {
+		t.Fatalf("pending -> paid: got %d, want 200", code)
+	}
+	if code := set("paid"); code != http.StatusOK {
+		t.Fatalf("paid -> paid: got %d, want 200", code)
+	}
+	if code := set("pending"); code != http.StatusConflict {
+		t.Fatalf("paid -> pending: got %d, want 409", code)
+	}
+
+	_, got := c.do("GET", path, nil)
+	events, _ := got["events"].([]any)
+	if len(events) < 2 {
+		t.Fatalf("events = %v, want placed and paid", events)
+	}
+	last := events[len(events)-1].(map[string]any)
+	if last["status"] != "paid" || last["by"] != "Priya Shah" {
+		t.Fatalf("last event = %v", last)
+	}
+	for _, e := range events[:len(events)-1] {
+		if e.(map[string]any)["status"] == "paid" {
+			t.Fatalf("a repeated status was recorded twice: %v", events)
+		}
+	}
+}

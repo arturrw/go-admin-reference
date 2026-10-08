@@ -19,7 +19,7 @@ test('clicking a customer opens their full profile and purchase history', async 
 
   // Order history opens the order on top of the customer, without leaving the page.
   await orders.first().click()
-  await expect(page.getByRole('dialog').getByText('Fulfillment')).toBeVisible()
+  await expect(page.getByRole('dialog').getByText('Timeline', { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/customers\?view=\d+/)
 })
 

@@ -56,13 +56,16 @@ func BuildActivity(s *Dataset, now time.Time) []d.Activity {
 	add(ago(3*time.Hour), d.ActStock, "Inventory", fmt.Sprintf("%s dropped below 10 units", low.Name), "product", low.ID)
 
 	// Fulfilment and refunds follow the orders themselves.
-	shippers := []string{"Mark Liu", "Omar Haddad", "Yuki Tanaka"}
 	shipped := 0
 	for _, o := range s.Orders {
 		switch {
 		case o.Status == d.OrderShipped && shipped < 8:
-			add(o.PlacedAt.Add(5*time.Hour+time.Duration(o.ID%50)*time.Minute), d.ActOrder, shippers[shipped%len(shippers)],
-				fmt.Sprintf("marked order #%d as shipped", o.ID), "order", o.ID)
+			// The same moment and person as the order's own history.
+			for _, e := range o.Events {
+				if e.Status == d.OrderShipped {
+					add(e.At, d.ActOrder, e.By, fmt.Sprintf("marked order #%d as shipped", o.ID), "order", o.ID)
+				}
+			}
 			shipped++
 		case o.Refund != nil:
 			add(o.Refund.At, d.ActRefund, o.Refund.By,

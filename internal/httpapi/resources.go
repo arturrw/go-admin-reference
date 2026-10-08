@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"path"
 	"slices"
@@ -311,6 +312,10 @@ func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	me, _ := CurrentMember(r.Context())
+	if in.Status != cur.Status && !d.CanTransition(cur.Status, in.Status) {
+		writeError(w, http.StatusConflict, fmt.Sprintf("an order that is %s cannot become %s", cur.Status, in.Status))
+		return
+	}
 	var refund *d.OrderRefund
 	if in.Status == d.OrderRefunded {
 		reason, err := d.ValidateRefundReason(in.Reason)
@@ -324,7 +329,7 @@ func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		refund = &d.OrderRefund{Reason: reason, By: me.Name, At: time.Now()}
 	}
-	o, err := s.store.UpdateOrderStatus(r.Context(), id, in.Status, refund)
+	o, err := s.store.UpdateOrderStatus(r.Context(), id, in.Status, refund, me.Name)
 	if err != nil {
 		s.writeDomainError(w, r, err)
 		return

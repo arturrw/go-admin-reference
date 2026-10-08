@@ -154,7 +154,7 @@ func TestRoleMatrix(t *testing.T) {
 	}{
 		{"GET", "/api/v1/products", nil, map[string]int{"artur@acme.io": 200, "mark@acme.io": 200, "yuki@acme.io": 200, "priya@acme.io": 200, "jon@acme.io": 200}},
 		{"POST", "/api/v1/products", product, map[string]int{"mark@acme.io": 422, "yuki@acme.io": 422, "priya@acme.io": 403, "jon@acme.io": 403}},
-		{"PATCH", "/api/v1/orders/10010/status", map[string]string{"status": "shipped"}, map[string]int{"yuki@acme.io": 200, "priya@acme.io": 200, "jon@acme.io": 403}},
+		{"PATCH", "/api/v1/orders/10010/status", map[string]string{"status": "bogus"}, map[string]int{"yuki@acme.io": 422, "priya@acme.io": 422, "jon@acme.io": 403}},
 		{"POST", "/api/v1/customers/1/notes", map[string]string{"text": "hi"}, map[string]int{"priya@acme.io": 201, "yuki@acme.io": 403, "jon@acme.io": 403}},
 		{"GET", "/api/v1/team", nil, map[string]int{"mark@acme.io": 200, "yuki@acme.io": 200, "priya@acme.io": 403, "jon@acme.io": 403}},
 		{"GET", "/api/v1/requests", nil, map[string]int{"artur@acme.io": 200, "mark@acme.io": 200, "yuki@acme.io": 403, "jon@acme.io": 403}},

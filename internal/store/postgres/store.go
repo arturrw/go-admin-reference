@@ -322,20 +322,37 @@ func (s *Store) GetOrder(ctx context.Context, id int64) (d.Order, error) {
 	if err != nil {
 		return d.Order{}, err
 	}
+	evs, err := s.q.ListOrderEvents(ctx, []int64{id})
+	if err != nil {
+		return d.Order{}, err
+	}
+	orders[0].Events = make([]d.OrderEvent, len(evs))
+	for i, e := range evs {
+		orders[0].Events[i] = d.OrderEvent{Status: d.OrderStatus(e.Status), At: e.At, By: e.By}
+	}
 	return orders[0], nil
 }
 
-func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund) (d.Order, error) {
+func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {
 	p := db.UpdateOrderStatusParams{ID: id, Status: string(status)}
 	if refund != nil {
 		p.RefundReason, p.RefundedBy, p.RefundedAt = refund.Reason, refund.By, &refund.At
 	}
-	n, err := s.q.UpdateOrderStatus(ctx, p)
+	err := s.tx(ctx, func(q *db.Queries) error {
+		cur, err := q.GetOrder(ctx, id)
+		if err != nil {
+			return err
+		}
+		if _, err := q.UpdateOrderStatus(ctx, p); err != nil {
+			return err
+		}
+		if cur.Status == string(status) {
+			return nil // nothing changed, so nothing to record
+		}
+		return q.AddOrderEvent(ctx, db.AddOrderEventParams{OrderID: id, Status: string(status), At: time.Now(), By: by})
+	})
 	if err != nil {
 		return d.Order{}, mapErr(err)
-	}
-	if n == 0 {
-		return d.Order{}, d.ErrNotFound
 	}
 	return s.GetOrder(ctx, id)
 }

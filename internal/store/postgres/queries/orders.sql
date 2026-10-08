@@ -55,3 +55,10 @@ SELECT status, count(*)::int AS n FROM orders GROUP BY status;
 UPDATE orders
 SET status = $2, refund_reason = $3, refunded_by = $4, refunded_at = sqlc.narg(refunded_at)
 WHERE id = $1;
+
+-- name: ListOrderEvents :many
+SELECT * FROM order_events WHERE order_id = ANY(sqlc.arg(order_ids)::bigint[]) ORDER BY order_id, seq;
+
+-- name: AddOrderEvent :exec
+INSERT INTO order_events (order_id, seq, status, at, by)
+VALUES (sqlc.arg(order_id), (SELECT coalesce(max(seq), 0) + 1 FROM order_events WHERE order_id = sqlc.arg(order_id)), sqlc.arg(status), sqlc.arg(at), sqlc.arg(by));

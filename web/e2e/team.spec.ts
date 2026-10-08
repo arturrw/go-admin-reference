@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { loginAs, PASSWORD, USERS } from './helpers'
 
+// The link is built from the workspace's public URL, which another test may have changed.
+const local = (url: string) => new URL(url).pathname
+
 test('owner opens a member, sees presence and activity, and grants a permission', async ({ page, browser }) => {
   // Jon (viewer) is active in another browser, so he shows as online.
   const other = await browser.newContext()
@@ -85,7 +88,7 @@ test('an invited member opens the link, picks a password and joins', async ({ pa
   // The invitee, on another browser, follows the link.
   const guest = await browser.newContext()
   const gp = await guest.newPage()
-  await gp.goto(url)
+  await gp.goto(local(url))
   await expect(gp.getByText("You've been invited to join")).toBeVisible()
   await expect(gp.getByText('nina.hartmann@acme.io')).toBeVisible()
   await expect(gp.getByLabel('Your name')).toHaveValue('Nina Hartmann')
@@ -106,7 +109,7 @@ test('an invited member opens the link, picks a password and joins', async ({ pa
   await expect(gp.locator('aside nav').getByRole('link', { name: 'Request log' })).toHaveCount(0)
 
   // The link is spent, and the owner sees the member as active.
-  await gp.goto(url)
+  await gp.goto(local(url))
   await expect(gp.getByTestId('invite-invalid')).toBeVisible()
   await guest.close()
   await page.reload()
@@ -125,9 +128,9 @@ test('a replaced invitation link stops working', async ({ page, browser }) => {
 
   const guest = await browser.newContext()
   const gp = await guest.newPage()
-  await gp.goto(first)
+  await gp.goto(local(first))
   await expect(gp.getByTestId('invite-invalid')).toBeVisible()
-  await gp.goto(second)
+  await gp.goto(local(second))
   await expect(gp.getByText('sofia@acme.io')).toBeVisible()
   await guest.close()
 })

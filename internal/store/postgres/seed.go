@@ -111,6 +111,16 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 	}
 
 	rows = nil
+	for _, o := range ds.Orders {
+		for i, e := range o.Events {
+			rows = append(rows, []any{o.ID, int32(i + 1), string(e.Status), e.At, e.By})
+		}
+	}
+	if err := copyRows("order_events", []string{"order_id", "seq", "status", "at", "by"}, rows); err != nil {
+		return err
+	}
+
+	rows = nil
 	for _, k := range ds.APIKeys {
 		rows = append(rows, []any{k.Name, k.Scope, k.Last4, k.Hash, k.CreatedBy, k.CreatedAt, k.LastUsedAt})
 	}

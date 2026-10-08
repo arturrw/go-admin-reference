@@ -89,6 +89,8 @@ export interface Order {
   placedAt: string
   /** Set while the order is refunded: why, by whom and when. */
   refund: { reason: string; by: string; at: string } | null
+  /** Only on a single order (GET /orders/{id}): what happened to it, oldest first. */
+  events?: { status: OrderStatus; at: string; by: string }[]
   /** Only on a single order (GET /orders/{id}): what the customer was charged. */
   shippingCents?: number
   taxCents?: number

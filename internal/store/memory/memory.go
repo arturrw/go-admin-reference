@@ -358,11 +358,14 @@ func (s *Store) GetOrder(_ context.Context, id int64) (d.Order, error) {
 	return d.Order{}, d.ErrNotFound
 }
 
-func (s *Store) UpdateOrderStatus(_ context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund) (d.Order, error) {
+func (s *Store) UpdateOrderStatus(_ context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.orders {
 		if s.orders[i].ID == id {
+			if s.orders[i].Status != status {
+				s.orders[i].Events = append(slices.Clone(s.orders[i].Events), d.OrderEvent{Status: status, At: s.now(), By: by})
+			}
 			s.orders[i].Status = status
 			s.orders[i].Refund = refund
 			if ci := s.customerIndex(s.orders[i].Customer.ID); ci >= 0 {

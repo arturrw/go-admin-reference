@@ -53,6 +53,9 @@ type Order struct {
 	Payment    string       `json:"payment"`
 	PlacedAt   time.Time    `json:"placedAt"`
 	Refund     *OrderRefund `json:"refund"` // set while the order is refunded
+	// Events is the order's history, oldest first. Only a single order read
+	// (GET /orders/{id}) carries it.
+	Events []OrderEvent `json:"events,omitempty"`
 	// Filled by FillTotals when a single order is read: TotalCents is the
 	// goods; the customer pays GrandTotalCents.
 	ShippingCents   int64 `json:"shippingCents"`
@@ -76,6 +79,25 @@ func (o *Order) FillTotals() {
 	o.TaxCents = (o.TotalCents*TaxPercent + 50) / 100 // rounded to the nearest cent
 	o.GrandTotalCents = o.TotalCents + o.ShippingCents + o.TaxCents
 }
+
+// OrderEvent is one step in an order's life: the status it moved to, when,
+// and who or what did it (a staff member, "Payment provider", "Carrier"…).
+type OrderEvent struct {
+	Status OrderStatus `json:"status"`
+	At     time.Time   `json:"at"`
+	By     string      `json:"by"`
+}
+
+// transitions are the moves staff can make. Refunded and failed are final.
+var transitions = map[OrderStatus][]OrderStatus{
+	OrderPending:   {OrderPaid, OrderFailed},
+	OrderPaid:      {OrderShipped, OrderRefunded},
+	OrderShipped:   {OrderDelivered, OrderRefunded},
+	OrderDelivered: {OrderRefunded},
+}
+
+// CanTransition reports whether an order may move from one status to another.
+func CanTransition(from, to OrderStatus) bool { return slices.Contains(transitions[from], to) }
 
 // OrderRefund records why and by whom an order was refunded.
 type OrderRefund struct {

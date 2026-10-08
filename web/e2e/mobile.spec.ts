@@ -34,7 +34,7 @@ test('orders show status and total as compact rows and open the order', async ({
   await expect(row).toBeVisible()
   await expect(row).toContainText(/\$[\d,]+\.\d{2}/)
   await row.tap()
-  await expect(page.getByRole('dialog').getByText('Fulfillment')).toBeVisible()
+  await expect(page.getByRole('dialog').getByText('Timeline', { exact: true })).toBeVisible()
   await expectNoSideScroll(page)
 })
 

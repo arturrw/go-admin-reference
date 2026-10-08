@@ -91,14 +91,14 @@ test('top products and recent orders open their sheets on the dashboard itself',
   await page.keyboard.press('Escape')
 
   await orders.locator('tbody tr').first().locator('td').nth(2).click()
-  await expect(dialog.getByText('Fulfillment')).toBeVisible()
+  await expect(dialog.getByText('Timeline', { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/$/)
 
   // Sheets opened from a sheet stack: closing the customer goes back to the order.
   await dialog.getByRole('button', { name: /^Open customer / }).click()
   await expect(dialog.getByRole('heading', { name: customer })).toBeVisible()
   await dialog.getByRole('button', { name: 'Close' }).click()
-  await expect(dialog.getByText('Fulfillment')).toBeVisible()
+  await expect(dialog.getByText('Timeline', { exact: true })).toBeVisible()
 })
 
 test('the hottest product is its own target and opens on the dashboard', async ({ page }) => {

@@ -318,6 +318,10 @@ func Generate(now time.Time) *Dataset {
 			Granted: []d.Permission{d.PermProductsWrite}},
 		{ID: 9, Name: "Priya Shah", Email: "priya@acme.io", Role: d.RoleSupport, Status: d.MemberActive, MFA: true, LastActiveAt: ago(5)},
 	}
+	for i := range s.Orders {
+		s.Orders[i].Events = OrderEvents(s.Orders[i], now)
+	}
+
 	for i := range s.Members {
 		m := &s.Members[i]
 		if m.Granted == nil {

@@ -1,4 +1,4 @@
-import { ChevronRight, FileText, Truck, Undo2 } from 'lucide-react'
+import { CheckCheck, ChevronRight, CreditCard, FileText, PackageCheck, Truck, Undo2 } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -14,8 +14,16 @@ import { PeekButton } from '@/lib/peek'
 import { useOrder, useUpdateOrderStatus } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
-const STEPS = ['Placed', 'Paid', 'Packed', 'Shipped', 'Delivered']
-const STEPS_DONE: Record<OrderStatus, number> = { pending: 1, paid: 2, shipped: 4, delivered: 5, refunded: 2, failed: 1 }
+const EVENT_LABEL: Record<OrderStatus, string> = { pending: 'Placed', paid: 'Paid', shipped: 'Shipped', delivered: 'Delivered', refunded: 'Refunded', failed: 'Payment failed' }
+/** What is still to come, by where the order is now. */
+const NEXT_STEP: Partial<Record<OrderStatus, string>> = { pending: 'Awaiting payment', paid: 'Awaiting shipment', shipped: 'Awaiting delivery' }
+/** The forward move each status offers (mirrors domain.CanTransition). */
+const ADVANCE: Partial<Record<OrderStatus, { to: OrderStatus; label: string; icon: typeof Truck }>> = {
+  pending: { to: 'paid', label: 'Mark paid', icon: CreditCard },
+  paid: { to: 'shipped', label: 'Mark shipped', icon: Truck },
+  shipped: { to: 'delivered', label: 'Mark delivered', icon: PackageCheck },
+}
+const when = (at: string) => new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** Order detail sheet, fetched by id so it works as a deep link (/orders?view=10480). */
 export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () => void }) {
@@ -28,14 +36,7 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
 
   if (isError) return null
 
-  const done = o ? STEPS_DONE[o.status] : 0
-  const stepTime = (i: number) =>
-    new Date(new Date(o!.placedAt).getTime() + [0, 1, 300, 1400, 4500][i] * 60_000).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+  const advance = o && ADVANCE[o.status]
 
   return (
     <Sheet
@@ -62,14 +63,17 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
                   <Undo2 />
                   Refund
                 </Button>
-                <Button
-                  variant="primary"
-                  disabled={update.isPending || ['shipped', 'delivered', 'refunded', 'failed'].includes(o.status)}
-                  onClick={() => update.mutate({ id: o.id, status: 'shipped' })}
-                >
-                  <Truck />
-                  Mark shipped
-                </Button>
+                {advance ? (
+                  <Button variant="primary" disabled={update.isPending} onClick={() => update.mutate({ id: o.id, status: advance.to })}>
+                    <advance.icon />
+                    {advance.label}
+                  </Button>
+                ) : (
+                  <Button variant="primary" disabled>
+                    <CheckCheck />
+                    {o.status === 'delivered' ? 'Delivered' : 'Closed'}
+                  </Button>
+                )}
               </>
             )}
           </>
@@ -140,23 +144,29 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
           </dl>
 
           <div>
-            <div className="eyebrow mb-2.5">Fulfillment</div>
-            {STEPS.map((s, i) => (
-              <div
-                key={s}
-                className="relative flex gap-3 pb-3.5 not-last:after:absolute not-last:after:top-4 not-last:after:bottom-0 not-last:after:left-1.5 not-last:after:w-px not-last:after:bg-line-2"
-              >
-                <i className={cn('mt-[3px] size-[13px] shrink-0 rounded-full border-2', i < done ? 'border-accent bg-accent' : 'border-line-2 bg-panel')} />
-                <div>
-                  <b className="block text-[13px] font-medium">{s}</b>
-                  <small className="num text-[11px] text-dim">{i < done ? stepTime(i) : o.status === 'failed' ? 'payment failed' : 'waiting'}</small>
-                </div>
-              </div>
-            ))}
+            <div className="eyebrow mb-2.5">Timeline</div>
+            <ol data-testid="order-timeline">
+              {(o.events ?? []).map((e, i) => (
+                <TimelineStep key={i} done label={EVENT_LABEL[e.status]} note={`${when(e.at)} · ${e.by}`} last={i === (o.events?.length ?? 0) - 1 && !NEXT_STEP[o.status]} />
+              ))}
+              {NEXT_STEP[o.status] && <TimelineStep label={NEXT_STEP[o.status]!} note="waiting" last />}
+            </ol>
           </div>
         </>
       )}
     </Sheet>
+  )
+}
+
+function TimelineStep({ label, note, done, last }: { label: string; note: string; done?: boolean; last?: boolean }) {
+  return (
+    <li className={cn('relative flex gap-3 pb-3.5', !last && 'after:absolute after:top-4 after:bottom-0 after:left-1.5 after:w-px after:bg-line-2')}>
+      <i className={cn('mt-[3px] size-[13px] shrink-0 rounded-full border-2', done ? 'border-accent bg-accent' : 'border-line-2 bg-panel')} />
+      <div>
+        <b className={cn('block text-[13px] font-medium', !done && 'text-dim')}>{label}</b>
+        <small className="num text-[11px] text-dim">{note}</small>
+      </div>
+    </li>
   )
 }
 
@@ -183,7 +193,7 @@ export function RefundNote({ refund, compact }: { refund: NonNullable<Order['ref
       <div className="min-w-0">
         <b className="font-medium">{refund.reason}</b>
         <small className="block text-xs text-dim">
-          Refunded by {refund.by} · {new Date(refund.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          Refunded by {refund.by} · {when(refund.at)}
         </small>
       </div>
     </div>

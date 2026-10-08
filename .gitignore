@@ -24,3 +24,5 @@ web/playwright-report/
 
 # Editor / agent tooling
 .claude/
+
+*.tsbuildinfo

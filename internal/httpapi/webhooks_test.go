@@ -109,8 +109,8 @@ func TestWebhooks(t *testing.T) {
 	// Sign-ins are not events. With signing off the signature header is gone.
 	admin.login("mark@acme.io")
 	admin.do("PATCH", "/api/v1/settings", map[string]any{"webhooksSigned": false})
-	if r := next(t, got, "settings.changed"); !strings.Contains(string(r.body), "turned webhook signing off") {
-		t.Fatalf("settings event = %s", r.body)
+	// Deliveries are asynchronous, so the earlier settings event may still be in flight.
+	for r := next(t, got, "settings.changed"); !strings.Contains(string(r.body), "turned webhook signing off"); r = next(t, got, "settings.changed") {
 	}
 	admin.do("POST", "/api/v1/customers/4/notes", map[string]any{"text": "Unsigned"})
 	r = next(t, got, "customer.note")

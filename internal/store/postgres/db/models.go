@@ -106,6 +106,14 @@ type Order struct {
 	RefundedAt   *time.Time
 }
 
+type OrderEvent struct {
+	OrderID int64
+	Seq     int32
+	Status  string
+	At      time.Time
+	By      string
+}
+
 type OrderItem struct {
 	OrderID    int64
 	Line       int32
