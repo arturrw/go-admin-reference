@@ -485,3 +485,45 @@ func TestCreateOrder(t *testing.T) {
 		t.Fatalf("viewer: got %d, want 403", code)
 	}
 }
+
+// A refund puts the order's units back on the shelf, once.
+func TestRefundRestocksProducts(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	_, list := c.do("GET", "/api/v1/orders?status=paid&limit=1", nil)
+	o := list["items"].([]any)[0].(map[string]any)
+	want := map[float64]float64{} // product id -> units in the order
+	for _, it := range o["items"].([]any) {
+		it := it.(map[string]any)
+		want[it["productId"].(float64)] += it["qty"].(float64)
+	}
+	stock := func(id float64) float64 {
+		_, p := c.do("GET", fmt.Sprintf("/api/v1/products/%v", id), nil)
+		return p["stock"].(float64)
+	}
+	before := map[float64]float64{}
+	for id := range want {
+		before[id] = stock(id)
+	}
+
+	path := fmt.Sprintf("/api/v1/orders/%v/status", o["id"])
+	refund := map[string]any{"status": "refunded", "reason": "Duplicate order"}
+	if code, _ := c.do("PATCH", path, refund); code != http.StatusOK {
+		t.Fatalf("refund: %d", code)
+	}
+	for id, qty := range want {
+		if got := stock(id); got != before[id]+qty {
+			t.Errorf("product %v stock = %v, want %v", id, got, before[id]+qty)
+		}
+	}
+
+	// Refunding again changes nothing and must not restock twice.
+	c.do("PATCH", path, refund)
+	for id, qty := range want {
+		if got := stock(id); got != before[id]+qty {
+			t.Errorf("after a second refund, product %v stock = %v, want %v", id, got, before[id]+qty)
+		}
+	}
+}

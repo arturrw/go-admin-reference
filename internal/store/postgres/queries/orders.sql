@@ -66,6 +66,14 @@ RETURNING id;
 INSERT INTO order_items (order_id, line, product_id, name, sku, category, hue, image_url, qty, price_cents)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
+-- name: RestockOrder :exec
+-- Puts a refunded order's units back on the shelf. Lines whose product was
+-- deleted have nothing to go back to.
+UPDATE products p SET stock = p.stock + r.qty, updated_at = now()
+FROM (SELECT product_id, sum(qty)::int AS qty FROM order_items
+      WHERE order_id = $1 AND product_id IS NOT NULL GROUP BY product_id) r
+WHERE p.id = r.product_id;
+
 -- name: UpdateOrderStatus :execrows
 -- The refund columns are set with a refund and cleared by any other status.
 UPDATE orders

@@ -217,7 +217,7 @@ function RefundDialog({ order, open, onOpenChange }: { order: Order; open: boole
       open={open}
       onOpenChange={onOpenChange}
       title={`Refund order #${order.id}`}
-      description={`Refunds ${money(order.totalCents, 2)} to ${order.customer.name}. The reason is kept in the order and the customer's purchase history.`}
+      description={`Refunds ${money(order.totalCents, 2)} to ${order.customer.name}. The reason is kept in the order and the customer's purchase history, and the items go back to stock.`}
       footer={
         <>
           <Button onClick={() => onOpenChange(false)}>Cancel</Button>

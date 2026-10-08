@@ -128,7 +128,8 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 | PATCH | `/orders/{id}/status` | `orders:write` | `{status, reason}`; see below |
 | GET | `/orders/export` | `orders:read` | CSV, including the refund reason, who refunded and when |
 
-Refunding needs a reason, which stays with the order:
+Refunding needs a reason, which stays with the order, and puts the order's units
+back on the shelf (once: refunding again changes nothing):
 
 ```bash
 curl -b jar -X PATCH -H 'Content-Type: application/json' \

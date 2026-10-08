@@ -409,6 +409,11 @@ func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderS
 		if cur.Status == string(status) {
 			return nil // nothing changed, so nothing to record
 		}
+		if status == d.OrderRefunded {
+			if err := q.RestockOrder(ctx, id); err != nil {
+				return err
+			}
+		}
 		return q.AddOrderEvent(ctx, db.AddOrderEventParams{OrderID: id, Status: string(status), At: time.Now(), By: by})
 	})
 	if err != nil {

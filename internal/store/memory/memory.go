@@ -405,12 +405,25 @@ func (s *Store) CreateOrder(_ context.Context, in d.NewOrder, by string) (d.Orde
 	return s.withCovers(s.orders[0])[0], nil
 }
 
+// restock puts a refunded order's units back on the shelf; caller holds the lock.
+func (s *Store) restock(o d.Order) {
+	for _, it := range o.Items {
+		if pi := s.productIndex(it.ProductID); pi >= 0 {
+			s.products[pi].Stock += it.Qty
+			s.products[pi].UpdatedAt = s.now()
+		}
+	}
+}
+
 func (s *Store) UpdateOrderStatus(_ context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.orders {
 		if s.orders[i].ID == id {
 			if s.orders[i].Status != status {
+				if status == d.OrderRefunded {
+					s.restock(s.orders[i])
+				}
 				s.orders[i].Events = append(slices.Clone(s.orders[i].Events), d.OrderEvent{Status: status, At: s.now(), By: by})
 			}
 			s.orders[i].Status = status

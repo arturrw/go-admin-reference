@@ -407,6 +407,20 @@ func (q *Queries) ReserveStock(ctx context.Context, arg ReserveStockParams) (Pro
 	return i, err
 }
 
+const restockOrder = `-- name: RestockOrder :exec
+UPDATE products p SET stock = p.stock + r.qty, updated_at = now()
+FROM (SELECT product_id, sum(qty)::int AS qty FROM order_items
+      WHERE order_id = $1 AND product_id IS NOT NULL GROUP BY product_id) r
+WHERE p.id = r.product_id
+`
+
+// Puts a refunded order's units back on the shelf. Lines whose product was
+// deleted have nothing to go back to.
+func (q *Queries) RestockOrder(ctx context.Context, orderID int64) error {
+	_, err := q.db.Exec(ctx, restockOrder, orderID)
+	return err
+}
+
 const updateOrderStatus = `-- name: UpdateOrderStatus :execrows
 UPDATE orders
 SET status = $2, refund_reason = $3, refunded_by = $4, refunded_at = $5
