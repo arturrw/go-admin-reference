@@ -38,9 +38,12 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 // writeDomainError maps store/domain errors onto HTTP status codes.
 func (s *server) writeDomainError(w http.ResponseWriter, r *http.Request, err error) {
 	var verr *domain.ValidationError
+	var cerr *domain.ConflictError
 	switch {
 	case errors.As(err, &verr):
 		writeJSON(w, http.StatusUnprocessableEntity, errorBody{Error: "validation failed", Fields: verr.Fields})
+	case errors.As(err, &cerr):
+		writeError(w, http.StatusConflict, cerr.Message)
 	case errors.Is(err, domain.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, domain.ErrForbidden):

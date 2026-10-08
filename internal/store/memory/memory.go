@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -362,6 +363,46 @@ func (s *Store) GetOrder(_ context.Context, id int64) (d.Order, error) {
 		}
 	}
 	return d.Order{}, d.ErrNotFound
+}
+
+func (s *Store) CreateOrder(_ context.Context, in d.NewOrder, by string) (d.Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ci := s.customerIndex(in.CustomerID)
+	if ci < 0 {
+		return d.Order{}, d.NewValidationError("customerId", "no such customer")
+	}
+	// Check everything before touching stock, so a refused order takes nothing.
+	items := make([]d.OrderItem, 0, len(in.Items))
+	for _, l := range in.Items {
+		pi := s.productIndex(l.ProductID)
+		if pi < 0 {
+			return d.Order{}, d.NewValidationError("items", fmt.Sprintf("product #%d does not exist", l.ProductID))
+		}
+		if err := d.CheckSellable(s.products[pi], l.Qty); err != nil {
+			return d.Order{}, err
+		}
+		items = append(items, s.products[pi].Line(l.Qty))
+	}
+	now := s.now()
+	for _, l := range in.Items {
+		pi := s.productIndex(l.ProductID)
+		s.products[pi].Stock -= l.Qty
+		s.products[pi].UpdatedAt = now
+	}
+	var id int64 = 10000
+	for _, o := range s.orders {
+		id = max(id, o.ID)
+	}
+	o := d.Order{
+		ID: id + 1, Items: items, TotalCents: d.Total(items), Status: d.OrderPending, Payment: in.Payment, PlacedAt: now,
+		Customer: s.customers[ci].Ref(), Events: []d.OrderEvent{d.PlacedEvent(by, now)},
+	}
+	s.orders = append([]d.Order{o}, s.orders...)
+	s.recomputeCustomer(ci, now)
+	s.orders[0].Customer = s.customers[ci].Ref()
+	return s.withCovers(s.orders[0])[0], nil
 }
 
 func (s *Store) UpdateOrderStatus(_ context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {

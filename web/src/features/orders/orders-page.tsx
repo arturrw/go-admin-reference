@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, Download, Inbox, Undo2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Inbox, Plus, Undo2 } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, TableCard } from '@/components/ui/card'
@@ -9,10 +9,12 @@ import { StatusPill } from '@/components/ui/pill'
 import { ProductThumb } from '@/components/ui/product-thumb'
 import { Segmented } from '@/components/ui/segmented'
 import { exportUrl, type OrderStatus } from '@/lib/api'
+import { useCan } from '@/lib/auth'
 import { downloadUrl } from '@/lib/download'
 import { capitalize, money, timeAgo } from '@/lib/format'
 import { useOrders } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { NewOrderForm } from './new-order-form'
 import { OrderListItem } from './order-list-item'
 import { OrderSheet } from './order-sheet'
 
@@ -27,6 +29,8 @@ export function OrdersPage() {
   const [status, setStatus] = useState<OrderStatus | 'all'>('all')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
+  const [creating, setCreating] = useState(false)
+  const canWrite = useCan('orders:write')
   const dq = useDeferredValue(q)
   const { data, isPending } = useOrders({ status, q: dq, limit: PAGE, offset: page * PAGE })
   const counts = data?.counts ?? {}
@@ -42,6 +46,12 @@ export function OrdersPage() {
   return (
     <>
       <PageHeader title="Orders" description={`${all} orders · newest first`}>
+        {canWrite && (
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <Plus />
+            New order
+          </Button>
+        )}
         <Button onClick={() => downloadUrl(exportUrl('orders', { status, q: dq }))}>
           <Download />
           Export CSV
@@ -158,6 +168,15 @@ export function OrdersPage() {
         </>
       )}
 
+      {creating && (
+        <NewOrderForm
+          onClose={() => setCreating(false)}
+          onCreated={(o) => {
+            setCreating(false)
+            navigate({ search: { view: o.id } })
+          }}
+        />
+      )}
       {view !== undefined && <OrderSheet orderId={view} onClose={() => navigate({ search: {} })} />}
     </>
   )

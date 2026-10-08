@@ -34,6 +34,40 @@ func (q *Queries) AddOrderEvent(ctx context.Context, arg AddOrderEventParams) er
 	return err
 }
 
+const addOrderItem = `-- name: AddOrderItem :exec
+INSERT INTO order_items (order_id, line, product_id, name, sku, category, hue, image_url, qty, price_cents)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type AddOrderItemParams struct {
+	OrderID    int64
+	Line       int32
+	ProductID  pgtype.Int8
+	Name       string
+	Sku        string
+	Category   string
+	Hue        int32
+	ImageUrl   string
+	Qty        int32
+	PriceCents int64
+}
+
+func (q *Queries) AddOrderItem(ctx context.Context, arg AddOrderItemParams) error {
+	_, err := q.db.Exec(ctx, addOrderItem,
+		arg.OrderID,
+		arg.Line,
+		arg.ProductID,
+		arg.Name,
+		arg.Sku,
+		arg.Category,
+		arg.Hue,
+		arg.ImageUrl,
+		arg.Qty,
+		arg.PriceCents,
+	)
+	return err
+}
+
 const countOrders = `-- name: CountOrders :one
 SELECT count(*)::int
 FROM orders o
@@ -66,6 +100,25 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int32
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const createOrder = `-- name: CreateOrder :one
+INSERT INTO orders (customer_id, status, payment, total_cents)
+VALUES ($1, 'pending', $2, $3)
+RETURNING id
+`
+
+type CreateOrderParams struct {
+	CustomerID int64
+	Payment    string
+	TotalCents int64
+}
+
+func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (int64, error) {
+	row := q.db.QueryRow(ctx, createOrder, arg.CustomerID, arg.Payment, arg.TotalCents)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getOrder = `-- name: GetOrder :one
@@ -314,6 +367,44 @@ func (q *Queries) OrderCounts(ctx context.Context) ([]OrderCountsRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const reserveStock = `-- name: ReserveStock :one
+UPDATE products SET stock = stock - $1::int, updated_at = now()
+WHERE id = $2 AND status = 'active' AND stock >= $1::int
+RETURNING id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, rating, hue, description, created_at, updated_at
+`
+
+type ReserveStockParams struct {
+	Qty int32
+	ID  int64
+}
+
+// Takes qty units off an active product in one step, so stock cannot go
+// negative; no row means missing, not for sale, or not enough stock.
+func (q *Queries) ReserveStock(ctx context.Context, arg ReserveStockParams) (Product, error) {
+	row := q.db.QueryRow(ctx, reserveStock, arg.Qty, arg.ID)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Sku,
+		&i.Category,
+		&i.Vendor,
+		&i.Tags,
+		&i.PriceCents,
+		&i.CompareAtCents,
+		&i.CostCents,
+		&i.Stock,
+		&i.WeightGrams,
+		&i.Status,
+		&i.Rating,
+		&i.Hue,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateOrderStatus = `-- name: UpdateOrderStatus :execrows

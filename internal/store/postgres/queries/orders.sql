@@ -50,6 +50,22 @@ ORDER BY oi.order_id, oi.line;
 -- name: OrderCounts :many
 SELECT status, count(*)::int AS n FROM orders GROUP BY status;
 
+-- name: ReserveStock :one
+-- Takes qty units off an active product in one step, so stock cannot go
+-- negative; no row means missing, not for sale, or not enough stock.
+UPDATE products SET stock = stock - sqlc.arg(qty)::int, updated_at = now()
+WHERE id = sqlc.arg(id) AND status = 'active' AND stock >= sqlc.arg(qty)::int
+RETURNING *;
+
+-- name: CreateOrder :one
+INSERT INTO orders (customer_id, status, payment, total_cents)
+VALUES ($1, 'pending', $2, $3)
+RETURNING id;
+
+-- name: AddOrderItem :exec
+INSERT INTO order_items (order_id, line, product_id, name, sku, category, hue, image_url, qty, price_cents)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+
 -- name: UpdateOrderStatus :execrows
 -- The refund columns are set with a refund and cleared by any other status.
 UPDATE orders

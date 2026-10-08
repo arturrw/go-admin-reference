@@ -290,6 +290,25 @@ func (s *server) getOrder(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, o)
 }
 
+func (s *server) createOrder(w http.ResponseWriter, r *http.Request) {
+	var in d.NewOrder
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	if err := in.Validate(); err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	me, _ := CurrentMember(r.Context())
+	o, err := s.store.CreateOrder(r.Context(), in, me.Name)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	s.audit(r.Context(), d.ActOrder, "order", o.ID, "created order #%d for %s (%s)", o.ID, o.Customer.Name, d.USD(o.TotalCents))
+	writeJSON(w, http.StatusCreated, o)
+}
+
 func (s *server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {

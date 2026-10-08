@@ -44,7 +44,7 @@ var (
 	firstNames = []string{"Anna", "Mark", "Sofia", "Jon", "Lena", "Omar", "Mia", "Lucas", "Yuki", "Noah", "Elif", "Mateo", "Chloe", "Ivan", "Priya", "Leo", "Hana", "Felix", "Aria", "Diego", "Nora", "Kai", "Zoe", "Arjun", "Maya", "Theo", "Ines", "Sam", "Ruth", "Pablo"}
 	lastNames  = []string{"Petrova", "Liu", "Rossi", "Berg", "Kraft", "Haddad", "Novak", "Silva", "Tanaka", "Meyer", "Kaya", "Garcia", "Dubois", "Sokolov", "Shah", "Fischer", "Kim", "Wagner", "Costa", "Lopez", "Jensen", "Mori", "Laurent", "Patel", "Cohen", "Brooks", "Ruiz", "Ahmed", "Holm", "Vega"}
 	domains    = []string{"gmail.com", "proton.me", "outlook.com", "fastmail.com", "icloud.com"}
-	payments   = []string{"Visa •• 4242", "Mastercard •• 5100", "Apple Pay", "PayPal", "Amex •• 0005", "Google Pay"}
+	payments   = d.PaymentMethods
 	sources    = []string{"Organic search", "Instagram", "Referral", "Newsletter", "Google Ads", "Direct"}
 	custTags   = []string{"newsletter", "early-adopter", "gift-buyer", "wholesale", "support-escalation", "beta-tester"}
 	streets    = []string{"Market St", "Linden Ave", "Harbour Rd", "Maple Way", "King St", "Station Rd", "Park Lane", "Elm Row"}

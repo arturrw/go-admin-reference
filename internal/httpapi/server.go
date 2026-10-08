@@ -30,6 +30,10 @@ type Store interface {
 	ListOrders(ctx context.Context, f d.OrderFilter) ([]d.Order, int, error)
 	OrderCounts(ctx context.Context) (map[d.OrderStatus]int, error)
 	GetOrder(ctx context.Context, id int64) (d.Order, error)
+	// CreateOrder records a sale at current catalogue prices and takes the
+	// stock; by is who entered it. Unknown customer or product is a validation
+	// error, too little stock a ConflictError.
+	CreateOrder(ctx context.Context, in d.NewOrder, by string) (d.Order, error)
 	// UpdateOrderStatus sets the status; refund is recorded with a refund and nil otherwise.
 	UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error)
 
@@ -171,6 +175,7 @@ func New(deps Deps) http.Handler {
 	route("POST /api/v1/products/{id}/images/{imageId}/primary", d.PermProductsWrite, s.setPrimaryImage)
 
 	route("GET /api/v1/orders", d.PermOrdersRead, s.listOrders)
+	route("POST /api/v1/orders", d.PermOrdersWrite, s.createOrder)
 	route("GET /api/v1/orders/export", d.PermOrdersRead, s.exportOrders)
 	route("GET /api/v1/orders/{id}", d.PermOrdersRead, s.getOrder)
 	route("PATCH /api/v1/orders/{id}/status", d.PermOrdersWrite, s.updateOrderStatus)

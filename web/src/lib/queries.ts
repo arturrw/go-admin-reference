@@ -297,6 +297,18 @@ export function useBulkProducts() {
   })
 }
 
+export function useCreateOrder() {
+  const invalidate = useInvalidate('orders', 'order', 'customer', 'customers', 'products', 'product', 'dashboard', 'meta')
+  return useMutation({
+    mutationFn: api.createOrder,
+    onSuccess: (o) => {
+      toast.success(`Order #${o.id} created`, { description: `${o.customer.name} · ${money(o.totalCents, 2)}` })
+      return invalidate()
+    },
+    onError: onFormError,
+  })
+}
+
 export function useUpdateOrderStatus() {
   const invalidate = useInvalidate('orders', 'order', 'customer', 'customers', 'dashboard', 'meta')
   return useMutation({

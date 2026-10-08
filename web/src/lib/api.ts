@@ -79,6 +79,15 @@ export interface OrderItem {
   priceCents: number
 }
 
+export const PAYMENT_METHODS = ['Visa •• 4242', 'Mastercard •• 5100', 'Apple Pay', 'PayPal', 'Amex •• 0005', 'Google Pay']
+
+/** A sale entered by staff; prices come from the catalogue. */
+export interface NewOrder {
+  customerId: number
+  payment: string
+  items: { productId: number; qty: number }[]
+}
+
 export interface Order {
   id: number
   customer: { id: number; name: string; email: string; country: string; segment: Segment }
@@ -532,6 +541,7 @@ export const api = {
   orders: (f: { q?: string; status?: string; limit?: number; offset?: number; customer?: number; from?: string; to?: string }) =>
     request<{ items: Order[]; counts: Partial<Record<OrderStatus, number>>; total: number }>(`/orders${qs(f)}`),
   order: (id: number) => request<Order>(`/orders/${id}`),
+  createOrder: (in_: NewOrder) => request<Order>('/orders', json('POST', in_)),
   updateOrderStatus: (id: number, status: OrderStatus, reason?: string) => request<Order>(`/orders/${id}/status`, json('PATCH', { status, reason })),
 
   customers: (f: { q?: string; segment?: string }) =>

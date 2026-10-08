@@ -83,3 +83,33 @@ test('the timeline is the order history and moves forward one step at a time', a
   await expect(timeline.getByText('Delivered')).toBeVisible()
   await expect(sheet.getByRole('button', { name: 'Delivered' })).toBeDisabled()
 })
+test('a sale entered by hand takes stock and shows up in the dashboard and the product', async ({ page }) => {
+  await loginAs(page, 'support', '/orders')
+  const api = page.request
+  const stockOf = async (id: number) => (await (await api.get(`/api/v1/products/${id}`)).json()) as { stock: number; sold30d: number; name: string; priceCents: number }
+  const products = (await (await api.get('/api/v1/products?status=active&sort=name')).json()).items as { id: number; name: string; stock: number; priceCents: number }[]
+  const product = products.find((p) => p.stock >= 5)!
+  const before = await stockOf(product.id)
+  const revenue = async () => ((await (await api.get('/api/v1/dashboard?range=30')).json()) as { revenueCents: number }).revenueCents
+  const revBefore = await revenue()
+
+  await page.getByRole('button', { name: 'New order' }).click()
+  const form = page.getByRole('dialog', { name: 'New order' })
+  await expect(form.getByRole('button', { name: 'Create order' })).toBeDisabled()
+  await form.getByRole('option').first().click()
+  await form.getByLabel('Product 1', { exact: true }).selectOption({ label: `${product.name} · $${(product.priceCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })} · ${product.stock} in stock` })
+  await form.getByLabel('Quantity 1', { exact: true }).fill('2')
+  await form.getByLabel('Payment').selectOption('PayPal')
+  await form.getByRole('button', { name: 'Create order' }).click()
+
+  // The new order opens, pending, with its first timeline entry.
+  const sheet = page.getByRole('dialog', { name: /^Order #/ })
+  await expect(sheet.getByText('pending')).toBeVisible()
+  await expect(sheet.getByTestId('order-timeline')).toContainText('Priya Shah')
+  await expect(sheet.getByText(product.name)).toBeVisible()
+
+  const after = await stockOf(product.id)
+  expect(after.stock).toBe(before.stock - 2)
+  expect(after.sold30d).toBe(before.sold30d + 2)
+  expect(await revenue()).toBe(revBefore + 2 * product.priceCents)
+})

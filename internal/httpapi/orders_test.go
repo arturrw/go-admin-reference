@@ -396,3 +396,92 @@ func TestProductSalesComeFromOrders(t *testing.T) {
 	}
 	t.Skip("no recent paid order with the top product")
 }
+
+// Staff can enter a sale: it takes stock, shows up in the order list, the
+// customer's history, the product's sales and the dashboard.
+func TestCreateOrder(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	_, prods := c.do("GET", "/api/v1/products?status=active", nil)
+	var prod map[string]any
+	for _, p := range prods["items"].([]any) {
+		if p := p.(map[string]any); p["stock"].(float64) >= 5 {
+			prod = p
+			break
+		}
+	}
+	if prod == nil {
+		t.Fatal("no active product with stock")
+	}
+	pid, price, stock := prod["id"].(float64), prod["priceCents"].(float64), prod["stock"].(float64)
+	_, custs := c.do("GET", "/api/v1/customers", nil)
+	cust := custs["items"].([]any)[0].(map[string]any)
+	cid := cust["id"].(float64)
+	post := func(body map[string]any) (int, map[string]any) { return c.do("POST", "/api/v1/orders", body) }
+	line := func(qty float64) []any { return []any{map[string]any{"productId": pid, "qty": qty}} }
+
+	for name, body := range map[string]map[string]any{
+		"no items":      {"customerId": cid, "payment": "PayPal", "items": []any{}},
+		"bad payment":   {"customerId": cid, "payment": "Cash", "items": line(1)},
+		"zero quantity": {"customerId": cid, "payment": "PayPal", "items": line(0)},
+		"no customer":   {"customerId": 999999, "payment": "PayPal", "items": line(1)},
+		"no product":    {"customerId": cid, "payment": "PayPal", "items": []any{map[string]any{"productId": 999999, "qty": 1}}},
+	} {
+		if code, _ := post(body); code != http.StatusUnprocessableEntity {
+			t.Errorf("%s: got %d, want 422", name, code)
+		}
+	}
+	if code, _ := post(map[string]any{"customerId": cid, "payment": "PayPal", "items": line(stock + 1)}); code != http.StatusConflict {
+		t.Errorf("more than the stock: got %d, want 409", code)
+	}
+	_, same := c.do("GET", fmt.Sprintf("/api/v1/products/%v", pid), nil)
+	if same["stock"] != prod["stock"] {
+		t.Fatalf("a refused order took stock: %v → %v", prod["stock"], same["stock"])
+	}
+
+	_, before := c.do("GET", "/api/v1/dashboard?range=30", nil)
+	code, o := post(map[string]any{"customerId": cid, "payment": "PayPal", "items": []any{
+		map[string]any{"productId": pid, "qty": 2}, map[string]any{"productId": pid, "qty": 1}, // merged into one line
+	}})
+	if code != http.StatusCreated {
+		t.Fatalf("create: %d %v", code, o)
+	}
+	items := o["items"].([]any)
+	if o["status"] != "pending" || len(items) != 1 || items[0].(map[string]any)["qty"].(float64) != 3 || o["totalCents"].(float64) != price*3 {
+		t.Fatalf("order = %v", o)
+	}
+	if evs := o["events"].([]any); len(evs) != 1 || evs[0].(map[string]any)["by"] != "Priya Shah" {
+		t.Fatalf("events = %v", o["events"])
+	}
+
+	_, after := c.do("GET", fmt.Sprintf("/api/v1/products/%v", pid), nil)
+	if after["stock"].(float64) != stock-3 || after["sold30d"].(float64) != prod["sold30d"].(float64)+3 {
+		t.Fatalf("product after: stock %v sold30d %v (was %v, %v)", after["stock"], after["sold30d"], prod["stock"], prod["sold30d"])
+	}
+	_, got := c.do("GET", fmt.Sprintf("/api/v1/orders/%v", o["id"]), nil)
+	if got["id"] != o["id"] {
+		t.Fatalf("order not readable: %v", got)
+	}
+	_, detail := c.do("GET", fmt.Sprintf("/api/v1/customers/%v", cid), nil)
+	if hist := detail["orders"].([]any); len(hist) == 0 || hist[0].(map[string]any)["id"] != o["id"] {
+		t.Fatalf("customer history does not start with the new order: %v", detail["orders"])
+	}
+	_, now := c.do("GET", "/api/v1/dashboard?range=30", nil)
+	if now["revenueCents"].(float64) != before["revenueCents"].(float64)+price*3 {
+		t.Fatalf("dashboard revenue %v, want %v", now["revenueCents"], before["revenueCents"].(float64)+price*3)
+	}
+	admin := newClient(t, srv)
+	admin.login("mark@acme.io")
+	_, feed := admin.do("GET", "/api/v1/activity?kind=order&limit=1", nil)
+	if msg := feed["items"].([]any)[0].(map[string]any)["message"].(string); !strings.Contains(msg, fmt.Sprintf("created order #%v", o["id"])) {
+		t.Fatalf("activity = %q", msg)
+	}
+
+	viewer := newClient(t, srv)
+	viewer.login("jon@acme.io")
+	if code, _ := viewer.do("POST", "/api/v1/orders", map[string]any{"customerId": cid, "payment": "PayPal", "items": line(1)}); code != http.StatusForbidden {
+		t.Fatalf("viewer: got %d, want 403", code)
+	}
+}

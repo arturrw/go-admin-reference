@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"math"
 	"time"
@@ -337,6 +338,59 @@ func (s *Store) GetOrder(ctx context.Context, id int64) (d.Order, error) {
 		orders[0].Events[i] = d.OrderEvent{Status: d.OrderStatus(e.Status), At: e.At, By: e.By}
 	}
 	return orders[0], nil
+}
+
+func (s *Store) CreateOrder(ctx context.Context, in d.NewOrder, by string) (d.Order, error) {
+	var id int64
+	err := s.tx(ctx, func(q *db.Queries) error {
+		if _, err := q.GetCustomer(ctx, in.CustomerID); errors.Is(err, pgx.ErrNoRows) {
+			return d.NewValidationError("customerId", "no such customer")
+		} else if err != nil {
+			return err
+		}
+		items := make([]d.OrderItem, 0, len(in.Items))
+		for _, l := range in.Items {
+			p, err := q.ReserveStock(ctx, db.ReserveStockParams{ID: l.ProductID, Qty: int32(l.Qty)})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return s.whyNotSellable(ctx, q, l)
+			} else if err != nil {
+				return err
+			}
+			items = append(items, toProduct(p, nil).Line(l.Qty))
+		}
+		var err error
+		if id, err = q.CreateOrder(ctx, db.CreateOrderParams{CustomerID: in.CustomerID, Payment: in.Payment, TotalCents: d.Total(items)}); err != nil {
+			return err
+		}
+		for i, it := range items {
+			if err := q.AddOrderItem(ctx, db.AddOrderItemParams{
+				OrderID: id, Line: int32(i), ProductID: pgtype.Int8{Int64: it.ProductID, Valid: true}, Name: it.Name, Sku: it.SKU,
+				Category: string(it.Category), Hue: int32(it.Hue), ImageUrl: it.ImageURL, Qty: int32(it.Qty), PriceCents: it.PriceCents,
+			}); err != nil {
+				return err
+			}
+		}
+		return q.AddOrderEvent(ctx, db.AddOrderEventParams{OrderID: id, Status: string(d.OrderPending), At: time.Now(), By: by})
+	})
+	if err != nil {
+		return d.Order{}, mapErr(err)
+	}
+	return s.GetOrder(ctx, id)
+}
+
+// whyNotSellable explains a refused stock reservation with the same words the
+// in-memory store uses.
+func (s *Store) whyNotSellable(ctx context.Context, q *db.Queries, l d.NewOrderLine) error {
+	cur, err := q.GetProduct(ctx, l.ProductID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return d.NewValidationError("items", fmt.Sprintf("product #%d does not exist", l.ProductID))
+	} else if err != nil {
+		return err
+	}
+	if err := d.CheckSellable(toProduct(cur, nil), l.Qty); err != nil {
+		return err
+	}
+	return &d.ConflictError{Message: "stock changed while the order was placed, try again"}
 }
 
 func (s *Store) UpdateOrderStatus(ctx context.Context, id int64, status d.OrderStatus, refund *d.OrderRefund, by string) (d.Order, error) {
