@@ -184,7 +184,7 @@ cd web && npm run e2e:pg      # Playwright against a fresh Postgres database
 
 Locally the e2e suite uses the installed Chrome. With `CI=1` it uses
 Playwright's bundled Chromium (`npx playwright install chromium`). The suite
-has 40 tests covering auth, every page, refunds, notes, member access, the
+has 42 tests covering auth, every page, refunds, notes, member access, the
 activity log, charts and phone layouts. It passes on both stores.
 
 ## CI/CD
