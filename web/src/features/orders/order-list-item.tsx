@@ -6,7 +6,6 @@ import { money, timeAgo } from '@/lib/format'
 
 /** One order as a compact row, for phones where the orders table doesn't fit. */
 export function OrderListItem({ o, onOpen }: { o: Order; onOpen?: () => void }) {
-  const units = o.items.reduce((s, i) => s + i.qty, 0)
   return (
     <button
       type="button"
@@ -23,7 +22,9 @@ export function OrderListItem({ o, onOpen }: { o: Order; onOpen?: () => void }) 
           <span className="num ml-auto shrink-0 text-[13px] font-medium">{money(o.totalCents, 2)}</span>
         </div>
         <div className="mt-1 flex items-center gap-2 text-[11.5px] text-dim">
-          <span className="num">#{o.id}</span>·<span className="num">{timeAgo(o.placedAt)}</span>·<span>{units} items</span>
+          <span className="num min-w-0 truncate">
+            #{o.id} · {timeAgo(o.placedAt)}
+          </span>
           <span className="ml-auto shrink-0">
             <StatusPill status={o.status} />
           </span>

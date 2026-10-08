@@ -51,7 +51,7 @@ export function NotificationBell() {
       </Button>
 
       {open && (
-        <div role="dialog" aria-label="Notifications" className="absolute top-full right-0 z-40 mt-2 flex max-h-[min(560px,75vh)] w-[min(400px,calc(100vw-24px))] animate-pop-in-right flex-col overflow-hidden rounded-2xl border border-line-2 bg-panel shadow-float">
+        <div role="dialog" aria-label="Notifications" className="absolute top-full right-0 z-40 mt-2 flex max-h-[min(560px,75vh)] w-[min(400px,calc(100vw-24px))] animate-pop-in-right max-sm:fixed max-sm:inset-x-3 max-sm:top-14 max-sm:mt-0 max-sm:w-auto flex-col overflow-hidden rounded-2xl border border-line-2 bg-panel shadow-float">
           <div className="flex items-center gap-2 border-b border-line px-4 py-3">
             <b className="text-sm font-semibold">Notifications</b>
             {unread > 0 && <span className="num rounded-full bg-accent/14 px-1.5 text-[11px] text-accent">{unread} new</span>}

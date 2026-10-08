@@ -64,12 +64,12 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
                   Refund
                 </Button>
                 {advance ? (
-                  <Button variant="primary" disabled={update.isPending} onClick={() => update.mutate({ id: o.id, status: advance.to })}>
+                  <Button variant="primary" className="max-sm:w-full" disabled={update.isPending} onClick={() => update.mutate({ id: o.id, status: advance.to })}>
                     <advance.icon />
                     {advance.label}
                   </Button>
                 ) : (
-                  <Button variant="primary" disabled>
+                  <Button variant="primary" className="max-sm:w-full" disabled>
                     <CheckCheck />
                     {o.status === 'delivered' ? 'Delivered' : 'Closed'}
                   </Button>
