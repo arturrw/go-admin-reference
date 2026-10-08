@@ -40,7 +40,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
         </div>
         <div>
           <b className="block font-semibold tracking-[-0.01em]">GoAdmin</b>
-          <small className="num block text-[11px] text-dim">acme · {meta?.env ?? '…'}</small>
+          <small className="num block text-[11px] text-dim">{meta?.serviceName ?? '…'} · {meta?.env ?? '…'}</small>
         </div>
       </Link>
 

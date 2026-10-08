@@ -55,3 +55,31 @@ test('only owners and admins can manage API keys', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Create key' })).toBeDisabled()
   expect((await page.request.get('/api/v1/settings/api-keys')).status()).toBe(403)
 })
+
+test('general settings are saved and used by the UI', async ({ page }) => {
+  await loginAs(page, 'owner', '/settings')
+  const general = page.locator('section', { has: page.getByRole('heading', { name: 'General' }) })
+  await expect(general.getByLabel('Listen address')).toBeDisabled()
+  const save = general.getByRole('button', { name: 'Save changes' })
+  await expect(save).toBeDisabled() // nothing changed yet
+
+  await general.getByLabel('Service name').fill('Acme Backoffice')
+  await general.getByLabel('Public base URL').fill('admin.acme.io')
+  await save.click()
+  await expect(general.getByText('must be an http(s) address')).toBeVisible()
+
+  await general.getByLabel('Public base URL').fill('https://admin.acme.io/')
+  await save.click()
+  await expect(page.getByText('Settings saved')).toBeVisible()
+  // The sidebar shows the new name, and the field normalises the URL.
+  await expect(page.locator('aside')).toContainText('Acme Backoffice')
+  await expect(general.getByLabel('Public base URL')).toHaveValue('https://admin.acme.io')
+
+  await page.reload()
+  await expect(general.getByLabel('Service name')).toHaveValue('Acme Backoffice')
+
+  // Read-only roles see the name, not the form.
+  await loginAs(page, 'viewer', '/settings')
+  await expect(general.getByLabel('Service name')).toBeDisabled()
+  await expect(general.getByLabel('Public base URL')).toHaveCount(0)
+})

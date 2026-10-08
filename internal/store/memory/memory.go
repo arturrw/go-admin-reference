@@ -27,6 +27,7 @@ type Store struct {
 	activity       []d.Activity
 	goals          map[string]d.TargetGoal // by quarter
 	apiKeys        []d.APIKey              // newest first
+	settings       d.Settings
 	nextKeyID      int64
 	nextProductID  int64
 	nextMemberID   int64
@@ -40,7 +41,7 @@ func New(now time.Time) *Store {
 	s := &Store{
 		products: ds.Products, orders: ds.Orders, customers: ds.Customers, members: ds.Members,
 		revenue: ds.Revenue, heatmap: ds.Heatmap, activity: ds.Activity, now: time.Now,
-		goals: map[string]d.TargetGoal{}, nextKeyID: 1,
+		goals: map[string]d.TargetGoal{}, nextKeyID: 1, settings: d.DefaultSettings(),
 	}
 	for _, p := range s.products {
 		s.nextProductID = max(s.nextProductID, p.ID+1)

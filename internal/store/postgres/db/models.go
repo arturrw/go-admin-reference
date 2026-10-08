@@ -168,6 +168,12 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+type Setting struct {
+	ID        bool
+	Data      []byte
+	UpdatedAt time.Time
+}
+
 type Target struct {
 	Quarter   string
 	GoalCents int64

@@ -2,7 +2,7 @@ import { Check, KeyRound, Lock, OctagonAlert, Palette, ShieldAlert, SlidersHoriz
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Field, Input, Select } from '@/components/ui/input'
+import { Field, Select } from '@/components/ui/input'
 import { PageHeader, Switch } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
 import type { LogLevel } from '@/lib/api'
@@ -11,6 +11,7 @@ import { useLogLevel, useSetLogLevel } from '@/lib/queries'
 import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { ApiKeys } from './api-keys'
+import { GeneralSettings } from './general'
 
 // Settings are local-only in this reference build except the log level,
 // which is applied to the running server (PUT /api/v1/settings/log-level).
@@ -66,17 +67,7 @@ export function SettingsPage() {
 
         <div>
           <Section id="general" title="General" description="Basic service configuration loaded from env on boot." locked={!canEdit}>
-            <div className="grid gap-3.5 sm:grid-cols-2">
-              <Field label="Service name">
-                <Input defaultValue="goadmin-api" />
-              </Field>
-              <Field label="Listen address">
-                <Input className="num" defaultValue=":8080" />
-              </Field>
-            </div>
-            <Field label="Public base URL">
-              <Input className="num" defaultValue="https://admin.acme.io" />
-            </Field>
+            <GeneralSettings enabled={canEdit} />
             <Field label="Log level" hint={
                 <>
                   {LOG_LEVELS.find((l) => l.value === level)?.hint ?? 'Loading…'}. Applied to the running server immediately; after a restart LOG_LEVEL decides
@@ -91,11 +82,6 @@ export function SettingsPage() {
               />
             </Field>
             <ToggleRow title="Maintenance mode" description="Storefront returns 503 with a friendly page" checked={toggles.maint} onChange={flip('maint', 'Maintenance mode')} />
-            <div>
-              <Button variant="primary" onClick={() => toast.success('Settings saved')}>
-                Save changes
-              </Button>
-            </div>
           </Section>
 
           <Section id="appearance" title="Appearance" description="Accent color for this workspace. Applied instantly and remembered in this browser.">

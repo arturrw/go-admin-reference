@@ -42,6 +42,7 @@ func (s *server) meta(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"version":       s.version,
+		"serviceName":   s.settings(r.Context()).ServiceName,
 		"env":           s.env,
 		"goVersion":     runtime.Version(),
 		"products":      stats.Total,

@@ -69,6 +69,7 @@ func run() error {
 			Version:   cfg.Version,
 			Env:       cfg.Env,
 			StartedAt: now,
+			Addr:      cfg.Addr,
 			// Seeded accounts all share this password; shown on the dev login page.
 			DemoPassword: seed.DemoPassword,
 		}),

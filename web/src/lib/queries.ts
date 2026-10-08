@@ -11,6 +11,7 @@ export const keys = {
   live: ['live'] as const,
   logLevel: ['log-level'] as const,
   apiKeys: ['api-keys'] as const,
+  settings: ['settings'] as const,
   dashboard: (range: number) => ['dashboard', range] as const,
   products: (f: object) => ['products', f] as const,
   orders: (f: object) => ['orders', f] as const,
@@ -34,6 +35,21 @@ export const useRuntime = (enabled = true) =>
 export const useLive = () => useQuery({ queryKey: keys.live, queryFn: api.live, refetchInterval: 2000 })
 
 export const useLogLevel = () => useQuery({ queryKey: keys.logLevel, queryFn: api.logLevel })
+
+export const useSettings = (enabled = true) => useQuery({ queryKey: keys.settings, queryFn: api.settings, enabled })
+
+export function usePatchSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.patchSettings,
+    onSuccess: (s) => {
+      qc.setQueryData(keys.settings, s)
+      toast.success('Settings saved')
+      return qc.invalidateQueries({ queryKey: keys.meta })
+    },
+    onError: onFormError,
+  })
+}
 
 export const useApiKeys = (enabled = true) => useQuery({ queryKey: keys.apiKeys, queryFn: api.apiKeys, enabled })
 

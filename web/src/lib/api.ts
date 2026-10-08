@@ -290,6 +290,14 @@ export interface LiveStats {
   } | null
 }
 
+/** Workspace settings, edited in Settings → General. */
+export interface WorkspaceSettings {
+  serviceName: string
+  publicBaseUrl: string
+  listenAddr: string
+  env: string
+}
+
 export type ApiKeyScope = 'read' | 'write'
 
 /** A server-to-server key. The secret is only returned when it is created. */
@@ -320,6 +328,7 @@ export interface ImportResult {
 }
 
 export interface Meta {
+  serviceName: string
   version: string
   env: string
   goVersion: string
@@ -416,6 +425,8 @@ export const api = {
   meta: () => request<Meta>('/meta'),
   runtime: () => request<RuntimeStats>('/runtime'),
   live: () => request<LiveStats>('/live'),
+  settings: () => request<WorkspaceSettings>('/settings'),
+  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
   apiKeys: () => request<{ items: ApiKey[] }>('/settings/api-keys'),
   createApiKey: (in_: { name: string; scope: ApiKeyScope }) => request<{ key: ApiKey; masked: string; secret: string }>('/settings/api-keys', json('POST', in_)),
   revokeApiKey: (id: number) => request<void>(`/settings/api-keys/${id}`, { method: 'DELETE' }),

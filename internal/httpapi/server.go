@@ -49,6 +49,9 @@ type Store interface {
 	SetMemberAccess(ctx context.Context, id int64, a d.MemberAccess) (d.Member, error)
 	SetMemberStatus(ctx context.Context, id int64, status d.MemberStatus) (d.Member, error)
 
+	GetSettings(ctx context.Context) (d.Settings, error)
+	SaveSettings(ctx context.Context, s d.Settings) error
+
 	ListAPIKeys(ctx context.Context) ([]d.APIKey, error)
 	CreateAPIKey(ctx context.Context, k d.APIKey) (d.APIKey, error)
 	APIKeyByHash(ctx context.Context, hash []byte) (d.APIKey, error)
@@ -90,6 +93,7 @@ type Deps struct {
 	Version   string
 	Env       string
 	StartedAt time.Time
+	Addr      string // listen address, shown read-only in Settings
 	// DemoPassword is shown on the login page in development; empty disables it.
 	DemoPassword string
 }
@@ -104,6 +108,8 @@ type server struct {
 	version  string
 	env      string
 	started  time.Time
+	addr     string
+	cfg      settingsCache
 
 	demoPassword string
 }
@@ -113,7 +119,7 @@ func (s *server) isDev() bool { return s.env != "production" }
 func New(deps Deps) http.Handler {
 	s := &server{
 		log: deps.Logger, level: deps.LogLevel, store: deps.Store, requests: deps.Requests, sessions: deps.Sessions,
-		media: deps.Media, version: deps.Version, env: deps.Env, started: deps.StartedAt,
+		media: deps.Media, version: deps.Version, env: deps.Env, started: deps.StartedAt, addr: deps.Addr,
 		demoPassword: deps.DemoPassword,
 	}
 
@@ -173,6 +179,8 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/settings/api-keys", d.PermSettingsWrite, s.listAPIKeys)
 	route("POST /api/v1/settings/api-keys", d.PermSettingsWrite, s.createAPIKey)
 	route("DELETE /api/v1/settings/api-keys/{id}", d.PermSettingsWrite, s.revokeAPIKey)
+	route("GET /api/v1/settings", d.PermSettingsWrite, s.getSettings)
+	route("PATCH /api/v1/settings", d.PermSettingsWrite, s.patchSettings)
 	route("GET /api/v1/settings/log-level", "", s.getLogLevel)
 	route("PUT /api/v1/settings/log-level", d.PermSettingsWrite, s.setLogLevel)
 
