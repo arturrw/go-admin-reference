@@ -14,6 +14,7 @@ import { useCustomers } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { CustomerForm } from './customer-form'
 import { CustomerSheet } from './customer-sheet'
+import { EmailSegment } from './email-segment'
 
 const SEGMENTS: [Segment, LucideIcon][] = [
   ['VIP', Crown],
@@ -27,6 +28,7 @@ export function CustomersPage() {
   const navigate = useNavigate({ from: '/customers' })
   const canAdd = useCan('customers:write')
   const [adding, setAdding] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   const [q, setQ] = useState('')
   const [segment, setSegment] = useState<Segment | ''>('')
   const dq = useDeferredValue(q)
@@ -43,9 +45,9 @@ export function CustomersPage() {
           <Download />
           Export CSV
         </Button>
-        <Button>
+        <Button disabled={!data?.items.length} onClick={() => setEmailing(true)}>
           <Mail />
-          Email segment
+          Email {segment ? segment.toLowerCase() : 'customers'}
         </Button>
         {canAdd && (
           <Button variant="primary" onClick={() => setAdding(true)}>
@@ -149,6 +151,7 @@ export function CustomersPage() {
           </table>
         </TableCard>
       )}
+      {emailing && data && <EmailSegment customers={data.items} label={segment ? `the ${segment} segment` : q ? 'these customers' : 'all customers'} onClose={() => setEmailing(false)} />}
       {adding && (
         <CustomerForm
           onClose={() => setAdding(false)}

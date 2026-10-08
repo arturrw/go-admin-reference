@@ -135,3 +135,33 @@ test('support adds a customer by hand; viewers can\'t', async ({ page }) => {
   await loginAs(page, 'viewer', '/customers')
   await expect(page.getByRole('button', { name: 'Add customer' })).toHaveCount(0)
 })
+
+test('emailing a segment prepares a Bcc draft for those who accept marketing', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await loginAs(page, 'support', '/customers')
+  await page.getByRole('button', { name: /^VIP\b/ }).click() // the segment card filters the list
+  const all = await (await page.request.get('/api/v1/customers?segment=VIP')).json()
+  const optedIn: string[] = all.items.filter((c: { acceptsMarketing: boolean }) => c.acceptsMarketing).map((c: { email: string }) => c.email)
+  expect(optedIn.length).toBeGreaterThan(0)
+
+  await page.getByRole('button', { name: 'Email vip' }).click()
+  const dialog = page.getByRole('dialog', { name: /Email the VIP segment/ })
+  await expect(dialog.getByTestId('recipients')).toContainText(`${optedIn.length}`)
+  await expect(dialog.getByTestId('recipients')).toContainText(`${all.items.length - optedIn.length} left out`)
+
+  await dialog.getByLabel('Subject').fill('Spring picks & more')
+  await dialog.getByLabel('Message').fill('Hi there,\nnew arrivals.')
+  const href = (await dialog.getByTestId('mailto').getAttribute('href'))!
+  expect(href.startsWith('mailto:?bcc=')).toBe(true)
+  const bcc = decodeURIComponent(href.split('bcc=')[1].split('&')[0]).split(',')
+  expect(bcc.sort()).toEqual([...optedIn].sort())
+  expect(href).toContain('subject=Spring%20picks%20%26%20more')
+  expect(href).toContain('body=Hi%20there%2C%0Anew%20arrivals.')
+
+  await dialog.getByRole('button', { name: 'Copy addresses' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(optedIn.join(', '))
+
+  // A link can't carry unlimited text: a long message leaves room for fewer addresses, and says so.
+  await dialog.getByLabel('Message').fill('x'.repeat(1800))
+  await expect(dialog.getByTestId('mailto-limit')).toBeVisible()
+})
