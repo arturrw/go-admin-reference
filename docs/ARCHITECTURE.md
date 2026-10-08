@@ -127,6 +127,7 @@ erDiagram
     customers ||--o{ orders : places
     customers ||--o{ customer_notes : "annotated by staff"
     orders ||--|{ order_items : contains
+    orders ||--o{ order_events : "has history"
 
     members {
         bigint id PK
@@ -158,6 +159,13 @@ erDiagram
         text refunded_by
         timestamptz refunded_at
     }
+    order_events {
+        bigint order_id PK
+        int seq PK "1, 2, 3, ..."
+        text status "pending|paid|shipped|..."
+        timestamptz at
+        text by "member, carrier or provider"
+    }
     order_items {
         bigint order_id PK
         int line PK
@@ -178,6 +186,10 @@ erDiagram
         text last4 "for recognising the key"
         bytea token_hash UK "SHA-256 only"
         timestamptz revoked_at
+    }
+    settings {
+        int id PK "always 1"
+        jsonb data "name, URL, maintenance, TTL, webhook"
     }
     targets {
         text quarter PK "2026-Q4"
@@ -210,7 +222,22 @@ order count, LTV, last order and segment.
   | `00004_member_access.sql` | per-member `granted` / `revoked` |
   | `00005_targets.sql` | quarterly revenue goals |
   | `00006_api_keys.sql` | server-to-server API keys (hashed) |
+  | `00007_settings.sql` | the single-row workspace settings |
+  | `00008_notifications.sql` | `members.notifications_read_at` |
+  | `00009_invites.sql` | invitation token hash and expiry on `members` |
+  | `00010_order_events.sql` | per-order history, backfilled from each order's status |
 
+- **Settings** are one jsonb row behind a 5-second cache, changed with a
+  pointer-field patch so only the sent fields change. Maintenance mode, the
+  session lifetime and the audit-log switch are read from it per request.
+- **One status machine.** `domain.CanTransition` decides which order status
+  can follow which; the handler turns a refusal into 409 and the store appends
+  an `order_events` row in the same transaction as the status change.
+- **Events leave through one door.** `s.audit` (honours the audit-log switch)
+  and `s.record` (always) write the activity row, and `emit` hands the same
+  event to the webhook sender, which signs and retries it off the request path.
+- **Invitations** hand out a random token once and keep only its SHA-256 and an
+  expiry. The server has no mail transport, so the inviter delivers the link.
 - **Seeding and backfills.** An empty database gets the demo dataset. Older
   demo databases get refund reasons and a week of staff history once, on boot
   (with `SEED=true`).

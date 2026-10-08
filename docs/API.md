@@ -87,6 +87,8 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 | POST | `/auth/logout` | public | clears the session |
 | GET | `/auth/me` | signed in | current member + effective permissions |
 | GET | `/auth/demo-accounts` | public, development only | one-click demo logins for the login page |
+| GET | `/auth/invite/{token}` | public | the invitation behind a link: `{name, email, role, expiresAt}`; 404 if it is spent, replaced or expired |
+| POST | `/auth/invite/{token}` | public | `{name, password}` (8+ characters) joins the workspace, spends the link and signs in |
 | GET | `/roles` | signed in | `{roles, permissions, matrix}`, the matrix the API enforces |
 | GET | `/meta` | signed in | version, env, sidebar counters |
 
@@ -120,7 +122,8 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 | Method | Path | Permission | Notes |
 | ------ | ---- | ---------- | ----- |
 | GET | `/orders?q&status&customer&from&to&limit&offset` | `orders:read` | `{items, total, counts}`; `from` and `to` (RFC 3339) bound `placed_at` |
-| GET | `/orders/{id}` | `orders:read` | |
+| GET | `/orders/{id}` | `orders:read` | adds `events` (the order's own history, oldest first) and the charged `shippingCents`, `taxCents`, `grandTotalCents` |
+| GET | `/orders/{id}/invoice` | `orders:read` | a printable HTML invoice (use Print → Save as PDF); refunded orders are stamped REFUNDED with the reason |
 | PATCH | `/orders/{id}/status` | `orders:write` | `{status, reason}`; see below |
 | GET | `/orders/export` | `orders:read` | CSV, including the refund reason, who refunded and when |
 
@@ -136,14 +139,18 @@ curl -b jar -X PATCH -H 'Content-Type: application/json' \
 { "id": 10231, "status": "refunded", "refund": { "reason": "Damaged in transit", "by": "Priya Shah", "at": "2026-10-05T16:20:11Z" }, "...": "..." }
 ```
 
-The call returns 422 without a reason and 409 if the order is already refunded
-or failed.
+The call returns 422 without a reason or with an unknown status. Statuses move
+forward only: `pending → paid | failed`, `paid → shipped | refunded`,
+`shipped → delivered | refunded`, `delivered → refunded`. Anything else is 409,
+and so is refunding an order that is not paid. Every change is written to the
+order's `events` with the member who made it.
 
 ### Customers
 
 | Method | Path | Permission | Notes |
 | ------ | ---- | ---------- | ----- |
 | GET | `/customers?q&segment` | `customers:read` | `{items, segments}`; segment is `VIP\|Regular\|New\|At risk` |
+| POST | `/customers` | `customers:write` | `{name, email, phone, country, address: {line1, city, postalCode}, tags, acceptsMarketing, source}`; 422 lists the fields |
 | GET | `/customers/{id}` | `customers:read` | profile, stats, full order history (with refund reasons), products bought, categories, monthly spend |
 | POST | `/customers/{id}/notes` | `customers:write` | `{text}` |
 | DELETE | `/customers/{id}/notes/{noteId}` | `customers:write` | written to the activity log |
@@ -154,7 +161,8 @@ or failed.
 | Method | Path | Permission | Notes |
 | ------ | ---- | ---------- | ----- |
 | GET | `/team?role` | `team:read` | members, including `granted` / `revoked` exceptions |
-| POST | `/team` | `team:write` | `{name, email, role}` invites a member; only the owner can grant `admin` |
+| POST | `/team` | `team:write` | `{name, email, role}` invites a member and returns `invite: {url, expiresAt}`; the link is shown **only here**. Only the owner can grant `admin` |
+| POST | `/team/{id}/invite` | `team:write` | a new link for an invited member; the old one stops working |
 | GET | `/team/{id}` | `team:read` | `{member, permissions, online}`; online means a request in the last 5 minutes |
 | PUT | `/team/{id}` | `team:write` | `{name, email, role}`; the owner can't be edited |
 | PUT | `/team/{id}/access` | `team:write`, owner only | `{granted, revoked}` exceptions to the role; `workspace:manage` can't be granted |
@@ -173,6 +181,29 @@ entry is clicked. The kinds are `product`, `publish`, `image`, `import`,
 `order`, `refund`, `note`, `team`, `role`, `target`, `settings`, `auth` (sign-ins,
 which the dashboard feed leaves out), `deploy` and `stock`.
 
+### Notifications
+
+| Method | Path | Permission | Notes |
+| ------ | ---- | ---------- | ----- |
+| GET | `/notifications` | `dashboard:read` | `{items, unread}`: the activity that concerns the member (stock alerts, refunds, sign-in alerts, team changes), newest first |
+| POST | `/notifications/read` | `dashboard:read` | marks everything read up to now |
+
+### Webhooks
+
+When `webhookUrl` is set, every audited change is POSTed there as JSON
+(`{id, type, createdAt, actor, entity, message, url}`, for example
+`customer.note` or `settings.changed`). With `webhooksSigned` on, each request
+carries `X-GoAdmin-Timestamp` and `X-GoAdmin-Signature: sha256=<hex>`, an HMAC
+of `timestamp.body` with the secret. Deliveries are retried up to three times,
+redirects are not followed, and a 2xx response counts as delivered.
+
+### Maintenance mode
+
+With `maintenance` on, signed-in members of the roles that cannot work during
+maintenance get `503` (with `Retry-After`) and `{"maintenance": true}` on API
+calls; owners and admins keep working, and `/meta` reports the flag so the UI
+can show a banner.
+
 ### System
 
 | Method | Path | Permission | Notes |
@@ -181,6 +212,13 @@ which the dashboard feed leaves out), `deploy` and `stock`.
 | GET | `/requests/{id}` | `requests:read` | headers and bodies (redacted), user, route, timing |
 | GET | `/settings/log-level` | signed in | `{level}` |
 | PUT | `/settings/log-level` | `settings:write` | `{level: debug\|info\|warn\|error}`; applies until restart |
+| GET | `/settings` | `settings:write` | the workspace settings: `serviceName`, `publicBaseUrl`, `maintenance`, `auditLog`, `loginAlerts`, `sessionTtlSeconds`, `webhookUrl`, `webhooksSigned`, `webhookSecret`, plus read-only `listenAddr` and `env` |
+| PATCH | `/settings` | `settings:write` | any subset of those fields; 422 names the field. Maintenance mode and the session lifetime apply at once |
+| GET | `/settings/webhook/deliveries` | `settings:write` | the most recent deliveries: event, status, attempts, time |
+| POST | `/settings/webhook/test` | `settings:write` | sends a signed `webhook.test` event and returns the delivery |
+| POST | `/settings/webhook/rotate-secret` | `settings:write` | replaces the signing secret and returns it once |
+| POST | `/danger/clear-request-log` | `workspace:manage` | empties the request log; the count is written to the activity log |
+| POST | `/danger/sign-out-everyone` | `workspace:manage` | ends every session except the caller's; returns `{signedOut}` |
 | GET | `/settings/api-keys` | `settings:write` | active keys: name, scope, `masked`, creator, last use; never the secret |
 | POST | `/settings/api-keys` | `settings:write` | `{name, scope: read\|write}` → `{key, masked, secret}`; **the secret is returned only here** |
 | DELETE | `/settings/api-keys/{id}` | `settings:write` | revokes at once; 404 if already revoked |

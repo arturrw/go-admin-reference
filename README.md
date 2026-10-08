@@ -54,12 +54,21 @@ Screenshots are full pages captured from the demo data by
   owner can edit.
 - **Catalogue.** Product CRUD, image galleries with uploads, bulk actions, and
   CSV import and export.
-- **Orders and customers.** Status changes, refunds that require a reason
-  (kept in the order and the customer's history), customer profiles, notes
-  with delete confirmation, and segments.
+- **Orders and customers.** A real order timeline (who moved it and when,
+  with forward-only status changes), refunds that require a reason, printable
+  invoices, customer profiles you can add, notes with delete confirmation,
+  segments, and a ready-made email draft for a segment.
 - **Team.** RBAC with five roles, plus per-member exceptions the owner sets. A
   member sheet shows presence, recent activity and access, with suspend and
-  reactivate.
+  reactivate. Invitations are one-time links to a page where the new member
+  picks a password.
+- **Settings that do something.** Service name and public URL, a maintenance
+  mode that locks out other roles, session lifetime, audit-log and sign-in
+  alert switches, compact density, signed webhooks with a test button and
+  delivery log, and a danger zone. Two-factor sign-in is the one switch that is
+  still a preview.
+- **Notifications.** The bell shows the activity that concerns you, with an
+  unread count.
 - **Audit log.** Every change and sign-in, with actor and record, filterable
   by member and type.
 - **API keys.** Create read or read-and-write keys in Settings and call the API
@@ -184,8 +193,9 @@ cd web && npm run e2e:pg      # Playwright against a fresh Postgres database
 
 Locally the e2e suite uses the installed Chrome. With `CI=1` it uses
 Playwright's bundled Chromium (`npx playwright install chromium`). The suite
-has 42 tests covering auth, every page, refunds, notes, member access, the
-activity log, charts and phone layouts. It passes on both stores.
+has 60 tests covering auth, every page, the order timeline, refunds, invoices,
+settings, webhooks, invitations, notifications, member access, the activity
+log, charts and phone layouts. It passes on both stores.
 
 ## CI/CD
 
@@ -214,7 +224,7 @@ GitHub Actions in [.github/workflows](.github/workflows):
 
 - Object storage (S3) for uploads instead of local disk
 - Background job that rebuilds the dashboard rollups from orders
-- Password reset and invite acceptance flows, 2FA
+- Password reset, 2FA, and an email transport so invitations can be sent
 - OpenAPI spec and a generated TS client
 
 Seed product photos come from [Unsplash](https://unsplash.com/license) (`internal/seed/photos.go`).
