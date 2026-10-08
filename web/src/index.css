@@ -171,6 +171,24 @@
     100% { box-shadow: 0 0 0 0 transparent; }
   }
 
+  /* Settings → Appearance → Density: compact tightens cards and tables. */
+  [data-density='compact'] .card {
+    padding: 14px;
+  }
+  [data-density='compact'] .data-table th,
+  [data-density='compact'] .data-table td {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  [data-density='compact'] .data-table th:first-child,
+  [data-density='compact'] .data-table td:first-child {
+    padding-left: 14px;
+  }
+  [data-density='compact'] .data-table th:last-child,
+  [data-density='compact'] .data-table td:last-child {
+    padding-right: 14px;
+  }
+
   /* Data tables: shared header/row rhythm. */
   .data-table {
     width: 100%;

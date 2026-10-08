@@ -6,10 +6,11 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ApiError } from './lib/api'
-import { restoreAccent } from './lib/theme'
+import { restoreAccent, restoreDensity } from './lib/theme'
 import { createAppRouter } from './router'
 
 restoreAccent()
+restoreDensity()
 
 // A 401 anywhere means the session expired: go to login, then drop the data
 // of the pages we left. (A 401 on `me` itself is handled by the route guard.)

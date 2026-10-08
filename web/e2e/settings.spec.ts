@@ -161,3 +161,26 @@ test('a sign-in from a new device raises an alert in the activity log', async ({
   await expect(alert).toContainText('New sign-in to Jon Berg')
   await expect(alert).toContainText('Firefox on macOS')
 })
+
+test('compact density tightens tables and cards and is remembered', async ({ page }) => {
+  await loginAs(page, 'owner', '/orders')
+  const rowHeight = async () => (await page.locator('tbody tr').first().boundingBox())!.height
+  await expect(page.locator('tbody tr').first()).toBeVisible()
+  const comfortable = await rowHeight()
+
+  await page.goto('/settings')
+  await page.getByRole('radio', { name: 'Compact' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-density', 'compact')
+
+  await page.goto('/orders')
+  await expect(page.locator('tbody tr').first()).toBeVisible()
+  expect(await rowHeight()).toBeLessThan(comfortable - 6)
+
+  await page.reload() // survives a reload
+  await expect(page.locator('html')).toHaveAttribute('data-density', 'compact')
+  await page.goto('/settings')
+  await page.getByRole('radio', { name: 'Comfortable' }).click()
+  await page.goto('/orders')
+  await expect(page.locator('tbody tr').first()).toBeVisible()
+  expect(await rowHeight()).toBeGreaterThanOrEqual(comfortable - 1)
+})

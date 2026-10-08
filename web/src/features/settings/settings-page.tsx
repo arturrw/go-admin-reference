@@ -7,7 +7,7 @@ import { Segmented } from '@/components/ui/segmented'
 import type { LogLevel } from '@/lib/api'
 import { useCan } from '@/lib/auth'
 import { useLogLevel, usePatchSettings, useSetLogLevel, useSettings } from '@/lib/queries'
-import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
+import { ACCENTS, getAccent, getDensity, setAccent, setDensity } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { ApiKeys } from './api-keys'
 import { GeneralSettings } from './general'
@@ -40,7 +40,7 @@ export function SettingsPage() {
   const logLevel = useLogLevel()
   const setLogLevel = useSetLogLevel()
   const level = setLogLevel.isPending ? setLogLevel.variables : logLevel.data?.level
-  const [density, setDensity] = useState('comfortable')
+  const [density, setDensityState] = useState(getDensity)
   const settings = useSettings(canEdit)
   const patch = usePatchSettings()
   const [toggles, setToggles] = useState({ webhooks: false })
@@ -113,7 +113,10 @@ export function SettingsPage() {
               <Segmented
                 className="self-start"
                 value={density}
-                onChange={setDensity}
+                onChange={(d) => {
+                  setDensity(d)
+                  setDensityState(d)
+                }}
                 options={[
                   { value: 'comfortable', label: 'Comfortable' },
                   { value: 'compact', label: 'Compact' },
