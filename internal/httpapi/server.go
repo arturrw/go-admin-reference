@@ -167,6 +167,7 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/orders/export", d.PermOrdersRead, s.exportOrders)
 	route("GET /api/v1/orders/{id}", d.PermOrdersRead, s.getOrder)
 	route("PATCH /api/v1/orders/{id}/status", d.PermOrdersWrite, s.updateOrderStatus)
+	route("GET /api/v1/orders/{id}/invoice", d.PermOrdersRead, s.invoice)
 
 	route("GET /api/v1/customers", d.PermCustomersRead, s.listCustomers)
 	route("GET /api/v1/customers/export", d.PermCustomersRead, s.exportCustomers)

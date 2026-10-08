@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -133,4 +134,75 @@ func TestOrdersByDateRange(t *testing.T) {
 	if code, _ := c.do("GET", "/api/v1/orders?from=yesterday", nil); code != http.StatusBadRequest {
 		t.Fatalf("bad from: got %d, want 400", code)
 	}
+}
+
+func rawGet(t *testing.T, c *client, path string) (int, http.Header, string) {
+	t.Helper()
+	res, err := c.c.Get(c.srv.URL + path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res.StatusCode, res.Header, string(b)
+}
+
+// The invoice is a printable page whose numbers match the order sheet's.
+func TestInvoice(t *testing.T) {
+	srv := newServer(t)
+	viewer := newClient(t, srv)
+	viewer.login("jon@acme.io")
+
+	_, list := viewer.do("GET", "/api/v1/orders?status=delivered&limit=1", nil)
+	id := fmt.Sprint(list["items"].([]any)[0].(map[string]any)["id"])
+	_, o := viewer.do("GET", "/api/v1/orders/"+id, nil)
+	total, ship, tax, grand := int64(o["totalCents"].(float64)), int64(o["shippingCents"].(float64)), int64(o["taxCents"].(float64)), int64(o["grandTotalCents"].(float64))
+	if grand != total+ship+tax || tax != (total*8+50)/100 || (total > 10000) != (ship == 0) {
+		t.Fatalf("totals: goods %d shipping %d tax %d grand %d", total, ship, tax, grand)
+	}
+
+	code, h, html := rawGet(t, viewer, "/api/v1/orders/"+id+"/invoice")
+	cust := o["customer"].(map[string]any)["name"].(string)
+	if code != http.StatusOK || !strings.HasPrefix(h.Get("Content-Type"), "text/html") {
+		t.Fatalf("invoice: %d %v", code, h)
+	}
+	for _, want := range []string{"INV-" + id, cust, "Print / Save as PDF", usd(grand), usd(tax)} {
+		if !strings.Contains(html, want) {
+			t.Errorf("invoice lacks %q", want)
+		}
+	}
+	for _, it := range o["items"].([]any) {
+		if sku := it.(map[string]any)["sku"].(string); !strings.Contains(html, sku) {
+			t.Errorf("invoice lacks item %s", sku)
+		}
+	}
+	if strings.Contains(html, "REFUNDED") {
+		t.Error("a delivered order is stamped refunded")
+	}
+
+	// A refund shows up on the invoice with its reason.
+	support := newClient(t, srv)
+	support.login("priya@acme.io")
+	support.do("PATCH", "/api/v1/orders/"+id+"/status", map[string]any{"status": "refunded", "reason": "Arrived <b>broken</b>"})
+	_, _, html = rawGet(t, viewer, "/api/v1/orders/"+id+"/invoice")
+	if !strings.Contains(html, "REFUNDED") || !strings.Contains(html, "Arrived &lt;b&gt;broken&lt;/b&gt;") || strings.Contains(html, "<b>broken</b>") {
+		t.Errorf("refund not shown or not escaped")
+	}
+
+	if code, _, _ := rawGet(t, viewer, "/api/v1/orders/99999999/invoice"); code != http.StatusNotFound {
+		t.Errorf("unknown order: %d", code)
+	}
+	anon := newClient(t, srv)
+	if code, _, _ := rawGet(t, anon, "/api/v1/orders/"+id+"/invoice"); code != http.StatusUnauthorized {
+		t.Errorf("anonymous: %d", code)
+	}
+}
+
+// usd formats cents like the invoice does.
+func usd(c int64) string {
+	whole := fmt.Sprint(c / 100)
+	for i := len(whole) - 3; i > 0; i -= 3 {
+		whole = whole[:i] + "," + whole[i:]
+	}
+	return fmt.Sprintf("$%s.%02d", whole, c%100)
 }

@@ -89,6 +89,10 @@ export interface Order {
   placedAt: string
   /** Set while the order is refunded: why, by whom and when. */
   refund: { reason: string; by: string; at: string } | null
+  /** Only on a single order (GET /orders/{id}): what the customer was charged. */
+  shippingCents?: number
+  taxCents?: number
+  grandTotalCents?: number
 }
 
 /** Presets offered in the refund dialog (mirrors domain.RefundReasons). */

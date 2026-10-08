@@ -52,6 +52,28 @@ type Order struct {
 	Payment    string       `json:"payment"`
 	PlacedAt   time.Time    `json:"placedAt"`
 	Refund     *OrderRefund `json:"refund"` // set while the order is refunded
+	// Filled by FillTotals when a single order is read: TotalCents is the
+	// goods; the customer pays GrandTotalCents.
+	ShippingCents   int64 `json:"shippingCents"`
+	TaxCents        int64 `json:"taxCents"`
+	GrandTotalCents int64 `json:"grandTotalCents"`
+}
+
+// Shipping and tax, shared by the order sheet and the invoice.
+const (
+	FreeShippingAboveCents = 10_000 // goods above  ship free
+	FlatShippingCents      = 790
+	TaxPercent             = 8
+)
+
+// FillTotals computes shipping, tax and the amount charged from the goods total.
+func (o *Order) FillTotals() {
+	o.ShippingCents = 0
+	if o.TotalCents <= FreeShippingAboveCents {
+		o.ShippingCents = FlatShippingCents
+	}
+	o.TaxCents = (o.TotalCents*TaxPercent + 50) / 100 // rounded to the nearest cent
+	o.GrandTotalCents = o.TotalCents + o.ShippingCents + o.TaxCents
 }
 
 // OrderRefund records why and by whom an order was refunded.

@@ -285,6 +285,7 @@ func (s *server) getOrder(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	o.FillTotals()
 	writeJSON(w, http.StatusOK, o)
 }
 

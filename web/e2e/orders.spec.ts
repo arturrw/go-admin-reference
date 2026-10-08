@@ -37,3 +37,25 @@ test('a refund asks for a reason that stays in the order and the customer histor
   await expect(row.getByTestId('refund-reason')).toHaveText('Wrong item sent: sent the blue one')
   for (const reason of await page.getByTestId('refund-reason').allInnerTexts()) expect(reason).not.toBe('No reason recorded')
 })
+
+test('the invoice opens as a printable page with the order numbers', async ({ page, context }) => {
+  await loginAs(page, 'viewer', '/orders')
+  await page.locator('tbody tr').first().click()
+  const sheet = page.getByRole('dialog')
+  const id = (await sheet.getByRole('heading').first().innerText()).replace(/\D/g, '')
+  const total = (await sheet.locator('dd').last().innerText()).trim()
+
+  const [invoice] = await Promise.all([context.waitForEvent('page'), sheet.getByRole('link', { name: 'Invoice' }).click()])
+  await invoice.waitForLoadState()
+  await expect(invoice.getByRole('heading', { name: 'Invoice' })).toBeVisible()
+  await expect(invoice.getByText(`INV-${id}`).first()).toBeVisible()
+  await expect(invoice.locator('.grand')).toContainText(total)
+  await expect(invoice.getByRole('button', { name: 'Print / Save as PDF' })).toBeVisible()
+  // The print button really prints.
+  await invoice.evaluate(() => {
+    ;(window as unknown as { printed: number }).printed = 0
+    window.print = () => ((window as unknown as { printed: number }).printed += 1)
+  })
+  await invoice.getByRole('button', { name: 'Print / Save as PDF' }).click()
+  expect(await invoice.evaluate(() => (window as unknown as { printed: number }).printed)).toBe(1)
+})

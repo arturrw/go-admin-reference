@@ -1,7 +1,6 @@
 import { ChevronRight, FileText, Truck, Undo2 } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/input'
 import { Avatar, Skeleton } from '@/components/ui/misc'
@@ -29,9 +28,6 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
 
   if (isError) return null
 
-  const subtotal = o?.totalCents ?? 0
-  const shipping = subtotal > 10_000 ? 0 : 790
-  const tax = Math.round(subtotal * 0.08)
   const done = o ? STEPS_DONE[o.status] : 0
   const stepTime = (i: number) =>
     new Date(new Date(o!.placedAt).getTime() + [0, 1, 300, 1400, 4500][i] * 60_000).toLocaleString('en-US', {
@@ -50,10 +46,16 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
       footer={
         o && (
           <>
-            <Button onClick={() => toast('Invoice downloaded')} className={cn(!canWrite && 'mr-auto')}>
+            <a
+              href={`/api/v1/orders/${o.id}/invoice`}
+              target="_blank"
+              rel="noopener"
+              className={cn(buttonVariants(), !canWrite && 'mr-auto')}
+              title="Opens a printable invoice; use Print → Save as PDF"
+            >
               <FileText />
               Invoice
-            </Button>
+            </a>
             {canWrite && (
               <>
                 <Button variant="danger" className="order-first mr-auto" disabled={update.isPending || o.status === 'refunded' || o.status === 'failed'} onClick={() => setRefunding(true)}>
@@ -128,13 +130,13 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px] [&_dd]:num [&_dd]:text-right [&_dt]:text-dim">
             <dt>Subtotal</dt>
-            <dd>{money(subtotal, 2)}</dd>
+            <dd>{money(o.totalCents, 2)}</dd>
             <dt>Shipping</dt>
-            <dd>{shipping ? money(shipping, 2) : 'Free'}</dd>
+            <dd>{o.shippingCents ? money(o.shippingCents, 2) : 'Free'}</dd>
             <dt>Tax (8%)</dt>
-            <dd>{money(tax, 2)}</dd>
+            <dd>{money(o.taxCents ?? 0, 2)}</dd>
             <dt className="text-fg!">Total</dt>
-            <dd className="text-base text-accent">{money(subtotal + shipping + tax, 2)}</dd>
+            <dd className="text-base text-accent">{money(o.grandTotalCents ?? o.totalCents, 2)}</dd>
           </dl>
 
           <div>
