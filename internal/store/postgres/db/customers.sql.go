@@ -32,6 +32,43 @@ func (q *Queries) AddCustomerNote(ctx context.Context, arg AddCustomerNoteParams
 	return i, err
 }
 
+const createCustomer = `-- name: CreateCustomer :one
+INSERT INTO customers (name, email, phone, country, address_line1, city, postal_code, tags, accepts_marketing, source)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id
+`
+
+type CreateCustomerParams struct {
+	Name             string
+	Email            string
+	Phone            string
+	Country          string
+	AddressLine1     string
+	City             string
+	PostalCode       string
+	Tags             []string
+	AcceptsMarketing bool
+	Source           string
+}
+
+func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (int64, error) {
+	row := q.db.QueryRow(ctx, createCustomer,
+		arg.Name,
+		arg.Email,
+		arg.Phone,
+		arg.Country,
+		arg.AddressLine1,
+		arg.City,
+		arg.PostalCode,
+		arg.Tags,
+		arg.AcceptsMarketing,
+		arg.Source,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const customerSegments = `-- name: CustomerSegments :many
 SELECT segment, count(*)::int AS n, coalesce(sum(ltv_cents), 0)::bigint AS ltv_cents
 FROM customers_v GROUP BY segment

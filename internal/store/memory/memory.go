@@ -29,6 +29,7 @@ type Store struct {
 	apiKeys        []d.APIKey              // newest first
 	settings       d.Settings
 	nextKeyID      int64
+	nextCustomerID int64
 	nextProductID  int64
 	nextMemberID   int64
 	nextNoteID     int64
@@ -50,6 +51,7 @@ func New(now time.Time) *Store {
 		s.nextMemberID = max(s.nextMemberID, m.ID+1)
 	}
 	for _, c := range s.customers {
+		s.nextCustomerID = max(s.nextCustomerID, c.ID+1)
 		for _, n := range c.Notes {
 			s.nextNoteID = max(s.nextNoteID, n.ID+1)
 		}
@@ -428,6 +430,24 @@ func (s *Store) AddCustomerNote(_ context.Context, customerID int64, author, tex
 	s.nextNoteID++
 	s.customers[ci].Notes = append(s.customers[ci].Notes, n)
 	return n, nil
+}
+
+func (s *Store) CreateCustomer(_ context.Context, in d.CustomerInput) (d.Customer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if slices.ContainsFunc(s.customers, func(c d.Customer) bool { return strings.EqualFold(c.Email, in.Email) }) {
+		return d.Customer{}, d.NewValidationError("email", "is already a customer")
+	}
+	now := s.now()
+	c := d.Customer{
+		ID: s.nextCustomerID, Name: in.Name, Email: in.Email, Phone: in.Phone, Country: in.Country, Address: in.Address,
+		Tags: append([]string{}, in.Tags...), AcceptsMarketing: in.AcceptsMarketing, Source: in.Source, Notes: []d.CustomerNote{},
+		LastSeenAt: now, CreatedAt: now,
+	}
+	s.nextCustomerID++
+	d.DeriveCustomer(&c, s.orders, now) // segment of a customer without orders: New
+	s.customers = append(s.customers, c)
+	return c, nil
 }
 
 func (s *Store) DeleteCustomerNote(_ context.Context, customerID, noteID int64) (d.CustomerNote, error) {

@@ -88,3 +88,50 @@ test('overview widgets drill into filtered orders and products', async ({ page }
   await expect(page.getByRole('dialog').getByRole('heading', { name: product })).toBeVisible()
   await expect(page).toHaveURL(/\/customers\?view=10$/)
 })
+
+test('support adds a customer by hand; viewers can\'t', async ({ page }) => {
+  await loginAs(page, 'support', '/customers')
+  await page.getByRole('button', { name: 'Add customer' }).click()
+  const form = page.getByRole('dialog', { name: 'Add customer' })
+  const add = form.getByRole('button', { name: 'Add customer' })
+  await expect(add).toBeDisabled() // name and email first
+
+  await form.getByLabel('Name').fill('Greta Lindqvist')
+  await form.getByLabel('Email').fill('greta.lindqvist@example.com')
+  await form.getByLabel('Phone').fill('+46 8 123 456')
+  await form.getByLabel('Street address').fill('Drottninggatan 5')
+  await form.getByLabel('City').fill('Stockholm')
+  await form.getByLabel('Postal code').fill('11151')
+  await form.getByLabel('Country').selectOption('SE')
+  await form.getByRole('textbox', { name: 'Add tag' }).fill('phone-order')
+  await form.getByRole('textbox', { name: 'Add tag' }).press('Enter')
+  await form.getByRole('switch', { name: 'Accepts marketing' }).click()
+  await add.click()
+
+  // The new customer's own sheet opens: New segment, no orders yet.
+  const sheet = page.getByRole('dialog', { name: 'Greta Lindqvist' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByText('New', { exact: true }).first()).toBeVisible()
+  await expect(sheet.getByText('Drottninggatan 5, 11151 Stockholm, SE')).toBeVisible()
+  await expect(sheet.getByText('phone-order')).toBeVisible()
+  await expect(sheet.getByText('Subscribed to marketing')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // …and they are in the list and in the activity feed.
+  await page.getByPlaceholder('Search customers…').fill('greta')
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await page.goto('/')
+  const feed = page.locator('.card', { has: page.getByRole('heading', { name: 'Activity' }) })
+  await expect(feed.getByTestId('activity-item').first()).toContainText('added customer Greta Lindqvist')
+
+  // The same email can't be added twice.
+  await page.goto('/customers')
+  await page.getByRole('button', { name: 'Add customer' }).click()
+  await form.getByLabel('Name').fill('Greta Again')
+  await form.getByLabel('Email').fill('GRETA.LINDQVIST@example.com')
+  await add.click()
+  await expect(form.getByText('is already a customer')).toBeVisible()
+
+  await loginAs(page, 'viewer', '/customers')
+  await expect(page.getByRole('button', { name: 'Add customer' })).toHaveCount(0)
+})

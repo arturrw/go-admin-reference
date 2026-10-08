@@ -88,7 +88,7 @@ func newWebhookState(backoff []time.Duration) *webhookState {
 }
 
 var eventTypes = map[string]string{
-	d.ActProduct: "product.changed", d.ActPublish: "product.published", d.ActImage: "product.images_changed",
+	d.ActProduct: "product.changed", d.ActCustomer: "customer.created", d.ActPublish: "product.published", d.ActImage: "product.images_changed",
 	d.ActImport: "products.imported", d.ActOrder: "order.updated", d.ActRefund: "order.refunded",
 	d.ActNote: "customer.note", d.ActTeam: "team.changed", d.ActRole: "member.access_changed",
 	d.ActTarget: "target.updated", d.ActSettings: "settings.changed",

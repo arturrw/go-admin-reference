@@ -19,3 +19,8 @@ INSERT INTO customer_notes (customer_id, author, body) VALUES ($1, $2, $3) RETUR
 
 -- name: DeleteCustomerNote :one
 DELETE FROM customer_notes WHERE id = sqlc.arg(id) AND customer_id = sqlc.arg(customer_id) RETURNING *;
+
+-- name: CreateCustomer :one
+INSERT INTO customers (name, email, phone, country, address_line1, city, postal_code, tags, accepts_marketing, source)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id;

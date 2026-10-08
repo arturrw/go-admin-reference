@@ -36,6 +36,7 @@ type Store interface {
 	ListCustomers(ctx context.Context, f d.CustomerFilter) ([]d.Customer, error)
 	CustomerSegments(ctx context.Context) (map[string]d.SegmentSummary, error)
 	GetCustomer(ctx context.Context, id int64) (d.CustomerDetail, error)
+	CreateCustomer(ctx context.Context, in d.CustomerInput) (d.Customer, error)
 	AddCustomerNote(ctx context.Context, customerID int64, author, text string) (d.CustomerNote, error)
 	DeleteCustomerNote(ctx context.Context, customerID, noteID int64) (d.CustomerNote, error)
 
@@ -170,6 +171,7 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/orders/{id}/invoice", d.PermOrdersRead, s.invoice)
 
 	route("GET /api/v1/customers", d.PermCustomersRead, s.listCustomers)
+	route("POST /api/v1/customers", d.PermCustomersWrite, s.createCustomer)
 	route("GET /api/v1/customers/export", d.PermCustomersRead, s.exportCustomers)
 	route("GET /api/v1/customers/{id}", d.PermCustomersRead, s.getCustomer)
 	route("POST /api/v1/customers/{id}/notes", d.PermCustomersWrite, s.addCustomerNote)

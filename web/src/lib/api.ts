@@ -208,6 +208,7 @@ export interface Dashboard {
 
 export type ActivityKind =
   | 'product'
+  | 'customer'
   | 'publish'
   | 'image'
   | 'import'
@@ -322,6 +323,18 @@ export interface WebhookDelivery {
   attempts: number
   durationMs: number
   at: string
+}
+
+/** What staff enter to add a customer by hand. */
+export interface CustomerInput {
+  name: string
+  email: string
+  phone: string
+  country: string
+  address: { line1: string; city: string; postalCode: string; country: string }
+  tags: string[]
+  acceptsMarketing: boolean
+  source: string
 }
 
 export type ApiKeyScope = 'read' | 'write'
@@ -503,6 +516,7 @@ export const api = {
   customers: (f: { q?: string; segment?: string }) =>
     request<{ items: Customer[]; segments: Partial<Record<Segment, { count: number; ltvCents: number }>> }>(`/customers${qs(f)}`),
   customer: (id: number) => request<CustomerDetail>(`/customers/${id}`),
+  createCustomer: (in_: CustomerInput) => request<Customer>('/customers', json('POST', in_)),
   addCustomerNote: (id: number, text: string) => request<CustomerNote>(`/customers/${id}/notes`, json('POST', { text })),
   deleteCustomerNote: (id: number, noteId: number) => request<void>(`/customers/${id}/notes/${noteId}`, { method: 'DELETE' }),
 

@@ -354,6 +354,25 @@ func (s *server) listCustomers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "segments": segments})
 }
 
+func (s *server) createCustomer(w http.ResponseWriter, r *http.Request) {
+	var in d.CustomerInput
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	in.Normalize()
+	if err := in.Validate(); err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	c, err := s.store.CreateCustomer(r.Context(), in)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	s.audit(r.Context(), d.ActCustomer, "customer", c.ID, "added customer %s", c.Name)
+	writeJSON(w, http.StatusCreated, c)
+}
+
 func (s *server) getCustomer(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {

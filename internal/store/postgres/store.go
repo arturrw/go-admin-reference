@@ -410,6 +410,18 @@ func (s *Store) GetCustomer(ctx context.Context, id int64) (d.CustomerDetail, er
 	return d.BuildCustomerDetail(c, orders, s.now()), nil
 }
 
+func (s *Store) CreateCustomer(ctx context.Context, in d.CustomerInput) (d.Customer, error) {
+	id, err := s.q.CreateCustomer(ctx, db.CreateCustomerParams{
+		Name: in.Name, Email: in.Email, Phone: in.Phone, Country: in.Country, AddressLine1: in.Address.Line1, City: in.Address.City,
+		PostalCode: in.Address.PostalCode, Tags: nonNil(in.Tags), AcceptsMarketing: in.AcceptsMarketing, Source: in.Source,
+	})
+	if err != nil {
+		return d.Customer{}, mapErr(err)
+	}
+	det, err := s.GetCustomer(ctx, id)
+	return det.Customer, err
+}
+
 func (s *Store) AddCustomerNote(ctx context.Context, customerID int64, author, text string) (d.CustomerNote, error) {
 	n, err := s.q.AddCustomerNote(ctx, db.AddCustomerNoteParams{CustomerID: customerID, Author: author, Body: text})
 	if err != nil {

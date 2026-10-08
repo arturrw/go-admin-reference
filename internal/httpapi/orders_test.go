@@ -206,3 +206,66 @@ func usd(c int64) string {
 	}
 	return fmt.Sprintf("$%s.%02d", whole, c%100)
 }
+
+func TestCreateCustomer(t *testing.T) {
+	srv := newServer(t)
+	support := newClient(t, srv)
+	support.login("priya@acme.io")
+
+	in := map[string]any{
+		"name": "  Lena Weiss ", "email": " Lena.Weiss@Example.COM ", "phone": "+49 30 1234567", "country": "de",
+		"address": map[string]any{"line1": "Torstr. 12", "city": "Berlin", "postalCode": "10119"},
+		"tags":    []string{"Wholesale", "wholesale", "gift-buyer"}, "acceptsMarketing": true, "source": "",
+	}
+	code, c := support.do("POST", "/api/v1/customers", in)
+	if code != http.StatusCreated {
+		t.Fatalf("create: %d %v", code, c)
+	}
+	if c["name"] != "Lena Weiss" || c["email"] != "lena.weiss@example.com" || c["country"] != "DE" || c["source"] != "Manual" || c["segment"] != "New" {
+		t.Fatalf("customer = %v", c)
+	}
+	if tags := c["tags"].([]any); len(tags) != 2 {
+		t.Fatalf("tags not normalised: %v", tags)
+	}
+	if a := c["address"].(map[string]any); a["city"] != "Berlin" || a["country"] != "DE" {
+		t.Fatalf("address = %v", a)
+	}
+
+	// It is a full customer: detail works with no orders, and it is listed.
+	id := fmt.Sprint(c["id"])
+	code, det := support.do("GET", "/api/v1/customers/"+id, nil)
+	if code != http.StatusOK || det["stats"].(map[string]any)["orders"].(float64) != 0 {
+		t.Fatalf("detail: %d %v", code, det)
+	}
+	_, list := support.do("GET", "/api/v1/customers?q=lena.weiss", nil)
+	if len(list["items"].([]any)) != 1 {
+		t.Fatalf("not listed: %v", list["items"])
+	}
+	_, act := support.do("GET", "/api/v1/dashboard", nil)
+	if a := act["activity"].([]any)[0].(map[string]any); a["kind"] != "customer" || a["message"] != "added customer Lena Weiss" || a["entity"] != "customer" {
+		t.Fatalf("activity = %v", a)
+	}
+
+	// The same address, in any case, can't be added twice.
+	in["email"] = "LENA.WEISS@example.com"
+	if code, res := support.do("POST", "/api/v1/customers", in); code != http.StatusUnprocessableEntity || res["fields"].(map[string]any)["email"] != "is already a customer" {
+		t.Fatalf("duplicate: %d %v", code, res)
+	}
+
+	for name, patch := range map[string]map[string]any{
+		"no name": {"name": " "}, "bad email": {"email": "lena@"}, "bad country": {"country": "Germany"}, "long phone": {"phone": strings.Repeat("1", 31)},
+	} {
+		body := map[string]any{"name": "X", "email": "x@example.com", "country": "DE"}
+		for k, v := range patch {
+			body[k] = v
+		}
+		if code, _ := support.do("POST", "/api/v1/customers", body); code != http.StatusUnprocessableEntity {
+			t.Errorf("%s: got %d, want 422", name, code)
+		}
+	}
+	viewer := newClient(t, srv)
+	viewer.login("jon@acme.io")
+	if code, _ := viewer.do("POST", "/api/v1/customers", in); code != http.StatusForbidden {
+		t.Fatalf("viewer: got %d, want 403", code)
+	}
+}

@@ -1,17 +1,18 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronRight, Crown, Download, type LucideIcon, Mail, Sparkles, TriangleAlert, User, UserPlus, UserX, X } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, TableCard } from '@/components/ui/card'
 import { SearchInput } from '@/components/ui/input'
 import { Avatar, EmptyState, IconTile, PageHeader, Skeleton } from '@/components/ui/misc'
 import { STATUS_TONE, StatusPill, toneColor } from '@/components/ui/pill'
 import { exportUrl, type Segment } from '@/lib/api'
+import { useCan } from '@/lib/auth'
 import { downloadUrl } from '@/lib/download'
 import { int, money, monthYear, timeAgo } from '@/lib/format'
 import { useCustomers } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { CustomerForm } from './customer-form'
 import { CustomerSheet } from './customer-sheet'
 
 const SEGMENTS: [Segment, LucideIcon][] = [
@@ -24,6 +25,8 @@ const SEGMENTS: [Segment, LucideIcon][] = [
 export function CustomersPage() {
   const { view } = useSearch({ from: '/app/customers' })
   const navigate = useNavigate({ from: '/customers' })
+  const canAdd = useCan('customers:write')
+  const [adding, setAdding] = useState(false)
   const [q, setQ] = useState('')
   const [segment, setSegment] = useState<Segment | ''>('')
   const dq = useDeferredValue(q)
@@ -44,10 +47,12 @@ export function CustomersPage() {
           <Mail />
           Email segment
         </Button>
-        <Button variant="primary" onClick={() => toast('Customer invited')}>
-          <UserPlus />
-          Add customer
-        </Button>
+        {canAdd && (
+          <Button variant="primary" onClick={() => setAdding(true)}>
+            <UserPlus />
+            Add customer
+          </Button>
+        )}
       </PageHeader>
 
       <div className="mb-3.5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
@@ -143,6 +148,15 @@ export function CustomersPage() {
             </tbody>
           </table>
         </TableCard>
+      )}
+      {adding && (
+        <CustomerForm
+          onClose={() => setAdding(false)}
+          onCreated={(c) => {
+            setAdding(false)
+            navigate({ search: { view: c.id } })
+          }}
+        />
       )}
       {view !== undefined && <CustomerSheet key={view} customerId={view} onClose={() => navigate({ search: {} })} />}
     </>

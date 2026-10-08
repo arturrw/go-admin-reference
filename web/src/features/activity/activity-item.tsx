@@ -15,6 +15,7 @@ import {
   Truck,
   Undo2,
   UserCheck,
+  UserPlus,
   UsersRound,
 } from 'lucide-react'
 import { IconTile } from '@/components/ui/misc'
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils'
 
 export const ACTIVITY_KIND: Record<ActivityKind, { icon: LucideIcon; tone: Tone; label: string }> = {
   product: { icon: Package, tone: 'blue', label: 'Products' },
+  customer: { icon: UserPlus, tone: 'teal', label: 'Customers' },
   publish: { icon: PackagePlus, tone: 'lime', label: 'Publishing' },
   image: { icon: ImagePlus, tone: 'blue', label: 'Images' },
   import: { icon: FileUp, tone: 'teal', label: 'Imports' },

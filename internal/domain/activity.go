@@ -35,6 +35,7 @@ type Activity struct {
 // Activity kinds, used for icons and filtering.
 const (
 	ActProduct  = "product"  // created, edited, deleted
+	ActCustomer = "customer" // added by hand
 	ActPublish  = "publish"  // product went live
 	ActImage    = "image"    // gallery changes
 	ActImport   = "import"   // CSV import
@@ -52,7 +53,7 @@ const (
 )
 
 var ActivityKinds = []string{
-	ActProduct, ActPublish, ActImage, ActImport, ActOrder, ActRefund, ActNote,
+	ActProduct, ActCustomer, ActPublish, ActImage, ActImport, ActOrder, ActRefund, ActNote,
 	ActTeam, ActRole, ActTarget, ActSettings, ActAuth, ActAlert, ActDeploy, ActStock,
 }
 

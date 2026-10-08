@@ -98,6 +98,8 @@ func mapErr(err error) error {
 		switch pgErr.Code {
 		case "23505": // unique_violation
 			switch {
+			case pgErr.ConstraintName == "customers_email_key":
+				return d.NewValidationError("email", "is already a customer")
 			case strings.Contains(pgErr.ConstraintName, "sku"):
 				return d.NewValidationError("sku", "is already used by another product")
 			case strings.Contains(pgErr.ConstraintName, "email"):

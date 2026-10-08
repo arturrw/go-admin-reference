@@ -2,6 +2,7 @@ package domain
 
 import (
 	"cmp"
+	"net/mail"
 	"slices"
 	"strings"
 	"time"
@@ -191,6 +192,51 @@ type CustomerDetail struct {
 	Products   []PurchasedProduct `json:"products"`
 	Categories []CategoryShare    `json:"categories"`
 	Monthly    []MonthlySpend     `json:"monthly"`
+}
+
+// CustomerInput is what staff enter to add a customer by hand.
+type CustomerInput struct {
+	Name             string   `json:"name"`
+	Email            string   `json:"email"`
+	Phone            string   `json:"phone"`
+	Country          string   `json:"country"` // ISO 3166-1 alpha-2, e.g. DE
+	Address          Address  `json:"address"`
+	Tags             []string `json:"tags"`
+	AcceptsMarketing bool     `json:"acceptsMarketing"`
+	Source           string   `json:"source"`
+}
+
+func (in *CustomerInput) Normalize() {
+	in.Name = strings.TrimSpace(in.Name)
+	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	in.Phone = strings.TrimSpace(in.Phone)
+	in.Country = strings.ToUpper(strings.TrimSpace(in.Country))
+	in.Address.Line1 = strings.TrimSpace(in.Address.Line1)
+	in.Address.City = strings.TrimSpace(in.Address.City)
+	in.Address.PostalCode = strings.TrimSpace(in.Address.PostalCode)
+	in.Address.Country = in.Country
+	in.Source = strings.TrimSpace(in.Source)
+	if in.Source == "" {
+		in.Source = "Manual"
+	}
+	in.Tags = normalizeTags(in.Tags)
+}
+
+func (in CustomerInput) Validate() error {
+	v := validator{}
+	v.check(in.Name != "", "name", "is required")
+	v.check(len([]rune(in.Name)) <= 80, "name", "must be at most 80 characters")
+	_, err := mail.ParseAddress(in.Email)
+	v.check(err == nil && !strings.ContainsAny(in.Email, " <>"), "email", "must be a valid email address")
+	v.check(len(in.Phone) <= 30, "phone", "must be at most 30 characters")
+	v.check(len(in.Country) == 2 && in.Country[0] >= 'A' && in.Country[0] <= 'Z' && in.Country[1] >= 'A' && in.Country[1] <= 'Z', "country", "must be a two-letter country code")
+	v.check(len(in.Address.Line1) <= 120 && len(in.Address.City) <= 80 && len(in.Address.PostalCode) <= 20, "address", "is too long")
+	v.check(len(in.Source) <= 40, "source", "must be at most 40 characters")
+	v.check(len(in.Tags) <= 10, "tags", "at most 10 tags")
+	for _, t := range in.Tags {
+		v.check(len(t) <= 24, "tags", "each tag must be at most 24 characters")
+	}
+	return v.err()
 }
 
 func ValidateNote(text string) (string, error) {

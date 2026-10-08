@@ -237,6 +237,18 @@ export const useDeleteImage = () =>
 export const useSetPrimaryImage = () =>
   useImageMutation(({ id, imageId }: { id: number; imageId: string }) => api.setPrimaryImage(id, imageId), 'Cover image updated')
 
+export function useCreateCustomer() {
+  const invalidate = useInvalidate('customers', 'dashboard')
+  return useMutation({
+    mutationFn: api.createCustomer,
+    onSuccess: (c) => {
+      toast.success(`Added ${c.name}`)
+      return invalidate()
+    },
+    onError: onFormError,
+  })
+}
+
 export function useAddCustomerNote() {
   const qc = useQueryClient()
   return useMutation({
