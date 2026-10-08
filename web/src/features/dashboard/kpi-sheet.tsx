@@ -240,7 +240,7 @@ function DayOrders({ date }: { date: string }) {
   if (!canOrders) return null
 
   const orders = data?.items ?? []
-  const billable = orders.filter((o) => o.status !== 'refunded' && o.status !== 'failed')
+  const billable = orders.filter((o) => o.status !== 'refunded' && o.status !== 'failed' && o.status !== 'cancelled')
   const total = billable.reduce((s, o) => s + o.totalCents, 0)
   const items = billable.reduce((s, o) => s + o.items.reduce((n, i) => n + i.qty, 0), 0)
 

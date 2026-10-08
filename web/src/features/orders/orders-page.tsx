@@ -18,7 +18,7 @@ import { NewOrderForm } from './new-order-form'
 import { OrderListItem } from './order-list-item'
 import { OrderSheet } from './order-sheet'
 
-const STATUSES: (OrderStatus | 'all')[] = ['all', 'pending', 'paid', 'shipped', 'delivered', 'refunded', 'failed']
+const STATUSES: (OrderStatus | 'all')[] = ['all', 'pending', 'paid', 'shipped', 'delivered', 'refunded', 'failed', 'cancelled']
 const PAGE = 25
 
 const units = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`

@@ -25,6 +25,7 @@ export const STATUS_TONE: Record<string, Tone> = {
   delivered: 'teal',
   refunded: 'violet',
   failed: 'red',
+  cancelled: 'gray',
   invited: 'blue',
   suspended: 'red',
   VIP: 'lime',

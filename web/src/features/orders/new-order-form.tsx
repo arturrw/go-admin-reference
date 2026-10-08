@@ -1,19 +1,13 @@
-import { Plus, ShoppingCart, X } from 'lucide-react'
+import { ShoppingCart, X } from 'lucide-react'
 import { type FormEvent, useDeferredValue, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Field, Input, SearchInput, Select } from '@/components/ui/input'
+import { Field, SearchInput, Select } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { ApiError, type Order, PAYMENT_METHODS } from '@/lib/api'
 import { money } from '@/lib/format'
 import { useCreateOrder, useCustomers, useProducts } from '@/lib/queries'
-import { cn } from '@/lib/utils'
-
-interface Line {
-  key: number
-  productId: number | ''
-  qty: number
-}
+import { type Line, linesTotal, newLine, OrderLines } from './order-lines'
 
 /** Enters a sale by hand, e.g. a phone order: prices and stock come from the catalogue. */
 export function NewOrderForm({ onClose, onCreated }: { onClose: () => void; onCreated: (o: Order) => void }) {
@@ -21,7 +15,7 @@ export function NewOrderForm({ onClose, onCreated }: { onClose: () => void; onCr
   const [q, setQ] = useState('')
   const dq = useDeferredValue(q)
   const [payment, setPayment] = useState(PAYMENT_METHODS[0])
-  const [lines, setLines] = useState<Line[]>([{ key: 1, productId: '', qty: 1 }])
+  const [lines, setLines] = useState<Line[]>(() => [newLine()])
   const create = useCreateOrder()
   const customers = useCustomers({ q: dq })
   const products = useProducts({ status: 'active', sort: 'name' })
@@ -29,11 +23,9 @@ export function NewOrderForm({ onClose, onCreated }: { onClose: () => void; onCr
 
   const sellable = (products.data?.items ?? []).filter((p) => p.stock > 0)
   const price = (id: number | '') => sellable.find((p) => p.id === id)?.priceCents ?? 0
-  const total = lines.reduce((s, l) => s + price(l.productId) * l.qty, 0)
+  const total = linesTotal(lines, price)
   const picked = customers.data?.items.find((c) => c.id === customerId)
   const ready = customerId !== null && lines.length > 0 && lines.every((l) => l.productId !== '' && l.qty >= 1)
-
-  const setLine = (key: number, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -100,44 +92,7 @@ export function NewOrderForm({ onClose, onCreated }: { onClose: () => void; onCr
           )}
         </Field>
 
-        <div className="flex flex-col gap-2.5">
-          <div className="eyebrow">Products</div>
-          {lines.map((l, i) => (
-            <div key={l.key} className="grid grid-cols-[1fr_72px_auto] items-start gap-2">
-              <Select aria-label={`Product ${i + 1}`} value={l.productId} onChange={(e) => setLine(l.key, { productId: e.target.value ? Number(e.target.value) : '' })}>
-                <option value="">Choose a product…</option>
-                {sellable.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {money(p.priceCents, 2)} · {p.stock} in stock
-                  </option>
-                ))}
-              </Select>
-              <Input
-                aria-label={`Quantity ${i + 1}`}
-                className="num"
-                type="number"
-                min={1}
-                max={99}
-                value={l.qty}
-                onChange={(e) => setLine(l.key, { qty: Math.max(1, Math.min(99, Number(e.target.value) || 1)) })}
-              />
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={`Remove product ${i + 1}`}
-                className={cn(lines.length === 1 && 'invisible')}
-                onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
-              >
-                <X />
-              </Button>
-            </div>
-          ))}
-          {errors?.items && <span className="text-xs text-danger">{errors.items}</span>}
-          <Button className="self-start" onClick={() => setLines((ls) => [...ls, { key: Math.max(...ls.map((l) => l.key)) + 1, productId: '', qty: 1 }])}>
-            <Plus />
-            Add product
-          </Button>
-        </div>
+        <OrderLines lines={lines} setLines={setLines} products={sellable} error={errors?.items} />
 
         <Field label="Payment" error={errors?.payment}>
           <Select value={payment} onChange={(e) => setPayment(e.target.value)}>

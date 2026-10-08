@@ -113,3 +113,45 @@ test('a sale entered by hand takes stock and shows up in the dashboard and the p
   expect(after.sold30d).toBe(before.sold30d + 2)
   expect(await revenue()).toBe(revBefore + 2 * product.priceCents)
 })
+
+test('a pending order can be edited and then cancelled, and the stock follows', async ({ page }) => {
+  await loginAs(page, 'support', '/orders')
+  const api = page.request
+  const products = (await (await api.get('/api/v1/products?status=active&sort=name')).json()).items as { id: number; name: string; stock: number; priceCents: number }[]
+  const [a, b] = products.filter((p) => p.stock >= 10)
+  const stock = async (id: number) => ((await (await api.get(`/api/v1/products/${id}`)).json()) as { stock: number }).stock
+  const [a0, b0] = [await stock(a.id), await stock(b.id)]
+  const customer = (await (await api.get('/api/v1/customers')).json()).items[0]
+  const order = await (
+    await api.post('/api/v1/orders', { data: { customerId: customer.id, payment: 'PayPal', items: [{ productId: a.id, qty: 2 }] } })
+  ).json()
+  expect(await stock(a.id)).toBe(a0 - 2)
+
+  await page.goto(`/orders?view=${order.id}`)
+  const sheet = page.getByRole('dialog', { name: `Order #${order.id}` })
+  await expect(sheet.getByRole('button', { name: 'Refund' })).toHaveCount(0) // pending: cancel instead
+
+  // Edit: 2 x A becomes 1 x A + 3 x B.
+  await sheet.getByRole('button', { name: 'Edit items' }).click()
+  const form = page.getByRole('dialog', { name: `Edit order #${order.id}` })
+  await form.getByLabel('Quantity 1', { exact: true }).fill('1')
+  await form.getByRole('button', { name: 'Add product' }).click()
+  await form.getByLabel('Product 2', { exact: true }).selectOption(String(b.id))
+  await form.getByLabel('Quantity 2', { exact: true }).fill('3')
+  await form.getByRole('button', { name: 'Save changes' }).click()
+  await expect(form).toBeHidden()
+  await expect(sheet.getByText(b.name)).toBeVisible()
+  expect(await stock(a.id)).toBe(a0 - 1)
+  expect(await stock(b.id)).toBe(b0 - 3)
+
+  // Cancel: asks first, then everything goes back on the shelf.
+  await sheet.getByRole('button', { name: 'Cancel order' }).click()
+  const confirm = page.getByRole('dialog', { name: `Cancel order #${order.id}?` })
+  await confirm.getByRole('button', { name: 'Cancel order' }).click()
+  await expect(sheet.getByText('cancelled', { exact: true })).toBeVisible()
+  await expect(sheet.getByTestId('order-timeline')).toContainText('Cancelled')
+  await expect(sheet.getByRole('button', { name: 'Edit items' })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: 'Closed' })).toBeDisabled()
+  expect(await stock(a.id)).toBe(a0)
+  expect(await stock(b.id)).toBe(b0)
+})

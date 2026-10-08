@@ -1,7 +1,7 @@
-import { CheckCheck, ChevronRight, CreditCard, FileText, PackageCheck, Truck, Undo2 } from 'lucide-react'
+import { Ban, CheckCheck, ChevronRight, CreditCard, FileText, PackageCheck, Pencil, Truck, Undo2 } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
+import { ConfirmDialog, Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/input'
 import { Avatar, Skeleton } from '@/components/ui/misc'
 import { StatusPill } from '@/components/ui/pill'
@@ -13,8 +13,9 @@ import { money, timeAgo } from '@/lib/format'
 import { PeekButton } from '@/lib/peek'
 import { useOrder, useUpdateOrderStatus } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { EditOrderForm } from './edit-order-form'
 
-const EVENT_LABEL: Record<OrderStatus, string> = { pending: 'Placed', paid: 'Paid', shipped: 'Shipped', delivered: 'Delivered', refunded: 'Refunded', failed: 'Payment failed' }
+const EVENT_LABEL: Record<OrderStatus, string> = { pending: 'Placed', paid: 'Paid', shipped: 'Shipped', delivered: 'Delivered', refunded: 'Refunded', failed: 'Payment failed', cancelled: 'Cancelled' }
 /** What is still to come, by where the order is now. */
 const NEXT_STEP: Partial<Record<OrderStatus, string>> = { pending: 'Awaiting payment', paid: 'Awaiting shipment', shipped: 'Awaiting delivery' }
 /** The forward move each status offers (mirrors domain.CanTransition). */
@@ -33,6 +34,8 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
   const canCustomers = useCan('customers:read')
   const canProducts = useCan('products:read')
   const [refunding, setRefunding] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   if (isError) return null
 
@@ -59,10 +62,23 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
             </a>
             {canWrite && (
               <>
-                <Button variant="danger" className="order-first mr-auto" disabled={update.isPending || o.status === 'refunded' || o.status === 'failed'} onClick={() => setRefunding(true)}>
-                  <Undo2 />
-                  Refund
-                </Button>
+                {o.status === 'pending' ? (
+                  <>
+                    <Button variant="danger" className="order-first mr-auto" disabled={update.isPending} onClick={() => setCancelling(true)}>
+                      <Ban />
+                      Cancel order
+                    </Button>
+                    <Button onClick={() => setEditing(true)}>
+                      <Pencil />
+                      Edit items
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="danger" className="order-first mr-auto" disabled={update.isPending || !o.status || ['refunded', 'failed', 'cancelled'].includes(o.status)} onClick={() => setRefunding(true)}>
+                    <Undo2 />
+                    Refund
+                  </Button>
+                )}
                 {advance ? (
                   <Button variant="primary" className="max-sm:w-full" disabled={update.isPending} onClick={() => update.mutate({ id: o.id, status: advance.to })}>
                     <advance.icon />
@@ -93,6 +109,16 @@ export function OrderSheet({ orderId, onClose }: { orderId: number; onClose: () 
             o.status === 'refunded' && <p className="text-[12.5px] text-dim">Refunded before reasons were recorded.</p>
           )}
           <RefundDialog key={String(refunding)} order={o} open={refunding} onOpenChange={setRefunding} />
+          <ConfirmDialog
+            open={cancelling}
+            onOpenChange={setCancelling}
+            title={`Cancel order #${o.id}?`}
+            description="The order is closed and its items go back to stock. This can't be undone. Orders that are already paid are refunded instead."
+            confirmLabel="Cancel order"
+            pending={update.isPending}
+            onConfirm={() => update.mutate({ id: o.id, status: 'cancelled' }, { onSuccess: () => setCancelling(false) })}
+          />
+          {editing && <EditOrderForm order={o} onClose={() => setEditing(false)} />}
           {canCustomers ? (
             <PeekButton
               kind="customer"

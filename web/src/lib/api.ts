@@ -5,7 +5,7 @@ export type Category = 'Audio' | 'Wearables' | 'Lighting' | 'Home' | 'Computing'
 export const CATEGORIES: Category[] = ['Audio', 'Wearables', 'Lighting', 'Home', 'Computing', 'Accessories']
 
 export type ProductStatus = 'active' | 'draft' | 'archived'
-export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'refunded' | 'failed'
+export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'refunded' | 'failed' | 'cancelled'
 export type Segment = 'VIP' | 'Regular' | 'New' | 'At risk'
 export type Role = 'owner' | 'admin' | 'editor' | 'support' | 'viewer'
 export type MemberStatus = 'active' | 'invited' | 'suspended'
@@ -541,6 +541,7 @@ export const api = {
   orders: (f: { q?: string; status?: string; limit?: number; offset?: number; customer?: number; from?: string; to?: string }) =>
     request<{ items: Order[]; counts: Partial<Record<OrderStatus, number>>; total: number }>(`/orders${qs(f)}`),
   order: (id: number) => request<Order>(`/orders/${id}`),
+  editOrderItems: (id: number, items: NewOrder['items']) => request<Order>(`/orders/${id}/items`, json('PUT', { items })),
   createOrder: (in_: NewOrder) => request<Order>('/orders', json('POST', in_)),
   updateOrderStatus: (id: number, status: OrderStatus, reason?: string) => request<Order>(`/orders/${id}/status`, json('PATCH', { status, reason })),
 

@@ -309,6 +309,18 @@ export function useCreateOrder() {
   })
 }
 
+export function useEditOrderItems() {
+  const invalidate = useInvalidate('orders', 'order', 'customer', 'customers', 'products', 'product', 'dashboard', 'meta')
+  return useMutation({
+    mutationFn: ({ id, items }: { id: number; items: { productId: number; qty: number }[] }) => api.editOrderItems(id, items),
+    onSuccess: (o) => {
+      toast.success(`Order #${o.id} updated`, { description: `now ${money(o.totalCents, 2)}` })
+      return invalidate()
+    },
+    onError: onFormError,
+  })
+}
+
 export function useUpdateOrderStatus() {
   const invalidate = useInvalidate('orders', 'order', 'customer', 'customers', 'dashboard', 'meta')
   return useMutation({
