@@ -1,6 +1,5 @@
 import { Check, KeyRound, Lock, OctagonAlert, Palette, ShieldAlert, SlidersHorizontal } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { toast } from 'sonner'
 import { Field } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
@@ -14,6 +13,7 @@ import { GeneralSettings } from './general'
 import { DangerZone } from './danger'
 import { ToggleRow } from './rows'
 import { SecuritySettings } from './security'
+import { Webhooks } from './webhooks'
 
 // Accent and density are personal and stay in this browser. Everything else is
 // saved on the server (/api/v1/settings, the log level, API keys, danger zone).
@@ -43,11 +43,6 @@ export function SettingsPage() {
   const [density, setDensityState] = useState(getDensity)
   const settings = useSettings(canEdit)
   const patch = usePatchSettings()
-  const [toggles, setToggles] = useState({ webhooks: false })
-  const flip = (k: keyof typeof toggles, label: string) => (v: boolean) => {
-    setToggles((t) => ({ ...t, [k]: v }))
-    toast(`${label}: ${v ? 'on' : 'off'}`)
-  }
 
   return (
     <>
@@ -131,7 +126,7 @@ export function SettingsPage() {
 
           <Section id="api" title="API keys" description="Keys for server-to-server access to /api/v1." locked={!canEdit}>
             <ApiKeys enabled={canEdit} />
-            <ToggleRow title="Signed webhooks" description="HMAC-SHA256 signature in X-GoAdmin-Signature" checked={toggles.webhooks} onChange={flip('webhooks', 'Signed webhooks')} />
+            <Webhooks enabled={canEdit} />
           </Section>
 
           <Section id="danger" title="Danger zone" description={canDanger ? 'Irreversible actions. Be careful.' : 'Owner only.'} locked={!canDanger}>

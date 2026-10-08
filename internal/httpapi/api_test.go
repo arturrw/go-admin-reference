@@ -71,6 +71,8 @@ func newServer(t *testing.T) *httptest.Server {
 		Env:          "development",
 		StartedAt:    now,
 		DemoPassword: seed.DemoPassword,
+		// Webhook retries without the waiting.
+		WebhookBackoff: []time.Duration{5 * time.Millisecond, 5 * time.Millisecond},
 	})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)

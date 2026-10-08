@@ -206,14 +206,14 @@ func sanitizeHeaders(h http.Header) map[string]string {
 	return out
 }
 
-// redactJSON masks any field whose name contains "password" or "token".
+// redactJSON masks any field whose name contains "password", "token" or "secret".
 func redactJSON(b []byte) string {
 	var v map[string]any
 	if json.Unmarshal(b, &v) != nil {
 		return string(b)
 	}
 	for k := range v {
-		if lk := strings.ToLower(k); strings.Contains(lk, "password") || strings.Contains(lk, "token") {
+		if lk := strings.ToLower(k); strings.Contains(lk, "password") || strings.Contains(lk, "token") || strings.Contains(lk, "secret") {
 			v[k] = "[redacted]"
 		}
 	}

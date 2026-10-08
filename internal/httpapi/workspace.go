@@ -90,6 +90,9 @@ func (s *server) patchSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	before := s.settings(r.Context())
 	after := before.Apply(p)
+	if after.WebhooksSigned && after.WebhookSecret == "" {
+		after.WebhookSecret = newWebhookSecret() // generated on first use
+	}
 	if err := s.store.SaveSettings(r.Context(), after); err != nil {
 		s.writeDomainError(w, r, err)
 		return

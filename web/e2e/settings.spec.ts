@@ -1,3 +1,6 @@
+import { createHmac } from 'node:crypto'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
 import { loginAs } from './helpers'
 
@@ -220,4 +223,75 @@ test('danger zone: clear the request log and sign everyone out, with confirmatio
   // Admins can't reach it.
   await loginAs(page, 'admin', '/settings')
   await expect(zone.getByRole('button', { name: 'Clear', exact: true })).toBeDisabled()
+})
+
+test('webhooks: configure, sign, test and receive real events', async ({ page }) => {
+  test.setTimeout(90_000) // a failing receiver is retried with a 1 s and a 5 s wait
+  // A receiver the Go server can reach: this test process.
+  const got: { headers: Record<string, string | string[] | undefined>; body: string }[] = []
+  let status = 204
+  const receiver = createServer((req, res) => {
+    let body = ''
+    req.on('data', (c) => (body += c))
+    req.on('end', () => {
+      got.push({ headers: req.headers, body })
+      res.statusCode = status
+      res.end()
+    })
+  })
+  await new Promise<void>((r) => receiver.listen(0, '127.0.0.1', r))
+  const url = `http://127.0.0.1:${(receiver.address() as AddressInfo).port}/hook`
+
+  try {
+    await loginAs(page, 'owner', '/settings')
+    const section = page.locator('section', { has: page.getByRole('heading', { name: 'API keys' }) })
+    await section.getByLabel('Webhook URL').fill('example.com/hook')
+    await section.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(section.getByText('must be an http(s) address')).toBeVisible()
+
+    await section.getByLabel('Webhook URL').fill(url)
+    await section.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(page.getByText('Settings saved')).toBeVisible()
+
+    // Signing is off by default; switching it on creates a secret that can be revealed.
+    const signed = section.getByRole('switch', { name: 'Signed webhooks' })
+    await expect(signed).toHaveAttribute('aria-checked', 'false')
+    await signed.click()
+    await expect(signed).toHaveAttribute('aria-checked', 'true')
+    await section.getByRole('button', { name: 'Reveal secret' }).click()
+    const secret = (await section.getByTestId('webhook-secret').innerText()).trim()
+    expect(secret).toMatch(/^whsec_[0-9a-f]{48}$/)
+
+    // The test event reaches the receiver with a valid signature.
+    await section.getByRole('button', { name: 'Send test event' }).click()
+    await expect(section.getByTestId('webhook-test-result')).toContainText('Receiver answered 204')
+    const test = got.find((g) => g.headers['x-goadmin-event'] === 'webhook.test')!
+    expect(test).toBeTruthy()
+    const mac = createHmac('sha256', secret).update(`${test.headers['x-goadmin-timestamp']}.${test.body}`).digest('hex')
+    expect(test.headers['x-goadmin-signature']).toBe(`sha256=${mac}`)
+
+    // A real change in the admin is delivered too.
+    const res = await page.request.post('/api/v1/customers/6/notes', { data: { text: 'Webhook e2e' } })
+    expect(res.status()).toBe(201)
+    await expect.poll(() => got.some((g) => g.headers['x-goadmin-event'] === 'customer.note')).toBe(true)
+    const note = JSON.parse(got.find((g) => g.headers['x-goadmin-event'] === 'customer.note')!.body)
+    expect(note).toMatchObject({ type: 'customer.note', entity: { type: 'customer', id: 6 } })
+    await expect(section.getByTestId('webhook-delivery').first()).toBeVisible({ timeout: 10_000 })
+
+    // A failing receiver is reported after the retries.
+    status = 500
+    await section.getByRole('button', { name: 'Send test event' }).click()
+    await expect(section.getByTestId('webhook-test-result')).toContainText('Failed after 3 attempts', { timeout: 20_000 })
+
+    // Rotating asks first and changes the secret.
+    await section.getByRole('button', { name: 'Rotate' }).click()
+    await page.getByRole('dialog', { name: 'Rotate the signing secret?' }).getByRole('button', { name: 'Rotate' }).click()
+    await expect(page.getByText('Signing secret rotated')).toBeVisible()
+    // The secret stays revealed; it is a new one.
+    await expect(section.getByTestId('webhook-secret')).not.toHaveText(secret)
+    await expect(section.getByTestId('webhook-secret')).toHaveText(/^whsec_[0-9a-f]{48}$/)
+  } finally {
+    await page.request.patch('/api/v1/settings', { data: { webhookUrl: '', webhooksSigned: false } })
+    receiver.close()
+  }
 })

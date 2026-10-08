@@ -97,6 +97,9 @@ type Deps struct {
 	Env       string
 	StartedAt time.Time
 	Addr      string // listen address, shown read-only in Settings
+	// WebhookBackoff is the wait before the 2nd and 3rd delivery attempt
+	// (default 1s, 5s); tests shorten it.
+	WebhookBackoff []time.Duration
 	// DemoPassword is shown on the login page in development; empty disables it.
 	DemoPassword string
 }
@@ -113,6 +116,7 @@ type server struct {
 	started  time.Time
 	addr     string
 	cfg      settingsCache
+	hooks    *webhookState
 
 	demoPassword string
 }
@@ -122,7 +126,7 @@ func (s *server) isDev() bool { return s.env != "production" }
 func New(deps Deps) http.Handler {
 	s := &server{
 		log: deps.Logger, level: deps.LogLevel, store: deps.Store, requests: deps.Requests, sessions: deps.Sessions,
-		media: deps.Media, version: deps.Version, env: deps.Env, started: deps.StartedAt, addr: deps.Addr,
+		media: deps.Media, version: deps.Version, env: deps.Env, started: deps.StartedAt, addr: deps.Addr, hooks: newWebhookState(deps.WebhookBackoff),
 		demoPassword: deps.DemoPassword,
 	}
 
@@ -186,6 +190,9 @@ func New(deps Deps) http.Handler {
 	route("POST /api/v1/danger/sign-out-everyone", d.PermWorkspaceManage, s.signOutEveryone)
 	route("GET /api/v1/settings", d.PermSettingsWrite, s.getSettings)
 	route("PATCH /api/v1/settings", d.PermSettingsWrite, s.patchSettings)
+	route("GET /api/v1/settings/webhook/deliveries", d.PermSettingsWrite, s.listDeliveries)
+	route("POST /api/v1/settings/webhook/test", d.PermSettingsWrite, s.testWebhook)
+	route("POST /api/v1/settings/webhook/rotate-secret", d.PermSettingsWrite, s.rotateWebhookSecret)
 	route("GET /api/v1/settings/log-level", "", s.getLogLevel)
 	route("PUT /api/v1/settings/log-level", d.PermSettingsWrite, s.setLogLevel)
 

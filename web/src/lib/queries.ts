@@ -12,6 +12,7 @@ export const keys = {
   logLevel: ['log-level'] as const,
   apiKeys: ['api-keys'] as const,
   settings: ['settings'] as const,
+  deliveries: ['webhook-deliveries'] as const,
   dashboard: (range: number) => ['dashboard', range] as const,
   products: (f: object) => ['products', f] as const,
   orders: (f: object) => ['orders', f] as const,
@@ -49,6 +50,30 @@ export function usePatchSettings() {
       return qc.invalidateQueries({ queryKey: keys.meta })
     },
     onError: onFormError,
+  })
+}
+
+export const useDeliveries = (enabled = true) =>
+  useQuery({ queryKey: keys.deliveries, queryFn: api.webhookDeliveries, enabled, refetchInterval: 4000 })
+
+export function useTestWebhook() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.testWebhook,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.deliveries }),
+    onError,
+  })
+}
+
+export function useRotateSecret() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.rotateWebhookSecret,
+    onSuccess: (s) => {
+      qc.setQueryData(keys.settings, s)
+      toast.success('Signing secret rotated')
+    },
+    onError,
   })
 }
 

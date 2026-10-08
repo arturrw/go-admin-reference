@@ -24,6 +24,12 @@ type Settings struct {
 	LoginAlerts bool `json:"loginAlerts"`
 	// SessionTTLSeconds overrides SESSION_TTL once an admin picks a lifetime; 0 = not overridden.
 	SessionTTLSeconds int `json:"sessionTtlSeconds"`
+	// WebhookURL receives a JSON event for every change recorded in the
+	// activity log (see httpapi/webhooks.go). Empty = webhooks off.
+	WebhookURL string `json:"webhookUrl"`
+	// WebhooksSigned adds an HMAC-SHA256 signature made with WebhookSecret.
+	WebhooksSigned bool   `json:"webhooksSigned"`
+	WebhookSecret  string `json:"webhookSecret"`
 }
 
 // SessionLifetimes are the choices offered for how long an idle session lasts.
@@ -45,6 +51,8 @@ type SettingsPatch struct {
 	AuditLog          *bool   `json:"auditLog"`
 	LoginAlerts       *bool   `json:"loginAlerts"`
 	SessionTTLSeconds *int    `json:"sessionTtlSeconds"`
+	WebhookURL        *string `json:"webhookUrl"`
+	WebhooksSigned    *bool   `json:"webhooksSigned"`
 }
 
 func (p *SettingsPatch) Normalize() {
@@ -55,6 +63,10 @@ func (p *SettingsPatch) Normalize() {
 	if p.PublicBaseURL != nil {
 		v := strings.TrimRight(strings.TrimSpace(*p.PublicBaseURL), "/")
 		p.PublicBaseURL = &v
+	}
+	if p.WebhookURL != nil {
+		v := strings.TrimSpace(*p.WebhookURL)
+		p.WebhookURL = &v
 	}
 }
 
@@ -68,6 +80,11 @@ func (p SettingsPatch) Validate() error {
 		u, err := url.Parse(*p.PublicBaseURL)
 		v.check(err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && u.RawQuery == "" && u.Fragment == "",
 			"publicBaseUrl", "must be an http(s) address such as https://admin.example.com")
+	}
+	if p.WebhookURL != nil && *p.WebhookURL != "" {
+		u, err := url.Parse(*p.WebhookURL)
+		v.check(err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && u.User == nil && u.Fragment == "" && len(*p.WebhookURL) <= 500,
+			"webhookUrl", "must be an http(s) address without credentials")
 	}
 	if p.SessionTTLSeconds != nil {
 		ok := slices.ContainsFunc(SessionLifetimes, func(d time.Duration) bool { return int(d/time.Second) == *p.SessionTTLSeconds })
@@ -95,6 +112,12 @@ func (s Settings) Apply(p SettingsPatch) Settings {
 	}
 	if p.SessionTTLSeconds != nil {
 		s.SessionTTLSeconds = *p.SessionTTLSeconds
+	}
+	if p.WebhookURL != nil {
+		s.WebhookURL = *p.WebhookURL
+	}
+	if p.WebhooksSigned != nil {
+		s.WebhooksSigned = *p.WebhooksSigned
 	}
 	return s
 }
@@ -127,6 +150,16 @@ func (s Settings) Changes(next Settings) []string {
 	}
 	if s.LoginAlerts != next.LoginAlerts {
 		out = append(out, "turned login alerts "+onOff(next.LoginAlerts))
+	}
+	if s.WebhookURL != next.WebhookURL {
+		if next.WebhookURL == "" {
+			out = append(out, "cleared the webhook URL")
+		} else {
+			out = append(out, "set the webhook URL to "+next.WebhookURL)
+		}
+	}
+	if s.WebhooksSigned != next.WebhooksSigned {
+		out = append(out, "turned webhook signing "+onOff(next.WebhooksSigned))
 	}
 	if s.SessionTTLSeconds != next.SessionTTLSeconds {
 		out = append(out, "set the session lifetime to "+DurationLabel(time.Duration(next.SessionTTLSeconds)*time.Second))

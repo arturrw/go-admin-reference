@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	d "github.com/arturrw/go-admin-reference/internal/domain"
 )
@@ -17,23 +18,31 @@ func (s *server) audit(ctx context.Context, kind, entity string, entityID int64,
 	s.auditAs(ctx, me, kind, entity, entityID, format, args...)
 }
 
-// auditAs records an action by actor, unless the audit log is switched off in Settings.
+// auditAs records an action by actor. With the audit log switched off in
+// Settings nothing is stored, but webhooks still fire.
 func (s *server) auditAs(ctx context.Context, actor d.Member, kind, entity string, entityID int64, format string, args ...any) {
 	if s.settings(ctx).AuditLog {
 		s.record(ctx, actor, kind, entity, entityID, format, args...)
+		return
 	}
+	s.emit(ctx, d.Activity{
+		Kind: kind, ActorID: actor.ID, Actor: actor.Name, Message: fmt.Sprintf(format, args...),
+		Entity: entity, EntityID: entityID, At: time.Now(),
+	})
 }
 
 // record writes an entry regardless of the setting; settings changes use it,
 // so switching the audit log off or on is itself always logged.
 func (s *server) record(ctx context.Context, actor d.Member, kind, entity string, entityID int64, format string, args ...any) {
-	_, err := s.store.RecordActivity(ctx, d.Activity{
+	a, err := s.store.RecordActivity(ctx, d.Activity{
 		Kind: kind, ActorID: actor.ID, Actor: actor.Name, Message: fmt.Sprintf(format, args...),
 		Entity: entity, EntityID: entityID,
 	})
 	if err != nil {
 		s.log.WarnContext(ctx, "record activity", "kind", kind, "err", err)
+		return
 	}
+	s.emit(ctx, a)
 }
 
 // auditProductUpdate describes an edit: a status change reads as publish or

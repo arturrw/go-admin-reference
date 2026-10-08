@@ -300,8 +300,24 @@ export interface WorkspaceSettings {
   loginAlerts: boolean
   /** Effective session lifetime: SESSION_TTL until an admin picks one. */
   sessionTtlSeconds: number
+  webhookUrl: string
+  webhooksSigned: boolean
+  webhookSecret: string
   listenAddr: string
   env: string
+}
+
+/** One webhook event and how sending it went (kept in memory, newest first). */
+export interface WebhookDelivery {
+  id: string
+  type: string
+  url: string
+  ok: boolean
+  status: number
+  error?: string
+  attempts: number
+  durationMs: number
+  at: string
 }
 
 export type ApiKeyScope = 'read' | 'write'
@@ -434,8 +450,11 @@ export const api = {
   live: () => request<LiveStats>('/live'),
   clearRequestLog: () => request<{ cleared: number }>('/danger/clear-request-log', { method: 'POST' }),
   signOutEveryone: () => request<{ signedOut: number }>('/danger/sign-out-everyone', { method: 'POST' }),
+  webhookDeliveries: () => request<{ items: WebhookDelivery[] }>('/settings/webhook/deliveries'),
+  testWebhook: () => request<WebhookDelivery>('/settings/webhook/test', { method: 'POST' }),
+  rotateWebhookSecret: () => request<WorkspaceSettings>('/settings/webhook/rotate-secret', { method: 'POST' }),
   settings: () => request<WorkspaceSettings>('/settings'),
-  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl' | 'maintenance' | 'auditLog' | 'loginAlerts' | 'sessionTtlSeconds'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
+  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl' | 'maintenance' | 'auditLog' | 'loginAlerts' | 'sessionTtlSeconds' | 'webhookUrl' | 'webhooksSigned'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
   apiKeys: () => request<{ items: ApiKey[] }>('/settings/api-keys'),
   createApiKey: (in_: { name: string; scope: ApiKeyScope }) => request<{ key: ApiKey; masked: string; secret: string }>('/settings/api-keys', json('POST', in_)),
   revokeApiKey: (id: number) => request<void>(`/settings/api-keys/${id}`, { method: 'DELETE' }),
