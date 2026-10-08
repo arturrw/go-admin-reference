@@ -87,7 +87,7 @@ func TestQuarterTarget(t *testing.T) {
 
 	_, before := owner.do("GET", "/api/v1/dashboard", nil)
 	tg := before["target"].(map[string]any)
-	if tg["goalCents"].(float64) != 12_000_000 || tg["updatedBy"] != "" {
+	if tg["goalCents"].(float64) != 30_000_000 || tg["updatedBy"] != "" {
 		t.Fatalf("default target = %v", tg)
 	}
 
@@ -103,7 +103,7 @@ func TestQuarterTarget(t *testing.T) {
 		t.Fatalf("dashboard target = %v", dash["target"])
 	}
 	_, act := owner.do("GET", "/api/v1/activity?kind=target&limit=1", nil)
-	if msg := act["items"].([]any)[0].(map[string]any)["message"].(string); msg != "set the "+tg["label"].(string)[:2]+" "+tg["quarter"].(string)[:4]+" target to $60,000.00 (was $120,000.00)" {
+	if msg := act["items"].([]any)[0].(map[string]any)["message"].(string); msg != "set the "+tg["label"].(string)[:2]+" "+tg["quarter"].(string)[:4]+" target to $60,000.00 (was $300,000.00)" {
 		t.Fatalf("activity = %q", msg)
 	}
 

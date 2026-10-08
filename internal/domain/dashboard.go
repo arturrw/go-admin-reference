@@ -74,7 +74,7 @@ type TargetGoal struct {
 
 const (
 	// DefaultGoalCents applies until the owner sets a goal for the quarter.
-	DefaultGoalCents = 12_000_000
+	DefaultGoalCents = 30_000_000
 	MaxGoalCents     = 10_000_000_000_000 // $100bn
 )
 

@@ -187,8 +187,10 @@ func Generate(now time.Time) *Dataset {
 		"Left a 5★ review after support call.",
 	}
 	var noteID int64
-	for i := range 42 {
-		first, last := firstNames[(i*7)%len(firstNames)], lastNames[(i*11+3)%len(lastNames)]
+	const customerCount = 151
+	for i := range customerCount {
+		// The pair is unique for the first len(first)*len(last) customers.
+		first, last := firstNames[(i*7)%len(firstNames)], lastNames[(i*11+3+i/len(firstNames))%len(lastNames)]
 		country := pickWeighted(r, marketWeights)
 		c := d.Customer{
 			ID:      int64(i + 1),
@@ -245,7 +247,8 @@ func Generate(now time.Time) *Dataset {
 		mins := math.Pow(float64(i), 1.75)*7 + 2
 		if i >= recent {
 			head := math.Pow(recent, 1.75)*7 + 2
-			mins = head + float64(i-recent)/float64(len(owners)-recent)*(180*24*60-head)
+			// Exponent above 1: sales thin out into the past, so the business grows.
+			mins = head + math.Pow(float64(i-recent)/float64(len(owners)-recent), 1.15)*(180*24*60-head)
 		}
 		placed := now.Add(-time.Duration(mins) * time.Minute)
 		age := now.Sub(placed)

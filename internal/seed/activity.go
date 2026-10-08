@@ -93,7 +93,7 @@ func BuildActivity(s *Dataset, now time.Time) []d.Activity {
 
 	// Team and workspace.
 	add(ago(2*24*time.Hour+3*time.Hour), d.ActTeam, "Artur DCS", "invited Sofia Rossi as viewer", "member", 3)
-	add(ago(4*24*time.Hour), d.ActTarget, "Artur DCS", "set the Q4 target to $120,000.00", "", 0)
+	add(ago(4*24*time.Hour), d.ActTarget, "Artur DCS", "set the Q4 target to $300,000.00", "", 0)
 	add(ago(6*24*time.Hour), d.ActTeam, "Mark Liu", "suspended Lena Kraft", "member", 5)
 	add(ago(5*24*time.Hour+2*time.Hour), d.ActRole, "Artur DCS", "changed Diego Vega's access: granted Edit products", "member", 8)
 	add(ago(6*24*time.Hour+5*time.Hour), d.ActRole, "Artur DCS", "changed Omar Haddad's access: revoked Edit settings", "member", 6)
