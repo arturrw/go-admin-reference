@@ -228,6 +228,7 @@ derives order count, LTV, last order and segment.
   | `00011_drop_rollups.sql` | drops `revenue_daily` and `orders_heatmap`: the dashboard reads orders |
   | `00012_derive_product_sales.sql` | drops `products.sold_30d` and `trend`: sales come from orders |
   | `00013_seed_info.sql` | the dataset version a demo database was seeded with |
+  | `00014_order_cancelled.sql` | the `cancelled` order status; `customers_v` leaves cancelled orders out |
 
 - **The dashboard is computed from orders.** Both stores load the orders of the
   period (plus the previous period and the quarter) as `domain.Sale` rows and

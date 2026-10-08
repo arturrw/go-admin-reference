@@ -96,7 +96,7 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 
 | Method | Path | Permission | Notes |
 | ------ | ---- | ---------- | ----- |
-| GET | `/dashboard?range=7\|30\|90` | `dashboard:read` | revenue series, KPIs with daily series, heatmap, categories, top products, recent orders, activity feed, markets, quarterly target. All computed from orders: revenue counts orders that are not refunded or failed, so a refund changes it. The conversion KPI is a fixed sample (`synthetic: true`) |
+| GET | `/dashboard?range=7\|30\|90` | `dashboard:read` | revenue series, KPIs with daily series, heatmap, categories, top products, recent orders, activity feed, markets, quarterly target. All computed from orders: revenue counts orders that are not refunded, failed or cancelled, so a refund changes it. The conversion KPI is a fixed sample (`synthetic: true`) |
 | PUT | `/target` | `workspace:manage` | `{goalCents}`: this quarter's revenue goal; returns the target with its recomputed pace |
 | GET | `/live` | `dashboard:read` | simulated storefront traffic (2-minute history; viewers and carts are made up) and the hottest product, picked from active, in-stock best sellers on a demand signal that drifts minute to minute. Its sold and sold-today figures are real, read from orders |
 | GET | `/runtime` | `dashboard:read` | real Go runtime stats: goroutines, heap, GC, uptime |
@@ -125,6 +125,7 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 | POST | `/orders` | `orders:write` | enters a sale: `{customerId, payment, items:[{productId, qty}]}`. Prices come from the catalogue now, stock is taken (409 when there is too little, 422 for an unknown or inactive product), the order starts `pending` with you as the first timeline entry. Returns 201 with the order |
 | GET | `/orders/{id}` | `orders:read` | adds `events` (the order's own history, oldest first) and the charged `shippingCents`, `taxCents`, `grandTotalCents` |
 | GET | `/orders/{id}/invoice` | `orders:read` | a printable HTML invoice (use Print → Save as PDF); refunded orders are stamped REFUNDED with the reason |
+| PUT | `/orders/{id}/items` | `orders:write` | `{items:[{productId, qty}]}` replaces the lines of a pending order; see below |
 | PATCH | `/orders/{id}/status` | `orders:write` | `{status, reason}`; see below |
 | GET | `/orders/export` | `orders:read` | CSV, including the refund reason, who refunded and when |
 
@@ -142,10 +143,23 @@ curl -b jar -X PATCH -H 'Content-Type: application/json' \
 ```
 
 The call returns 422 without a reason or with an unknown status. Statuses move
-forward only: `pending → paid | failed`, `paid → shipped | refunded`,
+forward only: `pending → paid | failed | cancelled`, `paid → shipped | refunded`,
 `shipped → delivered | refunded`, `delivered → refunded`. Anything else is 409,
 and so is refunding an order that is not paid. Every change is written to the
-order's `events` with the member who made it.
+order's `events` with the member who made it. An order that is cancelled,
+fails or is refunded gives its units back to stock (once), and a cancelled
+order is not an order or revenue anywhere. Only an unpaid order can be
+cancelled; a paid one is refunded.
+
+While an order is `pending` its lines can be replaced:
+
+```bash
+curl -b jar -X PUT -H 'Content-Type: application/json' \n  -d '{"items":[{"productId":7,"qty":1},{"productId":12,"qty":3}]}' \n  http://localhost:8080/api/v1/orders/10231/items
+```
+
+Stock moves by the difference (409 when there is not enough, 422 for an unknown
+product). A product already in the order keeps the price it was sold at; a new
+one sells at the catalogue price. Any other status answers 409.
 
 ### Customers
 

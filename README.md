@@ -55,10 +55,12 @@ Screenshots are full pages captured from the demo data by
   owner can edit.
 - **Catalogue.** Product CRUD, image galleries with uploads, bulk actions, and
   CSV import and export.
-- **Orders and customers.** Enter a sale by hand (it takes stock), a real order
-  timeline (who moved it and when, with forward-only status changes), refunds that require a reason, printable
-  invoices, customer profiles you can add, notes with delete confirmation,
-  segments, and a ready-made email draft for a segment.
+- **Orders and customers.** Enter a sale by hand (it takes stock), edit or
+  cancel it while it is pending, a real order timeline (who moved it and when,
+  with forward-only status changes), refunds that require a reason and put the
+  items back on the shelf, printable invoices, customer profiles you can add,
+  notes with delete confirmation, segments, and a ready-made email draft for a
+  segment.
 - **Team.** RBAC with five roles, plus per-member exceptions the owner sets. A
   member sheet shows presence, recent activity and access, with suspend and
   reactivate. Invitations are one-time links to a page where the new member
@@ -194,7 +196,7 @@ cd web && npm run e2e:pg      # Playwright against a fresh Postgres database
 
 Locally the e2e suite uses the installed Chrome. With `CI=1` it uses
 Playwright's bundled Chromium (`npx playwright install chromium`). The suite
-has 61 tests covering auth, every page, the order timeline, refunds, invoices,
+has 62 tests covering auth, every page, the order timeline, refunds, invoices,
 settings, webhooks, invitations, notifications, member access, the activity
 log, charts and phone layouts. It passes on both stores.
 
