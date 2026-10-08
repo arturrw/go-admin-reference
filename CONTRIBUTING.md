@@ -71,7 +71,8 @@ Add `internal/store/postgres/migrations/0000N_name.sql` with goose
 `-- +goose Up` / `-- +goose Down` sections. Migrations are embedded and run on
 boot. Never edit a migration that has shipped; add a new one. If the demo data
 needs the new column, update `internal/seed` and `postgres/seed.go`. Existing
-demo databases may also need a one-off backfill in `postgres/seed.go`.
+demo databases may also need a one-off backfill in `postgres/seed.go`, or, if
+the data changes shape, bump `seed.Version` so they are rebuilt on boot.
 
 ### Add a page or a sheet
 
