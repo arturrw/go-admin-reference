@@ -226,6 +226,8 @@ derives order count, LTV, last order and segment.
   | `00009_invites.sql` | invitation token hash and expiry on `members` |
   | `00010_order_events.sql` | per-order history, backfilled from each order's status |
   | `00011_drop_rollups.sql` | drops `revenue_daily` and `orders_heatmap`: the dashboard reads orders |
+  | `00012_derive_product_sales.sql` | drops `products.sold_30d` and `trend`: sales come from orders |
+  | `00013_seed_info.sql` | the dataset version a demo database was seeded with |
 
 - **The dashboard is computed from orders.** Both stores load the orders of the
   period (plus the previous period and the quarter) as `domain.Sale` rows and
@@ -234,7 +236,11 @@ derives order count, LTV, last order and segment.
   Revenue, orders, new customers, AOV, the heatmap, category and product sales,
   markets and the quarter's booked amount all come from there. Conversion needs
   storefront traffic this app doesn't have, so it is a fixed sample, flagged
-  `synthetic` and shown as "sample" in the UI.
+  `synthetic` and shown as "sample" in the UI. A product's units sold, revenue
+  and sparkline come from the same rows (`domain.SalesByProduct`), so the
+  catalogue, the dashboard and the live hottest product agree. A sale entered
+  with `POST /orders` takes stock in one atomic `UPDATE ... WHERE stock >= qty`,
+  so stock can't go negative under concurrent orders.
 - **Settings** are one jsonb row behind a 5-second cache, changed with a
   pointer-field patch so only the sent fields change. Maintenance mode, the
   session lifetime and the audit-log switch are read from it per request.
@@ -248,7 +254,9 @@ derives order count, LTV, last order and segment.
   expiry. The server has no mail transport, so the inviter delivers the link.
 - **Seeding and backfills.** An empty database gets the demo dataset. Older
   demo databases get refund reasons and a week of staff history once, on boot
-  (with `SEED=true`).
+  (with `SEED=true`). `seed_info` records the dataset version; a database seeded
+  by an older version is truncated and reseeded, because a changed shape (order
+  dates, customers) can't be patched in. Demo data is disposable by design.
 
 ## Access control
 

@@ -98,7 +98,7 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 | ------ | ---- | ---------- | ----- |
 | GET | `/dashboard?range=7\|30\|90` | `dashboard:read` | revenue series, KPIs with daily series, heatmap, categories, top products, recent orders, activity feed, markets, quarterly target. All computed from orders: revenue counts orders that are not refunded or failed, so a refund changes it. The conversion KPI is a fixed sample (`synthetic: true`) |
 | PUT | `/target` | `workspace:manage` | `{goalCents}`: this quarter's revenue goal; returns the target with its recomputed pace |
-| GET | `/live` | `dashboard:read` | simulated storefront traffic (2-minute history) and the hottest product, picked from active, in-stock best sellers on a demand signal that drifts minute to minute |
+| GET | `/live` | `dashboard:read` | simulated storefront traffic (2-minute history; viewers and carts are made up) and the hottest product, picked from active, in-stock best sellers on a demand signal that drifts minute to minute. Its sold and sold-today figures are real, read from orders |
 | GET | `/runtime` | `dashboard:read` | real Go runtime stats: goroutines, heap, GC, uptime |
 
 ### Products
@@ -122,6 +122,7 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 | Method | Path | Permission | Notes |
 | ------ | ---- | ---------- | ----- |
 | GET | `/orders?q&status&customer&from&to&limit&offset` | `orders:read` | `{items, total, counts}`; `from` and `to` (RFC 3339) bound `placed_at` |
+| POST | `/orders` | `orders:write` | enters a sale: `{customerId, payment, items:[{productId, qty}]}`. Prices come from the catalogue now, stock is taken (409 when there is too little, 422 for an unknown or inactive product), the order starts `pending` with you as the first timeline entry. Returns 201 with the order |
 | GET | `/orders/{id}` | `orders:read` | adds `events` (the order's own history, oldest first) and the charged `shippingCents`, `taxCents`, `grandTotalCents` |
 | GET | `/orders/{id}/invoice` | `orders:read` | a printable HTML invoice (use Print → Save as PDF); refunded orders are stamped REFUNDED with the reason |
 | PATCH | `/orders/{id}/status` | `orders:write` | `{status, reason}`; see below |
