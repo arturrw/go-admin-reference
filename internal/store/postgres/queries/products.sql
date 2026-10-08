@@ -4,13 +4,8 @@ WHERE (sqlc.arg(category)::text = '' OR category = sqlc.arg(category)::text)
   AND (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text)
   AND (sqlc.arg(q)::text = ''
        OR (name || ' ' || sku || ' ' || vendor || ' ' || array_to_string(tags, ' ')) ILIKE '%' || sqlc.arg(q)::text || '%')
-ORDER BY
-  CASE WHEN sqlc.arg(sort)::text = 'sales' THEN sold_30d END DESC,
-  CASE WHEN sqlc.arg(sort)::text = 'price' THEN price_cents END DESC,
-  CASE WHEN sqlc.arg(sort)::text = 'stock' THEN stock END ASC,
-  CASE WHEN sqlc.arg(sort)::text = 'name' THEN name END ASC,
-  sold_30d::bigint * price_cents DESC,
-  id;
+-- Sales come from orders, so the ordering happens in Go (domain.SortProducts).
+ORDER BY id;
 
 -- name: ProductStats :one
 SELECT count(*)::int                                            AS total,
@@ -23,20 +18,13 @@ FROM products;
 -- name: ProductCountsByCategory :many
 SELECT category, count(*)::int AS n FROM products GROUP BY category;
 
--- name: ProductSalesByCategory :many
-SELECT category, coalesce(sum(sold_30d::bigint * price_cents), 0)::bigint AS sales_cents
-FROM products GROUP BY category;
-
--- name: TopProducts :many
-SELECT * FROM products ORDER BY sold_30d::bigint * price_cents DESC, id LIMIT sqlc.arg(lim)::int;
-
 -- name: GetProduct :one
 SELECT * FROM products WHERE id = $1;
 
 -- name: CreateProduct :one
 INSERT INTO products (name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents,
-                      stock, weight_grams, status, description, hue, trend)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, '{0,0,0,0,0,0,0,0,0,0,0,0,0,0}')
+                      stock, weight_grams, status, description, hue)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: UpdateProduct :one

@@ -34,12 +34,9 @@ func toProduct(p db.Product, imgs []db.ProductImage) d.Product {
 		ID: p.ID, Name: p.Name, SKU: p.Sku, Category: d.Category(p.Category), Vendor: p.Vendor, Tags: p.Tags,
 		PriceCents: p.PriceCents, CompareAtCents: p.CompareAtCents, CostCents: p.CostCents,
 		Stock: int(p.Stock), WeightGrams: int(p.WeightGrams), Status: d.ProductStatus(p.Status),
-		Sold30d: int(p.Sold30d), Rating: math.Round(float64(p.Rating)*10) / 10, Hue: int(p.Hue),
+		Rating: math.Round(float64(p.Rating)*10) / 10, Hue: int(p.Hue),
 		Description: p.Description, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
-		Trend: make([]int, len(p.Trend)), Images: make([]d.ProductImage, 0, len(imgs)),
-	}
-	for i, v := range p.Trend {
-		out.Trend[i] = int(v)
+		Trend: make([]int, d.TrendDays), Images: make([]d.ProductImage, 0, len(imgs)),
 	}
 	for _, img := range imgs {
 		out.Images = append(out.Images, toImage(img))
@@ -65,17 +62,28 @@ func (s *Store) withImages(ctx context.Context, q *db.Queries, rows []db.Product
 	for i, p := range rows {
 		out[i] = toProduct(p, byProduct[p.ID])
 	}
+	// Sales are derived from orders, never stored.
+	sales, err := s.loadSales(ctx, d.SalesWindowStart(s.now()), ids)
+	if err != nil {
+		return nil, err
+	}
+	d.ApplySales(out, d.SalesByProduct(s.now(), sales))
 	return out, nil
 }
 
 func (s *Store) ListProducts(ctx context.Context, f d.ProductFilter) ([]d.Product, error) {
 	rows, err := s.q.ListProducts(ctx, db.ListProductsParams{
-		Category: string(f.Category), Status: string(f.Status), Q: escapeLike(f.Query), Sort: f.Sort,
+		Category: string(f.Category), Status: string(f.Status), Q: escapeLike(f.Query),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.withImages(ctx, s.q, rows)
+	out, err := s.withImages(ctx, s.q, rows)
+	if err != nil {
+		return nil, err
+	}
+	d.SortProducts(out, f.Sort)
+	return out, nil
 }
 
 func (s *Store) ProductStats(ctx context.Context) (d.ProductStats, error) {

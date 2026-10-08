@@ -132,11 +132,13 @@ func Generate(now time.Time) *Dataset {
 			case x < .2:
 				stock = between(r, 1, d.LowStockThreshold-1)
 			}
-			trend := make([]int, 14)
-			slope := between(r, -1, 3)
-			for i := range trend {
-				trend[i] = max(1, 40+slope*i+int((r.Float64()-.5)*30))
+			// Sold-in-30-days and the sparkline come from orders now. These draws
+			// only keep the random stream, and so every row after, unchanged.
+			between(r, -1, 3)
+			for range d.TrendDays {
+				r.Float64()
 			}
+			between(r, 18, 920)
 			var compareAt int64
 			if r.Float64() < .25 {
 				compareAt = price + int64(between(r, 2, 8))*500
@@ -158,10 +160,8 @@ func Generate(now time.Time) *Dataset {
 				Stock:          stock,
 				WeightGrams:    between(r, def.weight[0], def.weight[1]),
 				Status:         pickWeighted(r, []weighted[d.ProductStatus]{{d.ProductActive, 76}, {d.ProductDraft, 14}, {d.ProductArchived, 10}}),
-				Sold30d:        between(r, 18, 920),
 				Rating:         math.Round((3.6+r.Float64()*1.3)*10) / 10,
 				Hue:            def.hue + between(r, -18, 18),
-				Trend:          trend,
 				Description:    fmt.Sprintf("%s by %s. Designed for everyday use with premium materials, a 2-year warranty and recycled packaging.", name, "the studio"),
 				CreatedAt:      now.AddDate(0, -between(r, 2, 20), 0),
 				UpdatedAt:      now.Add(-time.Duration(between(r, 1, 40*24)) * time.Hour),

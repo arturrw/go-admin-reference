@@ -140,10 +140,8 @@ type Product struct {
 	Stock          int32
 	WeightGrams    int32
 	Status         string
-	Sold30d        int32
 	Rating         float32
 	Hue            int32
-	Trend          []int32
 	Description    string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

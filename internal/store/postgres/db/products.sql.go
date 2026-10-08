@@ -50,9 +50,9 @@ func (q *Queries) CountProductImages(ctx context.Context, productID int64) (int3
 
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO products (name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents,
-                      stock, weight_grams, status, description, hue, trend)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, '{0,0,0,0,0,0,0,0,0,0,0,0,0,0}')
-RETURNING id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, sold_30d, rating, hue, trend, description, created_at, updated_at
+                      stock, weight_grams, status, description, hue)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, rating, hue, description, created_at, updated_at
 `
 
 type CreateProductParams struct {
@@ -101,10 +101,8 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		&i.Stock,
 		&i.WeightGrams,
 		&i.Status,
-		&i.Sold30d,
 		&i.Rating,
 		&i.Hue,
-		&i.Trend,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -162,7 +160,7 @@ func (q *Queries) DeleteProducts(ctx context.Context, ids []int64) (int64, error
 }
 
 const getProduct = `-- name: GetProduct :one
-SELECT id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, sold_30d, rating, hue, trend, description, created_at, updated_at FROM products WHERE id = $1
+SELECT id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, rating, hue, description, created_at, updated_at FROM products WHERE id = $1
 `
 
 func (q *Queries) GetProduct(ctx context.Context, id int64) (Product, error) {
@@ -181,10 +179,8 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (Product, error) {
 		&i.Stock,
 		&i.WeightGrams,
 		&i.Status,
-		&i.Sold30d,
 		&i.Rating,
 		&i.Hue,
-		&i.Trend,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -226,34 +222,23 @@ func (q *Queries) ListProductImages(ctx context.Context, productIds []int64) ([]
 }
 
 const listProducts = `-- name: ListProducts :many
-SELECT id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, sold_30d, rating, hue, trend, description, created_at, updated_at FROM products
+SELECT id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, rating, hue, description, created_at, updated_at FROM products
 WHERE ($1::text = '' OR category = $1::text)
   AND ($2::text = '' OR status = $2::text)
   AND ($3::text = ''
        OR (name || ' ' || sku || ' ' || vendor || ' ' || array_to_string(tags, ' ')) ILIKE '%' || $3::text || '%')
-ORDER BY
-  CASE WHEN $4::text = 'sales' THEN sold_30d END DESC,
-  CASE WHEN $4::text = 'price' THEN price_cents END DESC,
-  CASE WHEN $4::text = 'stock' THEN stock END ASC,
-  CASE WHEN $4::text = 'name' THEN name END ASC,
-  sold_30d::bigint * price_cents DESC,
-  id
+ORDER BY id
 `
 
 type ListProductsParams struct {
 	Category string
 	Status   string
 	Q        string
-	Sort     string
 }
 
+// Sales come from orders, so the ordering happens in Go (domain.SortProducts).
 func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]Product, error) {
-	rows, err := q.db.Query(ctx, listProducts,
-		arg.Category,
-		arg.Status,
-		arg.Q,
-		arg.Sort,
-	)
+	rows, err := q.db.Query(ctx, listProducts, arg.Category, arg.Status, arg.Q)
 	if err != nil {
 		return nil, err
 	}
@@ -274,10 +259,8 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]P
 			&i.Stock,
 			&i.WeightGrams,
 			&i.Status,
-			&i.Sold30d,
 			&i.Rating,
 			&i.Hue,
-			&i.Trend,
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -338,36 +321,6 @@ func (q *Queries) ProductImageFiles(ctx context.Context, productIds []int64) ([]
 			return nil, err
 		}
 		items = append(items, url)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const productSalesByCategory = `-- name: ProductSalesByCategory :many
-SELECT category, coalesce(sum(sold_30d::bigint * price_cents), 0)::bigint AS sales_cents
-FROM products GROUP BY category
-`
-
-type ProductSalesByCategoryRow struct {
-	Category   string
-	SalesCents int64
-}
-
-func (q *Queries) ProductSalesByCategory(ctx context.Context) ([]ProductSalesByCategoryRow, error) {
-	rows, err := q.db.Query(ctx, productSalesByCategory)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ProductSalesByCategoryRow{}
-	for rows.Next() {
-		var i ProductSalesByCategoryRow
-		if err := rows.Scan(&i.Category, &i.SalesCents); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -443,50 +396,6 @@ func (q *Queries) SetProductsStatus(ctx context.Context, arg SetProductsStatusPa
 	return result.RowsAffected(), nil
 }
 
-const topProducts = `-- name: TopProducts :many
-SELECT id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, sold_30d, rating, hue, trend, description, created_at, updated_at FROM products ORDER BY sold_30d::bigint * price_cents DESC, id LIMIT $1::int
-`
-
-func (q *Queries) TopProducts(ctx context.Context, lim int32) ([]Product, error) {
-	rows, err := q.db.Query(ctx, topProducts, lim)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Product{}
-	for rows.Next() {
-		var i Product
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Sku,
-			&i.Category,
-			&i.Vendor,
-			&i.Tags,
-			&i.PriceCents,
-			&i.CompareAtCents,
-			&i.CostCents,
-			&i.Stock,
-			&i.WeightGrams,
-			&i.Status,
-			&i.Sold30d,
-			&i.Rating,
-			&i.Hue,
-			&i.Trend,
-			&i.Description,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const touchProduct = `-- name: TouchProduct :exec
 UPDATE products SET updated_at = now() WHERE id = $1
 `
@@ -514,7 +423,7 @@ SET name             = $1,
     description      = $13,
     updated_at       = now()
 WHERE id = $14
-RETURNING id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, sold_30d, rating, hue, trend, description, created_at, updated_at
+RETURNING id, name, sku, category, vendor, tags, price_cents, compare_at_cents, cost_cents, stock, weight_grams, status, rating, hue, description, created_at, updated_at
 `
 
 type UpdateProductParams struct {
@@ -565,10 +474,8 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (P
 		&i.Stock,
 		&i.WeightGrams,
 		&i.Status,
-		&i.Sold30d,
 		&i.Rating,
 		&i.Hue,
-		&i.Trend,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,

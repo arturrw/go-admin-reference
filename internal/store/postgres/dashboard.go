@@ -20,7 +20,7 @@ func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
 	since := d.SalesSince(now, days)
 	in := d.DashboardInput{Now: now, Days: days}
 
-	sales, err := s.loadSales(ctx, since)
+	sales, err := s.loadSales(ctx, since, nil)
 	if err != nil {
 		return d.Dashboard{}, err
 	}
@@ -50,11 +50,16 @@ func (s *Store) Dashboard(ctx context.Context, days int) (d.Dashboard, error) {
 	return dash, nil
 }
 
-func (s *Store) loadSales(ctx context.Context, since time.Time) ([]d.Sale, error) {
+// loadSales reads the orders placed since a time, with their items. With
+// product ids it keeps only the orders that contain one of them (and only
+// those items), which is all a product's own sales need.
+func (s *Store) loadSales(ctx context.Context, since time.Time, productIDs []int64) ([]d.Sale, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT o.id, o.status, o.placed_at, o.total_cents, c.country
 		FROM orders o JOIN customers c ON c.id = o.customer_id
-		WHERE o.placed_at >= $1`, since)
+		WHERE o.placed_at >= $1
+		  AND ($2::bigint[] IS NULL OR EXISTS (
+		        SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.product_id = ANY($2)))`, since, productIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +87,8 @@ func (s *Store) loadSales(ctx context.Context, since time.Time) ([]d.Sale, error
 
 	items, err := s.pool.Query(ctx, `
 		SELECT order_id, coalesce(product_id, 0), name, category, hue, image_url, qty, price_cents
-		FROM order_items WHERE order_id = ANY($1) ORDER BY order_id, line`, ids)
+		FROM order_items WHERE order_id = ANY($1) AND ($2::bigint[] IS NULL OR product_id = ANY($2))
+		ORDER BY order_id, line`, ids, productIDs)
 	if err != nil {
 		return nil, err
 	}

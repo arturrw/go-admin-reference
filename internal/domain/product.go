@@ -40,29 +40,31 @@ type ProductImage struct {
 const MaxProductImages = 8
 
 type Product struct {
-	ID             int64          `json:"id"`
-	Name           string         `json:"name"`
-	SKU            string         `json:"sku"`
-	Category       Category       `json:"category"`
-	Vendor         string         `json:"vendor"`
-	Tags           []string       `json:"tags"`
-	PriceCents     int64          `json:"priceCents"`
-	CompareAtCents int64          `json:"compareAtCents"` // 0 = not on sale
-	CostCents      int64          `json:"costCents"`
-	Stock          int            `json:"stock"`
-	WeightGrams    int            `json:"weightGrams"`
-	Status         ProductStatus  `json:"status"`
-	Sold30d        int            `json:"sold30d"`
-	Rating         float64        `json:"rating"`
-	Hue            int            `json:"hue"`
-	Trend          []int          `json:"trend"`
-	Description    string         `json:"description"`
-	Images         []ProductImage `json:"images"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
+	ID             int64         `json:"id"`
+	Name           string        `json:"name"`
+	SKU            string        `json:"sku"`
+	Category       Category      `json:"category"`
+	Vendor         string        `json:"vendor"`
+	Tags           []string      `json:"tags"`
+	PriceCents     int64         `json:"priceCents"`
+	CompareAtCents int64         `json:"compareAtCents"` // 0 = not on sale
+	CostCents      int64         `json:"costCents"`
+	Stock          int           `json:"stock"`
+	WeightGrams    int           `json:"weightGrams"`
+	Status         ProductStatus `json:"status"`
+	Sold30d        int           `json:"sold30d"`
+	// Revenue30dCents and Trend come from orders (see ApplySales), not stored.
+	Revenue30dCents int64          `json:"revenue30dCents"`
+	SoldToday       int            `json:"-"` // UTC day so far
+	RevenueToday    int64          `json:"-"`
+	Rating          float64        `json:"rating"`
+	Hue             int            `json:"hue"`
+	Trend           []int          `json:"trend"`
+	Description     string         `json:"description"`
+	Images          []ProductImage `json:"images"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
 }
-
-func (p Product) Revenue30dCents() int64 { return int64(p.Sold30d) * p.PriceCents }
 
 // ImageURL returns the primary image or "" when the gallery is empty.
 func (p Product) ImageURL() string {

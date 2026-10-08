@@ -352,3 +352,47 @@ func TestDashboardFollowsOrders(t *testing.T) {
 		t.Fatalf("a refunded order still counts as placed: %v → %v", orderCount(before), orderCount(after))
 	}
 }
+
+// Units sold and revenue per product are read from orders, so the catalogue,
+// the dashboard and the live "hottest product" agree, and a refund moves them.
+func TestProductSalesComeFromOrders(t *testing.T) {
+	srv := newServer(t)
+	c := newClient(t, srv)
+	c.login("priya@acme.io")
+
+	_, dash := c.do("GET", "/api/v1/dashboard?range=30", nil)
+	top := dash["topProducts"].([]any)[0].(map[string]any)
+	path := fmt.Sprintf("/api/v1/products/%v", top["id"])
+
+	_, p := c.do("GET", path, nil)
+	if p["sold30d"] != top["sold"] || p["revenue30dCents"] != top["revenueCents"] {
+		t.Fatalf("catalogue says %v sold / %v cents, dashboard %v / %v", p["sold30d"], p["revenue30dCents"], top["sold"], top["revenueCents"])
+	}
+	if got := len(p["trend"].([]any)); got != 14 {
+		t.Fatalf("trend has %d days, want 14", got)
+	}
+
+	// Refund a recent paid order that contains the product: it stops counting.
+	_, list := c.do("GET", "/api/v1/orders?status=paid&limit=50", nil)
+	for _, o := range list["items"].([]any) {
+		o := o.(map[string]any)
+		qty := 0.0
+		for _, it := range o["items"].([]any) {
+			if it := it.(map[string]any); it["productId"] == top["id"] {
+				qty += it["qty"].(float64)
+			}
+		}
+		if qty == 0 {
+			continue
+		}
+		if code, _ := c.do("PATCH", fmt.Sprintf("/api/v1/orders/%v/status", o["id"]), map[string]any{"status": "refunded", "reason": "Duplicate order"}); code != http.StatusOK {
+			t.Fatalf("refund: %d", code)
+		}
+		_, after := c.do("GET", path, nil)
+		if after["sold30d"].(float64) != p["sold30d"].(float64)-qty {
+			t.Fatalf("sold30d after refund = %v, want %v", after["sold30d"], p["sold30d"].(float64)-qty)
+		}
+		return
+	}
+	t.Skip("no recent paid order with the top product")
+}

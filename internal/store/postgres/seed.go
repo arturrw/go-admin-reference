@@ -46,14 +46,10 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 
 	rows, imgs := nil, [][]any(nil)
 	for _, p := range ds.Products {
-		trend := make([]int32, len(p.Trend))
-		for i, v := range p.Trend {
-			trend[i] = int32(v)
-		}
 		rows = append(rows, []any{
 			p.ID, p.Name, p.SKU, string(p.Category), p.Vendor, p.Tags, p.PriceCents, p.CompareAtCents, p.CostCents,
-			int32(p.Stock), int32(p.WeightGrams), string(p.Status), int32(p.Sold30d), float32(p.Rating), int32(p.Hue),
-			trend, p.Description, p.CreatedAt, p.UpdatedAt,
+			int32(p.Stock), int32(p.WeightGrams), string(p.Status), float32(p.Rating), int32(p.Hue),
+			p.Description, p.CreatedAt, p.UpdatedAt,
 		})
 		for i, img := range p.Images {
 			imgs = append(imgs, []any{img.ID, p.ID, int32(i), img.URL, img.Alt, img.Generated, img.SizeBytes})
@@ -61,7 +57,7 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 	}
 	if err := copyRows("products", []string{
 		"id", "name", "sku", "category", "vendor", "tags", "price_cents", "compare_at_cents", "cost_cents",
-		"stock", "weight_grams", "status", "sold_30d", "rating", "hue", "trend", "description", "created_at", "updated_at",
+		"stock", "weight_grams", "status", "rating", "hue", "description", "created_at", "updated_at",
 	}, rows); err != nil {
 		return err
 	}

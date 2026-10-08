@@ -86,20 +86,8 @@ func (s *Store) ListProducts(_ context.Context, f d.ProductFilter) ([]d.Product,
 			out = append(out, cloneProduct(p))
 		}
 	}
-	slices.SortStableFunc(out, func(a, b d.Product) int {
-		switch f.Sort {
-		case "sales":
-			return cmp.Compare(b.Sold30d, a.Sold30d)
-		case "price":
-			return cmp.Compare(b.PriceCents, a.PriceCents)
-		case "stock":
-			return cmp.Compare(a.Stock, b.Stock)
-		case "name":
-			return strings.Compare(a.Name, b.Name)
-		default:
-			return cmp.Compare(b.Revenue30dCents(), a.Revenue30dCents())
-		}
-	})
+	d.ApplySales(out, s.salesByProduct())
+	d.SortProducts(out, f.Sort)
 	return out, nil
 }
 
@@ -131,7 +119,7 @@ func (s *Store) GetProduct(_ context.Context, id int64) (d.Product, error) {
 	if i < 0 {
 		return d.Product{}, d.ErrNotFound
 	}
-	return cloneProduct(s.products[i]), nil
+	return s.view(s.products[i]), nil
 }
 
 func (s *Store) CreateProduct(_ context.Context, in d.ProductInput) (d.Product, error) {
@@ -148,7 +136,7 @@ func (s *Store) CreateProduct(_ context.Context, in d.ProductInput) (d.Product, 
 	applyProductInput(&p, in)
 	s.nextProductID++
 	s.products = append([]d.Product{p}, s.products...)
-	return cloneProduct(p), nil
+	return s.view(p), nil
 }
 
 func (s *Store) UpdateProduct(_ context.Context, id int64, in d.ProductInput) (d.Product, error) {
@@ -167,7 +155,7 @@ func (s *Store) UpdateProduct(_ context.Context, id int64, in d.ProductInput) (d
 	}
 	applyProductInput(p, in)
 	p.UpdatedAt = s.now()
-	return cloneProduct(*p), nil
+	return s.view(*p), nil
 }
 
 // DeleteProduct removes the product and returns it so the caller can clean
@@ -225,7 +213,7 @@ func (s *Store) AddProductImage(_ context.Context, productID int64, img d.Produc
 	}
 	p.Images = append(p.Images, img)
 	p.UpdatedAt = s.now()
-	return cloneProduct(*p), nil
+	return s.view(*p), nil
 }
 
 // DeleteProductImage removes an image and returns it for file cleanup.
@@ -244,7 +232,7 @@ func (s *Store) DeleteProductImage(_ context.Context, productID int64, imageID s
 	img := p.Images[j]
 	p.Images = slices.Delete(p.Images, j, j+1)
 	p.UpdatedAt = s.now()
-	return cloneProduct(*p), img, nil
+	return s.view(*p), img, nil
 }
 
 // SetPrimaryImage moves an image to the front of the gallery.
@@ -263,7 +251,7 @@ func (s *Store) SetPrimaryImage(_ context.Context, productID int64, imageID stri
 	img := p.Images[j]
 	p.Images = slices.Insert(slices.Delete(p.Images, j, j+1), 0, img)
 	p.UpdatedAt = s.now()
-	return cloneProduct(*p), nil
+	return s.view(*p), nil
 }
 
 func (s *Store) productIndex(id int64) int {
@@ -282,6 +270,26 @@ func applyProductInput(p *d.Product, in d.ProductInput) {
 	}
 	p.PriceCents, p.CompareAtCents, p.CostCents = in.PriceCents, in.CompareAtCents, in.CostCents
 	p.Stock, p.WeightGrams, p.Status, p.Description = in.Stock, in.WeightGrams, in.Status, in.Description
+}
+
+// view is a product as callers see it: copied, with its sales from orders.
+func (s *Store) view(p d.Product) d.Product {
+	one := []d.Product{cloneProduct(p)}
+	d.ApplySales(one, s.salesByProduct())
+	return one[0]
+}
+
+// salesByProduct tallies the last 30 days of orders; callers hold s.mu.
+func (s *Store) salesByProduct() map[int64]*d.ProductSales {
+	now := s.now()
+	since := d.SalesWindowStart(now)
+	var sales []d.Sale
+	for _, o := range s.orders {
+		if !o.PlacedAt.Before(since) {
+			sales = append(sales, d.Sale{PlacedAt: o.PlacedAt, Status: o.Status, TotalCents: o.TotalCents, Items: o.Items})
+		}
+	}
+	return d.SalesByProduct(now, sales)
 }
 
 // cloneProduct copies slice fields so callers cannot mutate store state.

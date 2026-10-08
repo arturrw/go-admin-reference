@@ -154,8 +154,8 @@ const hotCandidates = 6
 // hotProduct picks the product most viewed right now: the best sellers that
 // are live and in stock compete, weighted by a demand signal that drifts
 // minute to minute. So the pick follows the real catalogue (publish, archive,
-// sell out, sales) and also changes over time. Today's sales grow with the
-// time of day from the product's real 30-day rate.
+// sell out, sales) and also changes over time. Its sales (30 days and today)
+// are read from orders; only the viewers and carts are simulated.
 func (s *server) hotProduct(r *http.Request, now time.Time, slot int64, online int) (*hotProduct, error) {
 	items, err := s.store.ListProducts(r.Context(), d.ProductFilter{Status: d.ProductActive, Sort: "sales"})
 	if err != nil {
@@ -178,9 +178,6 @@ func (s *server) hotProduct(r *http.Request, now time.Time, slot int64, online i
 	if best < 0 {
 		return nil, nil
 	}
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	dayFrac := now.Sub(midnight).Hours() / 24
-	soldToday := int(float64(p.Sold30d) / 30 * dayFrac)
 	viewers := int(float64(online) * hotShare(slot))
 	inCarts := max(1, int(float64(viewers)*.21*wave("hot-cart", slot, .2)))
 	conv := 0.0
@@ -190,10 +187,10 @@ func (s *server) hotProduct(r *http.Request, now time.Time, slot int64, online i
 	return &hotProduct{
 		TopProduct: d.TopProduct{
 			ID: p.ID, Name: p.Name, Category: p.Category, Hue: p.Hue, ImageURL: p.ImageURL(),
-			Sold: p.Sold30d, RevenueCents: p.Revenue30dCents(),
+			Sold: p.Sold30d, RevenueCents: p.Revenue30dCents,
 		},
 		SKU: p.SKU, PriceCents: p.PriceCents, Stock: p.Stock, Sold30d: p.Sold30d, Rating: p.Rating,
-		Viewers: viewers, InCarts: inCarts, SoldToday: soldToday, RevenueTodayCents: int64(soldToday) * p.PriceCents,
+		Viewers: viewers, InCarts: inCarts, SoldToday: p.SoldToday, RevenueTodayCents: p.RevenueToday,
 		ConversionPct: conv, ShareOfTrafficPct: round1(hotShare(slot) * 100),
 	}, nil
 }
