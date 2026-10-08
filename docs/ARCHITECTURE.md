@@ -198,9 +198,8 @@ erDiagram
     }
 ```
 
-Not shown: `customer_notes`, `product_images`, the dashboard rollups
-(`revenue_daily`, `orders_heatmap`), and the `customers_v` view, which derives
-order count, LTV, last order and segment.
+Not shown: `customer_notes`, `product_images` and the `customers_v` view, which
+derives order count, LTV, last order and segment.
 
 - **Money is `bigint` cents** everywhere, in the API too.
 - **Derived data stays derived.** Customer metrics come from `customers_v`. The
@@ -226,7 +225,16 @@ order count, LTV, last order and segment.
   | `00008_notifications.sql` | `members.notifications_read_at` |
   | `00009_invites.sql` | invitation token hash and expiry on `members` |
   | `00010_order_events.sql` | per-order history, backfilled from each order's status |
+  | `00011_drop_rollups.sql` | drops `revenue_daily` and `orders_heatmap`: the dashboard reads orders |
 
+- **The dashboard is computed from orders.** Both stores load the orders of the
+  period (plus the previous period and the quarter) as `domain.Sale` rows and
+  hand them to `domain.BuildDashboard`, so memory and Postgres cannot disagree
+  about which orders count (not refunded or failed) or what a day is (UTC).
+  Revenue, orders, new customers, AOV, the heatmap, category and product sales,
+  markets and the quarter's booked amount all come from there. Conversion needs
+  storefront traffic this app doesn't have, so it is a fixed sample, flagged
+  `synthetic` and shown as "sample" in the UI.
 - **Settings** are one jsonb row behind a 5-second cache, changed with a
   pointer-field patch so only the sent fields change. Maintenance mode, the
   session lifetime and the audit-log switch are read from it per request.

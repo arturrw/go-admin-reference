@@ -223,7 +223,7 @@ GitHub Actions in [.github/workflows](.github/workflows):
 ## Roadmap
 
 - Object storage (S3) for uploads instead of local disk
-- Background job that rebuilds the dashboard rollups from orders
+- Pre-aggregated rollups for the dashboard once the order table gets large
 - Password reset, 2FA, and an email transport so invitations can be sent
 - OpenAPI spec and a generated TS client
 

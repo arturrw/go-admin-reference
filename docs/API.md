@@ -96,7 +96,7 @@ Every response carries an `X-Request-ID` (a client-supplied one is kept).
 
 | Method | Path | Permission | Notes |
 | ------ | ---- | ---------- | ----- |
-| GET | `/dashboard?range=7\|30\|90` | `dashboard:read` | revenue series, KPIs with daily series, heatmap, categories, top products, recent orders, activity feed, markets, quarterly target |
+| GET | `/dashboard?range=7\|30\|90` | `dashboard:read` | revenue series, KPIs with daily series, heatmap, categories, top products, recent orders, activity feed, markets, quarterly target. All computed from orders: revenue counts orders that are not refunded or failed, so a refund changes it. The conversion KPI is a fixed sample (`synthetic: true`) |
 | PUT | `/target` | `workspace:manage` | `{goalCents}`: this quarter's revenue goal; returns the target with its recomputed pace |
 | GET | `/live` | `dashboard:read` | simulated storefront traffic (2-minute history) and the hottest product, picked from active, in-stock best sellers on a demand signal that drifts minute to minute |
 | GET | `/runtime` | `dashboard:read` | real Go runtime stats: goroutines, heap, GC, uptime |
