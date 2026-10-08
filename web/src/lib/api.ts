@@ -334,6 +334,10 @@ export interface ApiKey {
   lastUsedAt: string | null
 }
 
+export interface Notification extends Activity {
+  unread: boolean
+}
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 export interface ImportRowError {
@@ -453,6 +457,8 @@ export const api = {
   webhookDeliveries: () => request<{ items: WebhookDelivery[] }>('/settings/webhook/deliveries'),
   testWebhook: () => request<WebhookDelivery>('/settings/webhook/test', { method: 'POST' }),
   rotateWebhookSecret: () => request<WorkspaceSettings>('/settings/webhook/rotate-secret', { method: 'POST' }),
+  notifications: () => request<{ items: Notification[]; unread: number }>('/notifications'),
+  readNotifications: () => request<void>('/notifications/read', { method: 'POST' }),
   settings: () => request<WorkspaceSettings>('/settings'),
   patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl' | 'maintenance' | 'auditLog' | 'loginAlerts' | 'sessionTtlSeconds' | 'webhookUrl' | 'webhooksSigned'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
   apiKeys: () => request<{ items: ApiKey[] }>('/settings/api-keys'),

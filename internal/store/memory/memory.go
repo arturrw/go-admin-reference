@@ -615,6 +615,7 @@ func (s *Store) listActivity(f d.ActivityFilter) ([]d.Activity, int) {
 		if (f.ActorID == 0 || a.ActorID == f.ActorID) &&
 			(f.Kind == "" || a.Kind == f.Kind) &&
 			(!f.ExcludeAuth || (a.Kind != d.ActAuth && a.Kind != d.ActAlert)) &&
+			(f.NotifyMember == 0 || notifiesMember(a, f.NotifyMember)) &&
 			contains(a.Actor+" "+a.Message, f.Query) {
 			matched = append(matched, a)
 		}
@@ -663,4 +664,23 @@ func (s *Store) Dashboard(_ context.Context, days int) (d.Dashboard, error) {
 	}
 	dash.RecentOrders = s.withCovers(s.orders[:min(6, len(s.orders))]...)
 	return dash, nil
+}
+
+// notifiesMember mirrors the NotifyMember condition of the Postgres query.
+func notifiesMember(a d.Activity, member int64) bool {
+	if a.Kind == d.ActAuth || a.ActorID == member {
+		return false
+	}
+	return a.Kind != d.ActAlert || (a.Entity == "member" && a.EntityID == member)
+}
+
+func (s *Store) MarkNotificationsRead(_ context.Context, id int64, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.members, func(m d.Member) bool { return m.ID == id })
+	if i < 0 {
+		return d.ErrNotFound
+	}
+	s.members[i].NotificationsReadAt = &at
+	return nil
 }

@@ -119,7 +119,7 @@ func (s *server) withRecover(next http.Handler) http.Handler {
 
 // Polling endpoints are excluded from the request log so the UI does not
 // fill it with its own heartbeats.
-var unloggedPaths = map[string]bool{"/api/v1/requests": true, "/api/v1/runtime": true, "/api/v1/live": true, "/api/v1/auth/me": true}
+var unloggedPaths = map[string]bool{"/api/v1/requests": true, "/api/v1/runtime": true, "/api/v1/live": true, "/api/v1/auth/me": true, "/api/v1/notifications": true}
 
 const maxLoggedBody = 4096
 

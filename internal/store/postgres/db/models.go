@@ -78,17 +78,18 @@ type CustomersV struct {
 }
 
 type Member struct {
-	ID           int64
-	Name         string
-	Email        string
-	Role         string
-	Status       string
-	Mfa          bool
-	PasswordHash string
-	LastActiveAt *time.Time
-	CreatedAt    time.Time
-	Granted      []string
-	Revoked      []string
+	ID                  int64
+	Name                string
+	Email               string
+	Role                string
+	Status              string
+	Mfa                 bool
+	PasswordHash        string
+	LastActiveAt        *time.Time
+	CreatedAt           time.Time
+	Granted             []string
+	Revoked             []string
+	NotificationsReadAt *time.Time
 }
 
 type Order struct {

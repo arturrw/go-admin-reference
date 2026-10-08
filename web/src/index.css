@@ -30,6 +30,7 @@
   --animate-sheet-in: sheet-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-pop-in: pop-in 0.16s ease-out;
+  --animate-pop-in-right: pop-in-right 0.14s ease-out;
   --animate-flash: flash 1.2s ease-out;
 
   @keyframes sheet-in {
@@ -40,6 +41,9 @@
   }
   @keyframes pop-in {
     from { opacity: 0; transform: translateX(-50%) scale(0.97); }
+  }
+  @keyframes pop-in-right {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   }
   @keyframes flash {
     from { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }

@@ -39,6 +39,8 @@ type Member struct {
 	// Exceptions to the role, set by the owner (see Permissions).
 	Granted []Permission `json:"granted"`
 	Revoked []Permission `json:"revoked"`
+	// NotificationsReadAt is when the member last opened their notifications.
+	NotificationsReadAt *time.Time `json:"-"`
 }
 
 // OnlineWithin is how recently a member must have made a request to count as online.
@@ -67,6 +69,8 @@ func (m Member) Can(p Permission) bool { return slices.Contains(m.Permissions(),
 type MemberAccess struct {
 	Granted []Permission `json:"granted"`
 	Revoked []Permission `json:"revoked"`
+	// NotificationsReadAt is when the member last opened their notifications.
+	NotificationsReadAt *time.Time `json:"-"`
 }
 
 // Normalize validates the exceptions against the member's role and drops the

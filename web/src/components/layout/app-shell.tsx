@@ -1,13 +1,14 @@
 import { Outlet, useRouterState } from '@tanstack/react-router'
-import { Bell, ChevronRight, CircleHelp, PanelLeft, Search } from 'lucide-react'
+import { ChevronRight, CircleHelp, PanelLeft, Search } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { toast, Toaster } from 'sonner'
+import { Toaster } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useMe } from '@/lib/auth'
 import { NAV_ITEMS } from '@/lib/nav'
 import { PeekProvider } from '@/lib/peek'
 import { useMeta } from '@/lib/queries'
 import { MaintenanceBanner, MaintenancePage } from './maintenance'
+import { NotificationBell } from './notification-bell'
 import { Sidebar } from './sidebar'
 
 // cmdk is only needed once the menu is opened, so it is its own chunk.
@@ -75,10 +76,7 @@ export function AppShell() {
               <span className="max-md:hidden">Search or jump to…</span>
               <kbd className="num ml-auto rounded-md border border-line-2 bg-panel-2 px-1.5 text-[11px] text-muted max-md:hidden">Ctrl K</kbd>
             </button>
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="relative" onClick={() => toast('3 new notifications')}>
-              <Bell />
-              <span className="absolute top-2 right-2.5 size-[7px] rounded-full border-2 border-bg bg-accent" />
-            </Button>
+            <NotificationBell />
             <Button variant="ghost" size="icon" aria-label="Help">
               <CircleHelp />
             </Button>

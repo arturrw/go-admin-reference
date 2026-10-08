@@ -431,7 +431,7 @@ func (s *Store) DeleteCustomerNote(ctx context.Context, customerID, noteID int64
 func toMember(m db.Member) d.Member {
 	return d.Member{
 		ID: m.ID, Name: m.Name, Email: m.Email, Role: d.Role(m.Role), Status: d.MemberStatus(m.Status),
-		MFA: m.Mfa, LastActiveAt: m.LastActiveAt, PasswordHash: m.PasswordHash,
+		MFA: m.Mfa, LastActiveAt: m.LastActiveAt, PasswordHash: m.PasswordHash, NotificationsReadAt: m.NotificationsReadAt,
 		Granted: toPerms(m.Granted), Revoked: toPerms(m.Revoked),
 	}
 }
@@ -482,6 +482,10 @@ func (s *Store) GetMember(ctx context.Context, id int64) (d.Member, error) {
 func (s *Store) MemberByEmail(ctx context.Context, email string) (d.Member, error) {
 	m, err := s.q.MemberByEmail(ctx, email)
 	return toMember(m), mapErr(err)
+}
+
+func (s *Store) MarkNotificationsRead(ctx context.Context, id int64, at time.Time) error {
+	return s.q.MarkNotificationsRead(ctx, db.MarkNotificationsReadParams{ID: id, NotificationsReadAt: &at})
 }
 
 func (s *Store) TouchMember(ctx context.Context, id int64) { _ = s.q.TouchMember(ctx, id) }
@@ -628,13 +632,13 @@ func (s *Store) ListActivity(ctx context.Context, f d.ActivityFilter) ([]d.Activ
 	}
 	q := escapeLike(f.Query)
 	rows, err := s.q.ListActivity(ctx, db.ListActivityParams{
-		ActorID: f.ActorID, Kind: f.Kind, ExcludeAuth: f.ExcludeAuth, Q: q,
+		ActorID: f.ActorID, Kind: f.Kind, ExcludeAuth: f.ExcludeAuth, NotifyMember: f.NotifyMember, Q: q,
 		Lim: int32(min(limit, math.MaxInt32)), Off: int32(max(f.Offset, 0)),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.q.CountActivity(ctx, db.CountActivityParams{ActorID: f.ActorID, Kind: f.Kind, ExcludeAuth: f.ExcludeAuth, Q: q})
+	total, err := s.q.CountActivity(ctx, db.CountActivityParams{ActorID: f.ActorID, Kind: f.Kind, ExcludeAuth: f.ExcludeAuth, NotifyMember: f.NotifyMember, Q: q})
 	if err != nil {
 		return nil, 0, err
 	}

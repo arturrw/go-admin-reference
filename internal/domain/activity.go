@@ -65,6 +65,10 @@ type ActivityFilter struct {
 	Query   string // actor or message
 	// ExcludeAuth hides sign-ins and security alerts, which would drown out the dashboard feed.
 	ExcludeAuth bool
-	Limit       int
-	Offset      int
+	// NotifyMember (a member id) selects what that member is notified about:
+	// everything except sign-ins and their own actions, plus security alerts
+	// addressed to them.
+	NotifyMember int64
+	Limit        int
+	Offset       int
 }

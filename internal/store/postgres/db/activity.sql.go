@@ -54,14 +54,18 @@ SELECT count(*)::int FROM activity
 WHERE ($1::bigint = 0 OR actor_id = $1::bigint)
   AND ($2::text = '' OR kind = $2::text)
   AND (NOT $3::bool OR kind NOT IN ('auth', 'alert'))
-  AND ($4::text = '' OR (actor || ' ' || message) ILIKE '%' || $4::text || '%')
+  AND ($4::bigint = 0 OR (kind <> 'auth'
+       AND (kind <> 'alert' OR (entity = 'member' AND entity_id = $4::bigint))
+       AND actor_id IS DISTINCT FROM $4::bigint))
+  AND ($5::text = '' OR (actor || ' ' || message) ILIKE '%' || $5::text || '%')
 `
 
 type CountActivityParams struct {
-	ActorID     int64
-	Kind        string
-	ExcludeAuth bool
-	Q           string
+	ActorID      int64
+	Kind         string
+	ExcludeAuth  bool
+	NotifyMember int64
+	Q            string
 }
 
 func (q *Queries) CountActivity(ctx context.Context, arg CountActivityParams) (int32, error) {
@@ -69,6 +73,7 @@ func (q *Queries) CountActivity(ctx context.Context, arg CountActivityParams) (i
 		arg.ActorID,
 		arg.Kind,
 		arg.ExcludeAuth,
+		arg.NotifyMember,
 		arg.Q,
 	)
 	var column_1 int32
@@ -81,18 +86,22 @@ SELECT id, kind, actor, message, at, actor_id, entity, entity_id FROM activity
 WHERE ($1::bigint = 0 OR actor_id = $1::bigint)
   AND ($2::text = '' OR kind = $2::text)
   AND (NOT $3::bool OR kind NOT IN ('auth', 'alert'))
-  AND ($4::text = '' OR (actor || ' ' || message) ILIKE '%' || $4::text || '%')
+  AND ($4::bigint = 0 OR (kind <> 'auth'
+       AND (kind <> 'alert' OR (entity = 'member' AND entity_id = $4::bigint))
+       AND actor_id IS DISTINCT FROM $4::bigint))
+  AND ($5::text = '' OR (actor || ' ' || message) ILIKE '%' || $5::text || '%')
 ORDER BY at DESC, id DESC
-LIMIT $6::int OFFSET $5::int
+LIMIT $7::int OFFSET $6::int
 `
 
 type ListActivityParams struct {
-	ActorID     int64
-	Kind        string
-	ExcludeAuth bool
-	Q           string
-	Off         int32
-	Lim         int32
+	ActorID      int64
+	Kind         string
+	ExcludeAuth  bool
+	NotifyMember int64
+	Q            string
+	Off          int32
+	Lim          int32
 }
 
 func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]Activity, error) {
@@ -100,6 +109,7 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]A
 		arg.ActorID,
 		arg.Kind,
 		arg.ExcludeAuth,
+		arg.NotifyMember,
 		arg.Q,
 		arg.Off,
 		arg.Lim,

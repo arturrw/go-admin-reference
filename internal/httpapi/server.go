@@ -43,6 +43,7 @@ type Store interface {
 	GetMember(ctx context.Context, id int64) (d.Member, error)
 	MemberByEmail(ctx context.Context, email string) (d.Member, error)
 	TouchMember(ctx context.Context, id int64)
+	MarkNotificationsRead(ctx context.Context, id int64, at time.Time) error
 	CreateMember(ctx context.Context, in d.MemberInput) (d.Member, error)
 	UpdateMember(ctx context.Context, id int64, in d.MemberInput) (d.Member, error)
 	DeleteMember(ctx context.Context, id int64) error
@@ -182,6 +183,8 @@ func New(deps Deps) http.Handler {
 	route("DELETE /api/v1/team/{id}", d.PermTeamWrite, s.deleteMember)
 
 	route("GET /api/v1/activity", d.PermTeamRead, s.listActivity)
+	route("GET /api/v1/notifications", d.PermDashboard, s.notifications)
+	route("POST /api/v1/notifications/read", d.PermDashboard, s.readNotifications)
 
 	route("GET /api/v1/settings/api-keys", d.PermSettingsWrite, s.listAPIKeys)
 	route("POST /api/v1/settings/api-keys", d.PermSettingsWrite, s.createAPIKey)

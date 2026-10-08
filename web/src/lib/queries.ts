@@ -13,6 +13,7 @@ export const keys = {
   apiKeys: ['api-keys'] as const,
   settings: ['settings'] as const,
   deliveries: ['webhook-deliveries'] as const,
+  notifications: ['notifications'] as const,
   dashboard: (range: number) => ['dashboard', range] as const,
   products: (f: object) => ['products', f] as const,
   orders: (f: object) => ['orders', f] as const,
@@ -74,6 +75,16 @@ export function useRotateSecret() {
       toast.success('Signing secret rotated')
     },
     onError,
+  })
+}
+
+export const useNotifications = () => useQuery({ queryKey: keys.notifications, queryFn: api.notifications, refetchInterval: 20_000 })
+
+export function useReadNotifications() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.readNotifications,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.notifications }),
   })
 }
 

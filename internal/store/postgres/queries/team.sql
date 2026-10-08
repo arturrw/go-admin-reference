@@ -45,3 +45,6 @@ DELETE FROM sessions WHERE expires_at <= now();
 
 -- name: DeleteOtherSessions :execrows
 DELETE FROM sessions WHERE token_hash <> $1;
+
+-- name: MarkNotificationsRead :exec
+UPDATE members SET notifications_read_at = $2 WHERE id = $1;
