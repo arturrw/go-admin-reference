@@ -90,6 +90,8 @@ type Member struct {
 	Granted             []string
 	Revoked             []string
 	NotificationsReadAt *time.Time
+	InviteHash          []byte
+	InviteExpiresAt     *time.Time
 }
 
 type Order struct {

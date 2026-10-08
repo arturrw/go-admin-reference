@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Check, Minus, Pencil, Send, ShieldCheck, ShieldOff, Trash2, UserPlus } from 'lucide-react'
+import { Check, Link2, Minus, Pencil, Send, ShieldCheck, ShieldOff, Trash2, UserPlus } from 'lucide-react'
 import { type FormEvent, Fragment, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { TableCard } from '@/components/ui/card'
@@ -9,12 +9,13 @@ import { StatusPill } from '@/components/ui/pill'
 import { Segmented } from '@/components/ui/segmented'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { Sheet } from '@/components/ui/sheet'
-import { ApiError, type Member, type Role } from '@/lib/api'
+import { ApiError, type Invite, type Member, type Role } from '@/lib/api'
 import { useCan, useMe } from '@/lib/auth'
 import { capitalize, timeAgo } from '@/lib/format'
 import { usePeek } from '@/lib/peek'
-import { useDeleteMember, useRoles, useSaveMember, useTeam } from '@/lib/queries'
+import { useDeleteMember, useResendInvite, useRoles, useSaveMember, useTeam } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { InviteLinkDialog } from './invite-link'
 import { ROLE_INFO } from './member-detail-sheet'
 
 /** Matches domain.OnlineWithin: a request in the last five minutes. */
@@ -33,6 +34,9 @@ export function TeamPage() {
   const remove = useDeleteMember()
   const peek = usePeek()
   const [removing, setRemoving] = useState<Member | null>(null)
+  const [invited, setInvited] = useState<{ name: string; invite: Invite } | null>(null)
+  const resend = useResendInvite()
+  const newLink = (m: Member) => resend.mutate(m.id, { onSuccess: (r) => setInvited({ name: m.name, invite: r.invite }) })
 
   // Mirrors the server rules: the owner is untouchable, only the owner manages admins, nobody removes themselves.
   const canManage = (m: Member) => canWrite && m.role !== 'owner' && (m.role !== 'admin' || me.user.role === 'owner')
@@ -114,6 +118,11 @@ export function TeamPage() {
                   <td className="num" onClick={(e) => e.stopPropagation()}>
                     {canManage(m) && m.id !== me.user.id && (
                       <>
+                        {m.status === 'invited' && (
+                          <Button variant="ghost" size="icon-sm" aria-label={`New invitation link for ${m.name}`} title="New invitation link" disabled={resend.isPending} onClick={() => newLink(m)}>
+                            <Link2 />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon-sm" aria-label={`Edit ${m.name}`} onClick={() => navigate({ search: { edit: m.id } })}>
                           <Pencil />
                         </Button>
@@ -130,7 +139,8 @@ export function TeamPage() {
         </TableCard>
       )}
 
-      <MemberSheet key={String(edit ?? 'closed')} member={editing} open={sheetOpen} onClose={close} />
+      <MemberSheet key={String(edit ?? 'closed')} member={editing} open={sheetOpen} onClose={close} onInvited={(m) => setInvited({ name: m.name, invite: m.invite })} />
+      {invited && <InviteLinkDialog name={invited.name} invite={invited.invite} onClose={() => setInvited(null)} />}
       <ConfirmDialog
         open={!!removing}
         onOpenChange={(v) => !v && setRemoving(null)}
@@ -208,7 +218,7 @@ function PermissionMatrix({ myRole, counts }: { myRole: Role; counts: Record<str
   )
 }
 
-function MemberSheet({ member, open, onClose }: { member?: Member; open: boolean; onClose: () => void }) {
+function MemberSheet({ member, open, onClose, onInvited }: { member?: Member; open: boolean; onClose: () => void; onInvited: (m: Member & { invite: Invite }) => void }) {
   const me = useMe()
   const [name, setName] = useState(member?.name ?? '')
   const [email, setEmail] = useState(member?.email ?? '')
@@ -219,7 +229,15 @@ function MemberSheet({ member, open, onClose }: { member?: Member; open: boolean
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    save.mutate({ id: member?.id, input: { name, email, role } }, { onSuccess: onClose })
+    save.mutate(
+      { id: member?.id, input: { name, email, role } },
+      {
+        onSuccess: (m) => {
+          onClose()
+          if (!member && 'invite' in m) onInvited(m as Member & { invite: Invite }) // a new member: show their invitation link
+        },
+      },
+    )
   }
 
   return (
@@ -232,7 +250,7 @@ function MemberSheet({ member, open, onClose }: { member?: Member; open: boolean
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" type="submit" form="member-form" disabled={save.isPending}>
             {member ? <Check /> : <Send />}
-            {member ? 'Save' : 'Send invite'}
+            {member ? 'Save' : 'Create invitation'}
           </Button>
         </>
       }

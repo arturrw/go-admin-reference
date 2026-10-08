@@ -314,7 +314,7 @@ export function useSaveMember() {
   return useMutation({
     mutationFn: ({ id, input }: { id?: number; input: MemberInput }) => (id ? api.updateMember(id, input) : api.createMember(input)),
     onSuccess: (m, { id }) => {
-      toast.success(id ? 'Member updated' : `Invite sent to ${m.email}`)
+      toast.success(id ? 'Member updated' : `Invitation created for ${m.email}`)
       return invalidate()
     },
     onError: onFormError,
@@ -345,6 +345,15 @@ export function useSetMemberStatus() {
       toast.success(d.member.status === 'suspended' ? `Suspended ${d.member.name}` : `Reactivated ${d.member.name}`)
       return qc.invalidateQueries({ queryKey: ['team'] })
     },
+    onError,
+  })
+}
+
+export function useResendInvite() {
+  const invalidate = useInvalidate('team', 'member')
+  return useMutation({
+    mutationFn: api.resendInvite,
+    onSuccess: () => invalidate(),
     onError,
   })
 }

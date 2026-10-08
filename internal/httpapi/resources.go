@@ -483,8 +483,17 @@ func (s *server) createMember(w http.ResponseWriter, r *http.Request) {
 		s.writeDomainError(w, r, err)
 		return
 	}
+	inv, err := s.issueInvite(r.Context(), r, m)
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	m.InviteExpiresAt = &inv.ExpiresAt
 	s.audit(r.Context(), d.ActTeam, "member", m.ID, "invited %s as %s", m.Name, m.Role)
-	writeJSON(w, http.StatusCreated, m)
+	writeJSON(w, http.StatusCreated, struct {
+		d.Member
+		Invite inviteInfo `json:"invite"`
+	}{m, inv})
 }
 
 func (s *server) updateMember(w http.ResponseWriter, r *http.Request) {

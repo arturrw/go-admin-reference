@@ -443,7 +443,7 @@ func (s *Store) DeleteCustomerNote(ctx context.Context, customerID, noteID int64
 func toMember(m db.Member) d.Member {
 	return d.Member{
 		ID: m.ID, Name: m.Name, Email: m.Email, Role: d.Role(m.Role), Status: d.MemberStatus(m.Status),
-		MFA: m.Mfa, LastActiveAt: m.LastActiveAt, PasswordHash: m.PasswordHash, NotificationsReadAt: m.NotificationsReadAt,
+		MFA: m.Mfa, LastActiveAt: m.LastActiveAt, PasswordHash: m.PasswordHash, NotificationsReadAt: m.NotificationsReadAt, InviteHash: m.InviteHash, InviteExpiresAt: m.InviteExpiresAt,
 		Granted: toPerms(m.Granted), Revoked: toPerms(m.Revoked),
 	}
 }
@@ -498,6 +498,27 @@ func (s *Store) MemberByEmail(ctx context.Context, email string) (d.Member, erro
 
 func (s *Store) MarkNotificationsRead(ctx context.Context, id int64, at time.Time) error {
 	return s.q.MarkNotificationsRead(ctx, db.MarkNotificationsReadParams{ID: id, NotificationsReadAt: &at})
+}
+
+func (s *Store) SetInvite(ctx context.Context, id int64, hash []byte, expires time.Time) error {
+	n, err := s.q.SetInvite(ctx, db.SetInviteParams{ID: id, InviteHash: hash, InviteExpiresAt: &expires})
+	if err != nil {
+		return mapErr(err)
+	}
+	if n == 0 {
+		return d.ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) MemberByInvite(ctx context.Context, hash []byte) (d.Member, error) {
+	m, err := s.q.MemberByInvite(ctx, hash)
+	return toMember(m), mapErr(err)
+}
+
+func (s *Store) AcceptInvite(ctx context.Context, id int64, name, passwordHash string) (d.Member, error) {
+	m, err := s.q.AcceptInvite(ctx, db.AcceptInviteParams{ID: id, Name: name, PasswordHash: passwordHash})
+	return toMember(m), mapErr(err)
 }
 
 func (s *Store) TouchMember(ctx context.Context, id int64) { _ = s.q.TouchMember(ctx, id) }

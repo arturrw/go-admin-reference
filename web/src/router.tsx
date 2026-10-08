@@ -3,6 +3,7 @@ import { createRootRouteWithContext, createRoute, createRouter, lazyRouteCompone
 import { Compass, ShieldX } from 'lucide-react'
 import { AppShell } from '@/components/layout/app-shell'
 import { buttonVariants } from '@/components/ui/button'
+import { InvitePage } from '@/features/auth/invite-page'
 import { LoginPage } from '@/features/auth/login-page'
 import type { Me, Permission } from '@/lib/api'
 import { meQuery } from '@/lib/auth'
@@ -36,6 +37,13 @@ const loginRoute = createRoute({
   component: LoginPage,
 })
 
+// An invitation link is public: it is how a member who has no password yet joins.
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invite/$token',
+  component: InvitePage,
+})
+
 // Every page except /login lives under this layout, which requires a session.
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -58,6 +66,7 @@ const guard =
 // Each page is its own chunk, loaded on navigation (or on hover via defaultPreload).
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  inviteRoute,
   appRoute.addChildren([
     createRoute({
       getParentRoute: () => appRoute,

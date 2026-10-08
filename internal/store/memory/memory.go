@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"slices"
@@ -508,6 +509,41 @@ func (s *Store) MemberByEmail(_ context.Context, email string) (d.Member, error)
 		return d.Member{}, d.ErrNotFound
 	}
 	return cloneMember(s.members[i]), nil
+}
+
+func (s *Store) SetInvite(_ context.Context, id int64, hash []byte, expires time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.members, func(m d.Member) bool { return m.ID == id && m.Status == d.MemberInvited })
+	if i < 0 {
+		return d.ErrNotFound
+	}
+	s.members[i].InviteHash, s.members[i].InviteExpiresAt = slices.Clone(hash), &expires
+	return nil
+}
+
+func (s *Store) MemberByInvite(_ context.Context, hash []byte) (d.Member, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, m := range s.members {
+		if m.Status == d.MemberInvited && m.InviteHash != nil && bytes.Equal(m.InviteHash, hash) && m.InviteExpiresAt.After(s.now()) {
+			return cloneMember(m), nil
+		}
+	}
+	return d.Member{}, d.ErrNotFound
+}
+
+func (s *Store) AcceptInvite(_ context.Context, id int64, name, passwordHash string) (d.Member, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.members, func(m d.Member) bool { return m.ID == id && m.Status == d.MemberInvited })
+	if i < 0 {
+		return d.Member{}, d.ErrNotFound
+	}
+	now := s.now()
+	m := &s.members[i]
+	m.Name, m.PasswordHash, m.Status, m.InviteHash, m.InviteExpiresAt, m.LastActiveAt = name, passwordHash, d.MemberActive, nil, nil, &now
+	return cloneMember(*m), nil
 }
 
 func (s *Store) TouchMember(_ context.Context, id int64) {

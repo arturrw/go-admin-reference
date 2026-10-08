@@ -156,6 +156,8 @@ export interface Member {
   status: MemberStatus
   mfa: boolean
   lastActiveAt: string | null
+  /** When a pending invitation lapses (invited members only). */
+  inviteExpiresAt?: string | null
   /** Owner-set exceptions to the role. */
   granted: Permission[]
   revoked: Permission[]
@@ -166,6 +168,21 @@ export interface MemberDetail {
   /** Effective: role + granted − revoked. */
   permissions: Permission[]
   online: boolean
+}
+
+/** A one-time invitation link; the server can't send email, so the inviter delivers it. */
+export interface Invite {
+  token: string
+  url: string
+  expiresAt: string
+}
+
+export interface InviteInfo {
+  name: string
+  email: string
+  role: Role
+  serviceName: string
+  expiresAt: string
 }
 
 export type MemberInput = Pick<Member, 'name' | 'email' | 'role'>
@@ -521,7 +538,10 @@ export const api = {
   deleteCustomerNote: (id: number, noteId: number) => request<void>(`/customers/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
   team: (role?: string) => request<{ items: Member[] }>(`/team${qs({ role })}`),
-  createMember: (in_: MemberInput) => request<Member>('/team', json('POST', in_)),
+  createMember: (in_: MemberInput) => request<Member & { invite: Invite }>('/team', json('POST', in_)),
+  resendInvite: (id: number) => request<{ invite: Invite }>(`/team/${id}/invite`, { method: 'POST' }),
+  inviteInfo: (token: string) => request<InviteInfo>(`/auth/invite/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string, body: { name: string; password: string }) => request<Me>(`/auth/invite/${encodeURIComponent(token)}`, json('POST', body)),
   updateMember: (id: number, in_: MemberInput) => request<Member>(`/team/${id}`, json('PUT', in_)),
   deleteMember: (id: number) => request<void>(`/team/${id}`, { method: 'DELETE' }),
   member: (id: number) => request<MemberDetail>(`/team/${id}`),

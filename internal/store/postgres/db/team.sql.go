@@ -10,8 +10,43 @@ import (
 	"time"
 )
 
+const acceptInvite = `-- name: AcceptInvite :one
+UPDATE members
+SET name = $2, password_hash = $3, status = 'active', invite_hash = NULL, invite_expires_at = NULL, last_active_at = now()
+WHERE id = $1 AND status = 'invited'
+RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at
+`
+
+type AcceptInviteParams struct {
+	ID           int64
+	Name         string
+	PasswordHash string
+}
+
+func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (Member, error) {
+	row := q.db.QueryRow(ctx, acceptInvite, arg.ID, arg.Name, arg.PasswordHash)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.Mfa,
+		&i.PasswordHash,
+		&i.LastActiveAt,
+		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
+		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
+	)
+	return i, err
+}
+
 const createMember = `-- name: CreateMember :one
-INSERT INTO members (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at
+INSERT INTO members (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at
 `
 
 type CreateMemberParams struct {
@@ -36,6 +71,8 @@ func (q *Queries) CreateMember(ctx context.Context, arg CreateMemberParams) (Mem
 		&i.Granted,
 		&i.Revoked,
 		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
 	)
 	return i, err
 }
@@ -110,7 +147,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
 }
 
 const getMember = `-- name: GetMember :one
-SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at FROM members WHERE id = $1
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at FROM members WHERE id = $1
 `
 
 func (q *Queries) GetMember(ctx context.Context, id int64) (Member, error) {
@@ -129,12 +166,14 @@ func (q *Queries) GetMember(ctx context.Context, id int64) (Member, error) {
 		&i.Granted,
 		&i.Revoked,
 		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
 	)
 	return i, err
 }
 
 const listMembers = `-- name: ListMembers :many
-SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at FROM members WHERE ($1::text = '' OR role = $1::text) ORDER BY id
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at FROM members WHERE ($1::text = '' OR role = $1::text) ORDER BY id
 `
 
 func (q *Queries) ListMembers(ctx context.Context, role string) ([]Member, error) {
@@ -159,6 +198,8 @@ func (q *Queries) ListMembers(ctx context.Context, role string) ([]Member, error
 			&i.Granted,
 			&i.Revoked,
 			&i.NotificationsReadAt,
+			&i.InviteHash,
+			&i.InviteExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -185,7 +226,7 @@ func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificatio
 }
 
 const memberByEmail = `-- name: MemberByEmail :one
-SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at FROM members WHERE lower(email) = lower($1::text)
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at FROM members WHERE lower(email) = lower($1::text)
 `
 
 func (q *Queries) MemberByEmail(ctx context.Context, email string) (Member, error) {
@@ -204,12 +245,58 @@ func (q *Queries) MemberByEmail(ctx context.Context, email string) (Member, erro
 		&i.Granted,
 		&i.Revoked,
 		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
 	)
 	return i, err
 }
 
+const memberByInvite = `-- name: MemberByInvite :one
+SELECT id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at FROM members WHERE invite_hash = $1 AND status = 'invited' AND invite_expires_at > now()
+`
+
+func (q *Queries) MemberByInvite(ctx context.Context, inviteHash []byte) (Member, error) {
+	row := q.db.QueryRow(ctx, memberByInvite, inviteHash)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.Mfa,
+		&i.PasswordHash,
+		&i.LastActiveAt,
+		&i.CreatedAt,
+		&i.Granted,
+		&i.Revoked,
+		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
+	)
+	return i, err
+}
+
+const setInvite = `-- name: SetInvite :execrows
+UPDATE members SET invite_hash = $2, invite_expires_at = $3 WHERE id = $1 AND status = 'invited'
+`
+
+type SetInviteParams struct {
+	ID              int64
+	InviteHash      []byte
+	InviteExpiresAt *time.Time
+}
+
+func (q *Queries) SetInvite(ctx context.Context, arg SetInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setInvite, arg.ID, arg.InviteHash, arg.InviteExpiresAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setMemberAccess = `-- name: SetMemberAccess :one
-UPDATE members SET granted = $1::text[], revoked = $2::text[] WHERE id = $3 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at
+UPDATE members SET granted = $1::text[], revoked = $2::text[] WHERE id = $3 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at
 `
 
 type SetMemberAccessParams struct {
@@ -234,12 +321,14 @@ func (q *Queries) SetMemberAccess(ctx context.Context, arg SetMemberAccessParams
 		&i.Granted,
 		&i.Revoked,
 		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
 	)
 	return i, err
 }
 
 const setMemberStatus = `-- name: SetMemberStatus :one
-UPDATE members SET status = $2 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at
+UPDATE members SET status = $2 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at
 `
 
 type SetMemberStatusParams struct {
@@ -263,6 +352,8 @@ func (q *Queries) SetMemberStatus(ctx context.Context, arg SetMemberStatusParams
 		&i.Granted,
 		&i.Revoked,
 		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
 	)
 	return i, err
 }
@@ -296,7 +387,7 @@ func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) (int
 }
 
 const updateMember = `-- name: UpdateMember :one
-UPDATE members SET name = $2, email = $3, role = $4 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at
+UPDATE members SET name = $2, email = $3, role = $4 WHERE id = $1 RETURNING id, name, email, role, status, mfa, password_hash, last_active_at, created_at, granted, revoked, notifications_read_at, invite_hash, invite_expires_at
 `
 
 type UpdateMemberParams struct {
@@ -327,6 +418,8 @@ func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) (Mem
 		&i.Granted,
 		&i.Revoked,
 		&i.NotificationsReadAt,
+		&i.InviteHash,
+		&i.InviteExpiresAt,
 	)
 	return i, err
 }

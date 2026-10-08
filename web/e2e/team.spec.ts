@@ -64,3 +64,70 @@ test('admins see member details but only the owner edits individual permissions'
   await expect(sheet.getByText('Only the owner can change individual permissions.')).toBeVisible()
   await expect(sheet.getByRole('switch')).toHaveCount(0)
 })
+
+test('an invited member opens the link, picks a password and joins', async ({ page, browser }) => {
+  await loginAs(page, 'owner', '/team')
+  await page.getByRole('button', { name: 'Invite member' }).click()
+  const form = page.getByRole('dialog', { name: 'Invite member' })
+  await form.getByLabel('Full name').fill('Nina Hartmann')
+  await form.getByLabel('Email').fill('nina.hartmann@acme.io')
+  await form.getByRole('radio', { name: /editor/ }).click()
+  await form.getByRole('button', { name: 'Create invitation' }).click()
+
+  // The link is shown once; the email can't be sent from here.
+  const link = page.getByRole('dialog', { name: 'Invitation for Nina Hartmann' })
+  const url = (await link.getByTestId('invite-url').innerText()).trim()
+  expect(url).toMatch(/\/invite\/[\w-]{20,}$/)
+  await expect(link).toContainText("doesn't send email")
+  await link.getByRole('button', { name: 'Done' }).click()
+  await expect(page.locator('tr', { hasText: 'nina.hartmann@acme.io' })).toContainText('invited')
+
+  // The invitee, on another browser, follows the link.
+  const guest = await browser.newContext()
+  const gp = await guest.newPage()
+  await gp.goto(url)
+  await expect(gp.getByText("You've been invited to join")).toBeVisible()
+  await expect(gp.getByText('nina.hartmann@acme.io')).toBeVisible()
+  await expect(gp.getByLabel('Your name')).toHaveValue('Nina Hartmann')
+  const create = gp.getByRole('button', { name: 'Create account and sign in' })
+  await expect(create).toBeDisabled()
+  await gp.getByLabel('Choose a password').fill('short')
+  await expect(create).toBeDisabled() // under 8 characters
+  await gp.getByLabel('Choose a password').fill('correct horse battery')
+  await gp.getByLabel('Repeat the password').fill('correct horse battery staple')
+  await expect(gp.getByText('The passwords do not match.')).toBeVisible()
+  await gp.getByLabel('Repeat the password').fill('correct horse battery')
+  await create.click()
+
+  // They land in the app with an editor's access.
+  await expect(gp).toHaveURL(/\/$/)
+  await expect(gp.getByTestId('current-user')).toHaveText('Nina Hartmann')
+  await expect(gp.locator('aside nav').getByRole('link', { name: 'Products' })).toBeVisible()
+  await expect(gp.locator('aside nav').getByRole('link', { name: 'Request log' })).toHaveCount(0)
+
+  // The link is spent, and the owner sees the member as active.
+  await gp.goto(url)
+  await expect(gp.getByTestId('invite-invalid')).toBeVisible()
+  await guest.close()
+  await page.reload()
+  await expect(page.locator('tr', { hasText: 'nina.hartmann@acme.io' })).not.toContainText('invited')
+})
+
+test('a replaced invitation link stops working', async ({ page, browser }) => {
+  await loginAs(page, 'admin', '/team')
+  // Sofia was invited in the demo data. Issue her a link, then another.
+  await page.getByRole('button', { name: 'New invitation link for Sofia Rossi' }).click()
+  const first = (await page.getByRole('dialog', { name: 'Invitation for Sofia Rossi' }).getByTestId('invite-url').innerText()).trim()
+  await page.getByRole('dialog', { name: 'Invitation for Sofia Rossi' }).getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'New invitation link for Sofia Rossi' }).click()
+  const second = (await page.getByRole('dialog', { name: 'Invitation for Sofia Rossi' }).getByTestId('invite-url').innerText()).trim()
+  expect(second).not.toBe(first)
+
+  const guest = await browser.newContext()
+  const gp = await guest.newPage()
+  await gp.goto(first)
+  await expect(gp.getByTestId('invite-invalid')).toBeVisible()
+  await gp.goto(second)
+  await expect(gp.getByText('sofia@acme.io')).toBeVisible()
+  await guest.close()
+})

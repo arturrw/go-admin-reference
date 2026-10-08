@@ -45,6 +45,10 @@ type Store interface {
 	MemberByEmail(ctx context.Context, email string) (d.Member, error)
 	TouchMember(ctx context.Context, id int64)
 	MarkNotificationsRead(ctx context.Context, id int64, at time.Time) error
+	// SetInvite replaces the pending invitation of an invited member.
+	SetInvite(ctx context.Context, id int64, hash []byte, expires time.Time) error
+	MemberByInvite(ctx context.Context, hash []byte) (d.Member, error)
+	AcceptInvite(ctx context.Context, id int64, name, passwordHash string) (d.Member, error)
 	CreateMember(ctx context.Context, in d.MemberInput) (d.Member, error)
 	UpdateMember(ctx context.Context, id int64, in d.MemberInput) (d.Member, error)
 	DeleteMember(ctx context.Context, id int64) error
@@ -143,6 +147,8 @@ func New(deps Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/login", s.login)
 	mux.HandleFunc("POST /api/v1/auth/logout", s.logout)
 	mux.HandleFunc("GET /api/v1/auth/demo-accounts", s.demoAccounts)
+	mux.HandleFunc("GET /api/v1/auth/invite/{token}", s.inviteDetails)
+	mux.HandleFunc("POST /api/v1/auth/invite/{token}", s.acceptInvite)
 	route("GET /api/v1/auth/me", "", s.me)
 	route("GET /api/v1/roles", "", s.roles)
 
@@ -182,6 +188,7 @@ func New(deps Deps) http.Handler {
 	route("GET /api/v1/team/{id}", d.PermTeamRead, s.getMember)
 	route("PUT /api/v1/team/{id}", d.PermTeamWrite, s.updateMember)
 	route("PUT /api/v1/team/{id}/access", d.PermTeamWrite, s.setMemberAccess)
+	route("POST /api/v1/team/{id}/invite", d.PermTeamWrite, s.resendInvite)
 	route("PUT /api/v1/team/{id}/status", d.PermTeamWrite, s.setMemberStatus)
 	route("DELETE /api/v1/team/{id}", d.PermTeamWrite, s.deleteMember)
 

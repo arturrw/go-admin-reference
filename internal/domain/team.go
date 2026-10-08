@@ -41,6 +41,24 @@ type Member struct {
 	Revoked []Permission `json:"revoked"`
 	// NotificationsReadAt is when the member last opened their notifications.
 	NotificationsReadAt *time.Time `json:"-"`
+	// A pending invitation: the SHA-256 of its token and when it lapses.
+	InviteHash      []byte     `json:"-"`
+	InviteExpiresAt *time.Time `json:"inviteExpiresAt"`
+}
+
+// InviteLifetime is how long an invitation link works.
+const InviteLifetime = 7 * 24 * time.Hour
+
+// MinPasswordLength applies when an invitee chooses a password.
+const MinPasswordLength = 8
+
+// ValidateNewPassword checks a password chosen on accepting an invitation.
+func ValidateNewPassword(password, email string) error {
+	v := validator{}
+	v.check(len(password) >= MinPasswordLength, "password", "must be at least 8 characters")
+	v.check(len(password) <= 128, "password", "must be at most 128 characters")
+	v.check(!strings.EqualFold(password, email), "password", "must not be your email address")
+	return v.err()
 }
 
 // OnlineWithin is how recently a member must have made a request to count as online.
@@ -69,8 +87,6 @@ func (m Member) Can(p Permission) bool { return slices.Contains(m.Permissions(),
 type MemberAccess struct {
 	Granted []Permission `json:"granted"`
 	Revoked []Permission `json:"revoked"`
-	// NotificationsReadAt is when the member last opened their notifications.
-	NotificationsReadAt *time.Time `json:"-"`
 }
 
 // Normalize validates the exceptions against the member's role and drops the

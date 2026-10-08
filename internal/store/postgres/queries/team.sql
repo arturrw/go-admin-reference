@@ -48,3 +48,15 @@ DELETE FROM sessions WHERE token_hash <> $1;
 
 -- name: MarkNotificationsRead :exec
 UPDATE members SET notifications_read_at = $2 WHERE id = $1;
+
+-- name: SetInvite :execrows
+UPDATE members SET invite_hash = $2, invite_expires_at = $3 WHERE id = $1 AND status = 'invited';
+
+-- name: MemberByInvite :one
+SELECT * FROM members WHERE invite_hash = $1 AND status = 'invited' AND invite_expires_at > now();
+
+-- name: AcceptInvite :one
+UPDATE members
+SET name = $2, password_hash = $3, status = 'active', invite_hash = NULL, invite_expires_at = NULL, last_active_at = now()
+WHERE id = $1 AND status = 'invited'
+RETURNING *;
