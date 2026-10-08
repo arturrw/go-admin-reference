@@ -13,6 +13,10 @@ import { Sidebar } from './sidebar'
 
 // cmdk is only needed once the menu is opened, so it is its own chunk.
 const CommandMenu = lazy(() => import('./command-menu').then((m) => ({ default: m.CommandMenu })))
+const HelpSheet = lazy(() => import('./help-sheet').then((m) => ({ default: m.HelpSheet })))
+
+/** True while the user is typing, so single-key shortcuts must stay out of the way. */
+const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
 
 export function AppShell() {
   const { data: meta } = useMeta()
@@ -20,6 +24,7 @@ export function AppShell() {
   const [sideOpen, setSideOpen] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
   const [cmdUsed, setCmdUsed] = useState(false)
+  const [help, setHelp] = useState(false)
   const openCmd = (v: boolean) => {
     if (v) setCmdUsed(true)
     setCmdOpen(v)
@@ -31,6 +36,9 @@ export function AppShell() {
         e.preventDefault()
         setCmdUsed(true)
         setCmdOpen((o) => !o)
+      } else if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing(e.target)) {
+        e.preventDefault()
+        setHelp(true)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -77,7 +85,7 @@ export function AppShell() {
               <kbd className="num ml-auto rounded-md border border-line-2 bg-panel-2 px-1.5 text-[11px] text-muted max-md:hidden">Ctrl K</kbd>
             </button>
             <NotificationBell />
-            <Button variant="ghost" size="icon" aria-label="Help">
+            <Button variant="ghost" size="icon" aria-label="Help" onClick={() => setHelp(true)}>
               <CircleHelp />
             </Button>
           </header>
@@ -88,6 +96,11 @@ export function AppShell() {
           </main>
         </div>
 
+        {help && (
+          <Suspense>
+            <HelpSheet onClose={() => setHelp(false)} />
+          </Suspense>
+        )}
         {cmdUsed && (
           <Suspense>
             <CommandMenu open={cmdOpen} onOpenChange={openCmd} />
