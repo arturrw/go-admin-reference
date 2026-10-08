@@ -158,6 +158,11 @@ type ProductImage struct {
 	CreatedAt time.Time
 }
 
+type SeedInfo struct {
+	ID      bool
+	Version int32
+}
+
 type Session struct {
 	TokenHash []byte
 	MemberID  int64

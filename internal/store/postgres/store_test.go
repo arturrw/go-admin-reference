@@ -153,3 +153,51 @@ func TestBackfillActivity(t *testing.T) {
 		t.Fatalf("second run added %d (%v)", again, err)
 	}
 }
+
+// A demo database seeded by an older dataset version (or before versions were
+// recorded) is rebuilt; a current one is left alone.
+func TestRebuildStaleDemo(t *testing.T) {
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	pool, err := postgres.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := postgres.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if rebuilt, err := postgres.RebuildStaleDemo(ctx, pool, now); err != nil || rebuilt {
+		t.Fatalf("empty database: rebuilt=%v err=%v", rebuilt, err)
+	}
+	if _, err := postgres.SeedIfEmpty(ctx, pool, now); err != nil {
+		t.Fatal(err)
+	}
+	if rebuilt, err := postgres.RebuildStaleDemo(ctx, pool, now); err != nil || rebuilt {
+		t.Fatalf("current dataset: rebuilt=%v err=%v", rebuilt, err)
+	}
+
+	// Pretend it was seeded long ago and has since been edited.
+	if _, err := pool.Exec(ctx, "DELETE FROM seed_info; DELETE FROM orders WHERE id = (SELECT max(id) FROM orders)"); err != nil {
+		t.Fatal(err)
+	}
+	var before int
+	pool.QueryRow(ctx, "SELECT count(*) FROM orders").Scan(&before)
+	rebuilt, err := postgres.RebuildStaleDemo(ctx, pool, now)
+	if err != nil || !rebuilt {
+		t.Fatalf("stale dataset: rebuilt=%v err=%v", rebuilt, err)
+	}
+	var after, version int
+	pool.QueryRow(ctx, "SELECT count(*) FROM orders").Scan(&after)
+	pool.QueryRow(ctx, "SELECT version FROM seed_info").Scan(&version)
+	if after != before+1 || version == 0 {
+		t.Fatalf("after rebuild: %d orders (was %d), seed version %d", after, before, version)
+	}
+}

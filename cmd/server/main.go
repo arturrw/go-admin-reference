@@ -120,6 +120,12 @@ func openStore(ctx context.Context, cfg config.Config, logger *slog.Logger, now 
 		logger.Info("applied migrations", "files", applied)
 	}
 	if cfg.Seed {
+		if rebuilt, err := postgres.RebuildStaleDemo(ctx, pool, now); err != nil {
+			pool.Close()
+			return nil, nil, nil, fmt.Errorf("rebuild demo data: %w", err)
+		} else if rebuilt {
+			logger.Warn("demo data came from an older dataset version: rebuilt it", "version", seed.Version)
+		}
 		seeded, err := postgres.SeedIfEmpty(ctx, pool, now)
 		if err != nil {
 			pool.Close()

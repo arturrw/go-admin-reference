@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,7 +24,51 @@ func SeedIfEmpty(ctx context.Context, pool *pgxpool.Pool, now time.Time) (bool, 
 	if members > 0 {
 		return false, nil
 	}
-	return true, pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { return load(ctx, tx, seed.Generate(now)) })
+	return true, pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { return loadDemo(ctx, tx, now) })
+}
+
+// loadDemo inserts the dataset and records which version of it this is.
+func loadDemo(ctx context.Context, tx pgx.Tx, now time.Time) error {
+	if err := load(ctx, tx, seed.Generate(now)); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO seed_info (version) VALUES ($1) ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version`, seed.Version)
+	return err
+}
+
+// RebuildStaleDemo replaces the data of a demo database that was seeded with an
+// older version of the dataset (or before versions were recorded). Demo mode
+// (SEED) means the data is disposable, and an older shape, such as orders
+// dated differently, cannot be patched into the current one. Schema and
+// migration history stay. It reports whether it rebuilt.
+func RebuildStaleDemo(ctx context.Context, pool *pgxpool.Pool, now time.Time) (bool, error) {
+	var members int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM members").Scan(&members); err != nil || members == 0 {
+		return false, err // empty: SeedIfEmpty seeds it
+	}
+	var version int
+	err := pool.QueryRow(ctx, "SELECT version FROM seed_info").Scan(&version)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	if version >= seed.Version {
+		return false, nil
+	}
+	return true, pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT quote_ident(tablename) FROM pg_tables
+			WHERE schemaname = 'public' AND tablename NOT IN ('goose_db_version', 'seed_info')`)
+		if err != nil {
+			return err
+		}
+		tables, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "TRUNCATE "+strings.Join(tables, ", ")+" RESTART IDENTITY CASCADE"); err != nil {
+			return err
+		}
+		return loadDemo(ctx, tx, now)
+	})
 }
 
 // load bulk-inserts the dataset with COPY, keeping the generated ids, then

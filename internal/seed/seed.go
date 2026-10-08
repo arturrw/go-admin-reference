@@ -100,6 +100,11 @@ func generatedImages(p d.Product) []d.ProductImage {
 }
 
 // Dataset is everything a fresh store starts with.
+// Version numbers the shape of the demo dataset. Bump it when the data
+// changes in a way an older database cannot be patched into (order dates,
+// customers): demo databases seeded with an older version are rebuilt.
+const Version = 2
+
 type Dataset struct {
 	Products  []d.Product
 	Customers []d.Customer
