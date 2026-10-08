@@ -111,6 +111,14 @@ func load(ctx context.Context, tx pgx.Tx, ds *seed.Dataset) error {
 	}
 
 	rows = nil
+	for _, k := range ds.APIKeys {
+		rows = append(rows, []any{k.Name, k.Scope, k.Last4, k.Hash, k.CreatedBy, k.CreatedAt, k.LastUsedAt})
+	}
+	if err := copyRows("api_keys", []string{"name", "scope", "last4", "token_hash", "created_by", "created_at", "last_used_at"}, rows); err != nil {
+		return err
+	}
+
+	rows = nil
 	for _, r := range ds.Revenue {
 		day, err := time.Parse(time.DateOnly, r.Date)
 		if err != nil {

@@ -290,6 +290,20 @@ export interface LiveStats {
   } | null
 }
 
+export type ApiKeyScope = 'read' | 'write'
+
+/** A server-to-server key. The secret is only returned when it is created. */
+export interface ApiKey {
+  id: number
+  name: string
+  scope: ApiKeyScope
+  last4: string
+  masked: string
+  createdBy: string
+  createdAt: string
+  lastUsedAt: string | null
+}
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 export interface ImportRowError {
@@ -402,6 +416,9 @@ export const api = {
   meta: () => request<Meta>('/meta'),
   runtime: () => request<RuntimeStats>('/runtime'),
   live: () => request<LiveStats>('/live'),
+  apiKeys: () => request<{ items: ApiKey[] }>('/settings/api-keys'),
+  createApiKey: (in_: { name: string; scope: ApiKeyScope }) => request<{ key: ApiKey; masked: string; secret: string }>('/settings/api-keys', json('POST', in_)),
+  revokeApiKey: (id: number) => request<void>(`/settings/api-keys/${id}`, { method: 'DELETE' }),
   logLevel: () => request<{ level: LogLevel }>('/settings/log-level'),
   setLogLevel: (level: LogLevel) => request<{ level: LogLevel }>('/settings/log-level', json('PUT', { level })),
   dashboard: (range: number) => request<Dashboard>(`/dashboard${qs({ range })}`),

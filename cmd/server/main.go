@@ -132,6 +132,11 @@ func openStore(ctx context.Context, cfg config.Config, logger *slog.Logger, now 
 		} else if n > 0 {
 			logger.Info("added demo reasons to earlier refunds", "orders", n)
 		}
+		if n, err := postgres.BackfillAPIKeys(ctx, pool, now); err != nil {
+			logger.Warn("backfill API keys", "err", err)
+		} else if n > 0 {
+			logger.Info("added demo API keys", "keys", n)
+		}
 		if n, err := postgres.BackfillActivity(ctx, pool, now); err != nil {
 			logger.Warn("backfill activity history", "err", err)
 		} else if n > 0 {

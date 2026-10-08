@@ -21,6 +21,18 @@ type Activity struct {
 	EntityID int64
 }
 
+type ApiKey struct {
+	ID         int64
+	Name       string
+	Scope      string
+	Last4      string
+	TokenHash  []byte
+	CreatedBy  string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+	RevokedAt  *time.Time
+}
+
 type Customer struct {
 	ID               int64
 	Name             string

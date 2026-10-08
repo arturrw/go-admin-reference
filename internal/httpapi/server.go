@@ -49,6 +49,12 @@ type Store interface {
 	SetMemberAccess(ctx context.Context, id int64, a d.MemberAccess) (d.Member, error)
 	SetMemberStatus(ctx context.Context, id int64, status d.MemberStatus) (d.Member, error)
 
+	ListAPIKeys(ctx context.Context) ([]d.APIKey, error)
+	CreateAPIKey(ctx context.Context, k d.APIKey) (d.APIKey, error)
+	APIKeyByHash(ctx context.Context, hash []byte) (d.APIKey, error)
+	TouchAPIKey(ctx context.Context, id int64)
+	RevokeAPIKey(ctx context.Context, id int64) (d.APIKey, error)
+
 	RecordActivity(ctx context.Context, a d.Activity) (d.Activity, error)
 	ListActivity(ctx context.Context, f d.ActivityFilter) ([]d.Activity, int, error)
 
@@ -164,6 +170,9 @@ func New(deps Deps) http.Handler {
 
 	route("GET /api/v1/activity", d.PermTeamRead, s.listActivity)
 
+	route("GET /api/v1/settings/api-keys", d.PermSettingsWrite, s.listAPIKeys)
+	route("POST /api/v1/settings/api-keys", d.PermSettingsWrite, s.createAPIKey)
+	route("DELETE /api/v1/settings/api-keys/{id}", d.PermSettingsWrite, s.revokeAPIKey)
 	route("GET /api/v1/settings/log-level", "", s.getLogLevel)
 	route("PUT /api/v1/settings/log-level", d.PermSettingsWrite, s.setLogLevel)
 

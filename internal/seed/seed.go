@@ -108,6 +108,7 @@ type Dataset struct {
 	Revenue   []d.RevenuePoint
 	Heatmap   [7][24]int
 	Activity  []d.Activity
+	APIKeys   []d.APIKey
 }
 
 // Markets is the static revenue split shown on the dashboard.
@@ -359,5 +360,6 @@ func Generate(now time.Time) *Dataset {
 	}
 
 	s.Activity = BuildActivity(s, now)
+	s.APIKeys = APIKeys(now)
 	return s
 }

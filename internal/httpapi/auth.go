@@ -24,6 +24,23 @@ func CurrentMember(ctx context.Context) (d.Member, bool) {
 // cross-origin writes and enforces perm ("" = any signed-in member).
 func (s *server) authorize(perm d.Permission, next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Server-to-server: an API key in the Authorization header.
+		if secret, ok := bearerKey(r); ok {
+			m, ok := s.keyPrincipal(r.Context(), secret)
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "invalid or revoked API key")
+				return
+			}
+			if info := reqInfoFrom(r.Context()); info != nil {
+				info.actor, info.role = m.Email, string(m.Role)
+			}
+			if perm != "" && !m.Can(perm) {
+				writeError(w, http.StatusForbidden, "this API key doesn't have permission to do this")
+				return
+			}
+			next(w, r.WithContext(context.WithValue(r.Context(), memberKey, m)))
+			return
+		}
 		c, err := r.Cookie(auth.CookieName)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "authentication required")

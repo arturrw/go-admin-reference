@@ -26,6 +26,8 @@ type Store struct {
 	heatmap        [7][24]int
 	activity       []d.Activity
 	goals          map[string]d.TargetGoal // by quarter
+	apiKeys        []d.APIKey              // newest first
+	nextKeyID      int64
 	nextProductID  int64
 	nextMemberID   int64
 	nextNoteID     int64
@@ -38,7 +40,7 @@ func New(now time.Time) *Store {
 	s := &Store{
 		products: ds.Products, orders: ds.Orders, customers: ds.Customers, members: ds.Members,
 		revenue: ds.Revenue, heatmap: ds.Heatmap, activity: ds.Activity, now: time.Now,
-		goals: map[string]d.TargetGoal{},
+		goals: map[string]d.TargetGoal{}, nextKeyID: 1,
 	}
 	for _, p := range s.products {
 		s.nextProductID = max(s.nextProductID, p.ID+1)
@@ -50,6 +52,12 @@ func New(now time.Time) *Store {
 		for _, n := range c.Notes {
 			s.nextNoteID = max(s.nextNoteID, n.ID+1)
 		}
+	}
+	// Seeded keys are listed newest first, like new ones.
+	for _, k := range ds.APIKeys {
+		k.ID = s.nextKeyID
+		s.nextKeyID++
+		s.apiKeys = slices.Insert(s.apiKeys, 0, k)
 	}
 	slices.SortFunc(s.activity, func(a, b d.Activity) int { return cmp.Or(b.At.Compare(a.At), cmp.Compare(b.ID, a.ID)) })
 	for _, a := range s.activity {

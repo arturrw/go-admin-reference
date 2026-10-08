@@ -1,4 +1,4 @@
-import { Check, Copy, KeyRound, Lock, OctagonAlert, ShieldAlert, Palette, Plus, SlidersHorizontal } from 'lucide-react'
+import { Check, KeyRound, Lock, OctagonAlert, Palette, ShieldAlert, SlidersHorizontal } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { useCan } from '@/lib/auth'
 import { useLogLevel, useSetLogLevel } from '@/lib/queries'
 import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
 import { cn } from '@/lib/utils'
+import { ApiKeys } from './api-keys'
 
 // Settings are local-only in this reference build except the log level,
 // which is applied to the running server (PUT /api/v1/settings/log-level).
@@ -141,33 +142,8 @@ export function SettingsPage() {
           </Section>
 
           <Section id="api" title="API keys" description="Keys for server-to-server access to /api/v1." locked={!canEdit}>
-            {[
-              ['Storefront (read)', 'ga_live_••••••••3f9a', 'Created Aug 12 · used 2m ago'],
-              ['Warehouse sync', 'ga_live_••••••••a71c', 'Created Jun 2 · used 1h ago'],
-              ['CI smoke tests', 'ga_test_••••••••0b2e', 'Created Sep 30 · never used'],
-            ].map(([name, key, meta]) => (
-              <div key={name} className="flex items-center gap-3 rounded-xl border border-line bg-panel px-3.5 py-3">
-                <KeyRound className="size-4 text-accent" />
-                <div className="min-w-0 flex-1">
-                  <b className="font-medium">{name}</b>
-                  <code className="num block text-[12.5px] text-muted">{key}</code>
-                  <small className="text-xs text-dim">{meta}</small>
-                </div>
-                <Button size="icon-sm" aria-label="Copy key" onClick={() => toast('Key copied')}>
-                  <Copy />
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => toast('Key revoked')}>
-                  Revoke
-                </Button>
-              </div>
-            ))}
+            <ApiKeys enabled={canEdit} />
             <ToggleRow title="Signed webhooks" description="HMAC-SHA256 signature in X-GoAdmin-Signature" checked={toggles.webhooks} onChange={flip('webhooks', 'Signed webhooks')} />
-            <div>
-              <Button>
-                <Plus />
-                Create key
-              </Button>
-            </div>
           </Section>
 
           <Section id="danger" title="Danger zone" description={canDanger ? 'Irreversible actions. Be careful.' : 'Owner only.'} locked={!canDanger}>

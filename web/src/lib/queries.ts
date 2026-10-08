@@ -10,6 +10,7 @@ export const keys = {
   runtime: ['runtime'] as const,
   live: ['live'] as const,
   logLevel: ['log-level'] as const,
+  apiKeys: ['api-keys'] as const,
   dashboard: (range: number) => ['dashboard', range] as const,
   products: (f: object) => ['products', f] as const,
   orders: (f: object) => ['orders', f] as const,
@@ -33,6 +34,29 @@ export const useRuntime = (enabled = true) =>
 export const useLive = () => useQuery({ queryKey: keys.live, queryFn: api.live, refetchInterval: 2000 })
 
 export const useLogLevel = () => useQuery({ queryKey: keys.logLevel, queryFn: api.logLevel })
+
+export const useApiKeys = (enabled = true) => useQuery({ queryKey: keys.apiKeys, queryFn: api.apiKeys, enabled })
+
+export function useCreateApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.createApiKey,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.apiKeys }),
+    onError: onFormError,
+  })
+}
+
+export function useRevokeApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.revokeApiKey,
+    onSuccess: () => {
+      toast.success('Key revoked')
+      return qc.invalidateQueries({ queryKey: keys.apiKeys })
+    },
+    onError,
+  })
+}
 
 export function useSetLogLevel() {
   const qc = useQueryClient()
