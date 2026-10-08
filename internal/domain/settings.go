@@ -2,7 +2,10 @@ package domain
 
 import (
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Settings are the workspace's runtime configuration, edited in Settings and
@@ -13,19 +16,35 @@ type Settings struct {
 	// Maintenance locks everyone but owners and admins out with 503, API keys
 	// included. See httpapi.authorize.
 	Maintenance bool `json:"maintenance"`
+	// AuditLog off stops changes and sign-ins from being written to the
+	// activity log (turning it on or off is always logged).
+	AuditLog bool `json:"auditLog"`
+	// LoginAlerts notifies a member when their account signs in from a device
+	// it hasn't used before. It reads the sign-ins in the audit log.
+	LoginAlerts bool `json:"loginAlerts"`
+	// SessionTTLSeconds overrides SESSION_TTL once an admin picks a lifetime; 0 = not overridden.
+	SessionTTLSeconds int `json:"sessionTtlSeconds"`
 }
+
+// SessionLifetimes are the choices offered for how long an idle session lasts.
+var SessionLifetimes = []time.Duration{time.Hour, 8 * time.Hour, 12 * time.Hour, 24 * time.Hour, 7 * 24 * time.Hour}
 
 // CanUseDuringMaintenance reports whether the role may keep working while
 // maintenance mode is on.
 func CanUseDuringMaintenance(r Role) bool { return r == RoleOwner || r == RoleAdmin }
 
-func DefaultSettings() Settings { return Settings{ServiceName: "goadmin-api"} }
+func DefaultSettings() Settings {
+	return Settings{ServiceName: "goadmin-api", AuditLog: true, LoginAlerts: true}
+}
 
 // SettingsPatch changes only the fields that are set.
 type SettingsPatch struct {
-	ServiceName   *string `json:"serviceName"`
-	PublicBaseURL *string `json:"publicBaseUrl"`
-	Maintenance   *bool   `json:"maintenance"`
+	ServiceName       *string `json:"serviceName"`
+	PublicBaseURL     *string `json:"publicBaseUrl"`
+	Maintenance       *bool   `json:"maintenance"`
+	AuditLog          *bool   `json:"auditLog"`
+	LoginAlerts       *bool   `json:"loginAlerts"`
+	SessionTTLSeconds *int    `json:"sessionTtlSeconds"`
 }
 
 func (p *SettingsPatch) Normalize() {
@@ -50,6 +69,10 @@ func (p SettingsPatch) Validate() error {
 		v.check(err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && u.RawQuery == "" && u.Fragment == "",
 			"publicBaseUrl", "must be an http(s) address such as https://admin.example.com")
 	}
+	if p.SessionTTLSeconds != nil {
+		ok := slices.ContainsFunc(SessionLifetimes, func(d time.Duration) bool { return int(d/time.Second) == *p.SessionTTLSeconds })
+		v.check(ok, "sessionTtlSeconds", "must be 1 hour, 8 hours, 12 hours, 24 hours or 7 days")
+	}
 	return v.err()
 }
 
@@ -64,7 +87,23 @@ func (s Settings) Apply(p SettingsPatch) Settings {
 	if p.Maintenance != nil {
 		s.Maintenance = *p.Maintenance
 	}
+	if p.AuditLog != nil {
+		s.AuditLog = *p.AuditLog
+	}
+	if p.LoginAlerts != nil {
+		s.LoginAlerts = *p.LoginAlerts
+	}
+	if p.SessionTTLSeconds != nil {
+		s.SessionTTLSeconds = *p.SessionTTLSeconds
+	}
 	return s
+}
+
+func onOff(v bool) string {
+	if v {
+		return "on"
+	}
+	return "off"
 }
 
 // Changes describes what differs between two settings, for the audit log.
@@ -81,11 +120,35 @@ func (s Settings) Changes(next Settings) []string {
 		}
 	}
 	if s.Maintenance != next.Maintenance {
-		if next.Maintenance {
-			out = append(out, "turned maintenance mode on")
-		} else {
-			out = append(out, "turned maintenance mode off")
-		}
+		out = append(out, "turned maintenance mode "+onOff(next.Maintenance))
+	}
+	if s.AuditLog != next.AuditLog {
+		out = append(out, "turned the audit log "+onOff(next.AuditLog))
+	}
+	if s.LoginAlerts != next.LoginAlerts {
+		out = append(out, "turned login alerts "+onOff(next.LoginAlerts))
+	}
+	if s.SessionTTLSeconds != next.SessionTTLSeconds {
+		out = append(out, "set the session lifetime to "+DurationLabel(time.Duration(next.SessionTTLSeconds)*time.Second))
 	}
 	return out
+}
+
+// DurationLabel renders session lifetimes: "8 hours", "7 days".
+func DurationLabel(d time.Duration) string {
+	switch {
+	case d >= 24*time.Hour && d%(24*time.Hour) == 0:
+		return plural(int(d/(24*time.Hour)), "day")
+	case d >= time.Hour && d%time.Hour == 0:
+		return plural(int(d/time.Hour), "hour")
+	default:
+		return d.String()
+	}
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return strconv.Itoa(n) + " " + unit + "s"
 }

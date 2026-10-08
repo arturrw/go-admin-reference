@@ -215,6 +215,7 @@ export type ActivityKind =
   | 'target'
   | 'settings'
   | 'auth'
+  | 'alert'
   | 'deploy'
   | 'stock'
 
@@ -295,6 +296,10 @@ export interface WorkspaceSettings {
   serviceName: string
   publicBaseUrl: string
   maintenance: boolean
+  auditLog: boolean
+  loginAlerts: boolean
+  /** Effective session lifetime: SESSION_TTL until an admin picks one. */
+  sessionTtlSeconds: number
   listenAddr: string
   env: string
 }
@@ -428,7 +433,7 @@ export const api = {
   runtime: () => request<RuntimeStats>('/runtime'),
   live: () => request<LiveStats>('/live'),
   settings: () => request<WorkspaceSettings>('/settings'),
-  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl' | 'maintenance'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
+  patchSettings: (patch: Partial<Pick<WorkspaceSettings, 'serviceName' | 'publicBaseUrl' | 'maintenance' | 'auditLog' | 'loginAlerts' | 'sessionTtlSeconds'>>) => request<WorkspaceSettings>('/settings', json('PATCH', patch)),
   apiKeys: () => request<{ items: ApiKey[] }>('/settings/api-keys'),
   createApiKey: (in_: { name: string; scope: ApiKeyScope }) => request<{ key: ApiKey; masked: string; secret: string }>('/settings/api-keys', json('POST', in_)),
   revokeApiKey: (id: number) => request<void>(`/settings/api-keys/${id}`, { method: 'DELETE' }),

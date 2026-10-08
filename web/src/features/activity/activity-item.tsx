@@ -9,6 +9,7 @@ import {
   PackagePlus,
   Rocket,
   Settings2,
+  ShieldAlert,
   Target,
   TriangleAlert,
   Truck,
@@ -37,6 +38,7 @@ export const ACTIVITY_KIND: Record<ActivityKind, { icon: LucideIcon; tone: Tone;
   target: { icon: Target, tone: 'lime', label: 'Targets' },
   settings: { icon: Settings2, tone: 'gray', label: 'Settings' },
   auth: { icon: LogIn, tone: 'gray', label: 'Sign-ins' },
+  alert: { icon: ShieldAlert, tone: 'amber', label: 'Security alerts' },
   deploy: { icon: Rocket, tone: 'violet', label: 'Deploys' },
   stock: { icon: TriangleAlert, tone: 'amber', label: 'Inventory' },
 }

@@ -53,7 +53,7 @@ const countActivity = `-- name: CountActivity :one
 SELECT count(*)::int FROM activity
 WHERE ($1::bigint = 0 OR actor_id = $1::bigint)
   AND ($2::text = '' OR kind = $2::text)
-  AND (NOT $3::bool OR kind <> 'auth')
+  AND (NOT $3::bool OR kind NOT IN ('auth', 'alert'))
   AND ($4::text = '' OR (actor || ' ' || message) ILIKE '%' || $4::text || '%')
 `
 
@@ -80,7 +80,7 @@ const listActivity = `-- name: ListActivity :many
 SELECT id, kind, actor, message, at, actor_id, entity, entity_id FROM activity
 WHERE ($1::bigint = 0 OR actor_id = $1::bigint)
   AND ($2::text = '' OR kind = $2::text)
-  AND (NOT $3::bool OR kind <> 'auth')
+  AND (NOT $3::bool OR kind NOT IN ('auth', 'alert'))
   AND ($4::text = '' OR (actor || ' ' || message) ILIKE '%' || $4::text || '%')
 ORDER BY at DESC, id DESC
 LIMIT $6::int OFFSET $5::int

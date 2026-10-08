@@ -614,7 +614,7 @@ func (s *Store) listActivity(f d.ActivityFilter) ([]d.Activity, int) {
 	for _, a := range s.activity {
 		if (f.ActorID == 0 || a.ActorID == f.ActorID) &&
 			(f.Kind == "" || a.Kind == f.Kind) &&
-			(!f.ExcludeAuth || a.Kind != d.ActAuth) &&
+			(!f.ExcludeAuth || (a.Kind != d.ActAuth && a.Kind != d.ActAlert)) &&
 			contains(a.Actor+" "+a.Message, f.Query) {
 			matched = append(matched, a)
 		}

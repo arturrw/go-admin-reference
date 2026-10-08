@@ -2,7 +2,7 @@
 SELECT * FROM activity
 WHERE (sqlc.arg(actor_id)::bigint = 0 OR actor_id = sqlc.arg(actor_id)::bigint)
   AND (sqlc.arg(kind)::text = '' OR kind = sqlc.arg(kind)::text)
-  AND (NOT sqlc.arg(exclude_auth)::bool OR kind <> 'auth')
+  AND (NOT sqlc.arg(exclude_auth)::bool OR kind NOT IN ('auth', 'alert'))
   AND (sqlc.arg(q)::text = '' OR (actor || ' ' || message) ILIKE '%' || sqlc.arg(q)::text || '%')
 ORDER BY at DESC, id DESC
 LIMIT sqlc.arg(lim)::int OFFSET sqlc.arg(off)::int;
@@ -11,7 +11,7 @@ LIMIT sqlc.arg(lim)::int OFFSET sqlc.arg(off)::int;
 SELECT count(*)::int FROM activity
 WHERE (sqlc.arg(actor_id)::bigint = 0 OR actor_id = sqlc.arg(actor_id)::bigint)
   AND (sqlc.arg(kind)::text = '' OR kind = sqlc.arg(kind)::text)
-  AND (NOT sqlc.arg(exclude_auth)::bool OR kind <> 'auth')
+  AND (NOT sqlc.arg(exclude_auth)::bool OR kind NOT IN ('auth', 'alert'))
   AND (sqlc.arg(q)::text = '' OR (actor || ' ' || message) ILIKE '%' || sqlc.arg(q)::text || '%');
 
 -- name: AddActivity :one

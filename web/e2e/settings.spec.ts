@@ -115,3 +115,49 @@ test('maintenance mode locks out other roles and shows owners a banner', async (
   await expect(ep.getByRole('heading', { name: 'Products' })).toBeVisible()
   await editor.close()
 })
+
+test('security settings: session lifetime, audit log and login alerts take effect', async ({ page }) => {
+  await loginAs(page, 'owner', '/settings')
+  const security = page.locator('section', { has: page.getByRole('heading', { name: 'Security' }) })
+
+  // 2FA isn't implemented, and says so instead of pretending.
+  await expect(security.getByText('planned')).toBeVisible()
+  await expect(security.getByRole('switch', { name: 'Require 2FA' })).toBeDisabled()
+
+  // The lifetime is stored and shown back after a reload.
+  const lifetime = security.getByLabel('Session lifetime')
+  await lifetime.selectOption({ label: '8 hours' })
+  await expect(page.getByText('Settings saved')).toBeVisible()
+  await page.reload()
+  await expect(lifetime).toHaveValue(String(8 * 3600))
+
+  // With the audit log off, login alerts can't work and are switched off with it.
+  const audit = security.getByRole('switch', { name: 'Audit log' })
+  const alerts = security.getByRole('switch', { name: 'Login alerts' })
+  await audit.click()
+  await expect(audit).toHaveAttribute('aria-checked', 'false')
+  await expect(alerts).toBeDisabled()
+  await audit.click()
+  await expect(audit).toHaveAttribute('aria-checked', 'true')
+  await expect(alerts).toBeEnabled()
+
+  // Both switches are in the activity log.
+  await page.goto('/activity')
+  await page.getByLabel('Type').selectOption({ label: 'Settings' })
+  await expect(page.getByTestId('activity-item').first()).toContainText('turned the audit log on')
+  await expect(page.getByTestId('activity-item').nth(1)).toContainText('turned the audit log off')
+})
+
+test('a sign-in from a new device raises an alert in the activity log', async ({ page, browser }) => {
+  // Jon (viewer) has signed in before in the demo data; Firefox on macOS is new for him.
+  const jon = await browser.newContext({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.5; rv:127.0) Gecko/20100101 Firefox/127.0' })
+  const res = await jon.request.post('/api/v1/auth/login', { data: { email: 'jon@acme.io', password: 'goadmin' } })
+  expect(res.ok()).toBeTruthy()
+  await jon.close()
+
+  await loginAs(page, 'owner', '/activity')
+  await page.getByLabel('Type').selectOption({ label: 'Security alerts' })
+  const alert = page.getByTestId('activity-item').first()
+  await expect(alert).toContainText('New sign-in to Jon Berg')
+  await expect(alert).toContainText('Firefox on macOS')
+})

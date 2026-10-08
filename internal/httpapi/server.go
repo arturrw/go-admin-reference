@@ -75,6 +75,7 @@ type SessionStore interface {
 	Delete(ctx context.Context, token string)
 	DeleteMember(ctx context.Context, memberID int64)
 	TTL() time.Duration
+	SetTTL(ttl time.Duration)
 }
 
 // Pinger is implemented by stores backed by a database, for /healthz.

@@ -45,16 +45,17 @@ export function Avatar({ name, size = 30 }: { name: string; size?: number }) {
   )
 }
 
-export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative h-[21px] w-9 shrink-0 rounded-full border transition-colors',
+        'relative h-[21px] w-9 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-45',
         checked ? 'border-transparent bg-accent' : 'border-line-2 bg-panel-3',
       )}
     >

@@ -162,7 +162,12 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	s.setCookie(w, token)
 	s.store.TouchMember(r.Context(), m.ID)
-	s.auditAs(r.Context(), m, d.ActAuth, "member", m.ID, "signed in")
+	device := deviceLabel(r)
+	newDevice := s.isNewDevice(r.Context(), m, device)
+	s.auditAs(r.Context(), m, d.ActAuth, "member", m.ID, "signed in from %s", device)
+	if newDevice {
+		s.record(r.Context(), d.Member{Name: "Security"}, d.ActAlert, "member", m.ID, "New sign-in to %s's account from %s", m.Name, device)
+	}
 	if info := reqInfoFrom(r.Context()); info != nil {
 		info.actor, info.role = m.Email, string(m.Role)
 	}
@@ -229,4 +234,19 @@ func (s *server) blockedByMaintenance(r *http.Request, m d.Member) bool {
 func writeMaintenance(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "300")
 	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "the workspace is in maintenance mode", "maintenance": true})
+}
+
+// isNewDevice reports whether this is the first time the member signs in from
+// this device, for a member who has signed in before. It reads the audit log.
+func (s *server) isNewDevice(ctx context.Context, m d.Member, device string) bool {
+	set := s.settings(ctx)
+	if !set.AuditLog || !set.LoginAlerts {
+		return false
+	}
+	_, history, err := s.store.ListActivity(ctx, d.ActivityFilter{ActorID: m.ID, Kind: d.ActAuth, Limit: 1})
+	if err != nil || history == 0 {
+		return false
+	}
+	_, seen, err := s.store.ListActivity(ctx, d.ActivityFilter{ActorID: m.ID, Kind: d.ActAuth, Query: "from " + device, Limit: 1})
+	return err == nil && seen == 0
 }

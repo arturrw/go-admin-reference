@@ -46,13 +46,14 @@ const (
 	ActTarget   = "target"   // quarterly target
 	ActSettings = "settings" // runtime settings
 	ActAuth     = "auth"     // sign-ins (kept out of the dashboard feed)
+	ActAlert    = "alert"    // security alerts for one member, such as a sign-in from a new device
 	ActDeploy   = "deploy"   // system: releases
 	ActStock    = "stock"    // system: inventory alerts
 )
 
 var ActivityKinds = []string{
 	ActProduct, ActPublish, ActImage, ActImport, ActOrder, ActRefund, ActNote,
-	ActTeam, ActRole, ActTarget, ActSettings, ActAuth, ActDeploy, ActStock,
+	ActTeam, ActRole, ActTarget, ActSettings, ActAuth, ActAlert, ActDeploy, ActStock,
 }
 
 // DashboardActivity is how many entries the dashboard feed shows.
@@ -62,7 +63,7 @@ type ActivityFilter struct {
 	ActorID int64
 	Kind    string
 	Query   string // actor or message
-	// ExcludeAuth hides sign-ins, which would drown out the dashboard feed.
+	// ExcludeAuth hides sign-ins and security alerts, which would drown out the dashboard feed.
 	ExcludeAuth bool
 	Limit       int
 	Offset      int

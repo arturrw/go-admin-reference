@@ -1,9 +1,8 @@
 import { Check, KeyRound, Lock, OctagonAlert, Palette, ShieldAlert, SlidersHorizontal } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Field, Select } from '@/components/ui/input'
-import { PageHeader, Switch } from '@/components/ui/misc'
+import { Field } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/misc'
 import { Segmented } from '@/components/ui/segmented'
 import type { LogLevel } from '@/lib/api'
 import { useCan } from '@/lib/auth'
@@ -12,6 +11,8 @@ import { ACCENTS, getAccent, setAccent } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { ApiKeys } from './api-keys'
 import { GeneralSettings } from './general'
+import { DangerRow, ToggleRow } from './rows'
+import { SecuritySettings } from './security'
 
 // Settings are local-only in this reference build except the log level,
 // which is applied to the running server (PUT /api/v1/settings/log-level).
@@ -42,7 +43,7 @@ export function SettingsPage() {
   const [density, setDensity] = useState('comfortable')
   const settings = useSettings(canEdit)
   const patch = usePatchSettings()
-  const [toggles, setToggles] = useState({ mfa: true, audit: true, alerts: true, webhooks: false })
+  const [toggles, setToggles] = useState({ webhooks: false })
   const flip = (k: keyof typeof toggles, label: string) => (v: boolean) => {
     setToggles((t) => ({ ...t, [k]: v }))
     toast(`${label}: ${v ? 'on' : 'off'}`)
@@ -122,16 +123,7 @@ export function SettingsPage() {
           </Section>
 
           <Section id="security" title="Security" description="Authentication and audit policies for team members." locked={!canEdit}>
-            <ToggleRow title="Require 2FA" description="All members must enroll a TOTP or passkey" checked={toggles.mfa} onChange={flip('mfa', 'Require 2FA')} />
-            <ToggleRow title="Audit log" description="Record every write action with actor & diff" checked={toggles.audit} onChange={flip('audit', 'Audit log')} />
-            <ToggleRow title="Login alerts" description="Email members on sign-in from a new device" checked={toggles.alerts} onChange={flip('alerts', 'Login alerts')} />
-            <Field label="Session lifetime">
-              <Select className="max-w-55" defaultValue="24h">
-                <option value="8h">8 hours</option>
-                <option value="24h">24 hours</option>
-                <option value="7d">7 days</option>
-              </Select>
-            </Field>
+            <SecuritySettings enabled={canEdit} />
           </Section>
 
           <Section id="api" title="API keys" description="Keys for server-to-server access to /api/v1." locked={!canEdit}>
@@ -160,31 +152,5 @@ function Section({ id, title, description, locked, children }: { id: string; tit
         {children}
       </fieldset>
     </section>
-  )
-}
-
-function ToggleRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3.5 rounded-xl border border-line bg-panel px-3.5 py-3">
-      <div>
-        <b className="block font-medium">{title}</b>
-        <small className="text-xs text-dim">{description}</small>
-      </div>
-      <Switch checked={checked} onChange={onChange} label={title} />
-    </div>
-  )
-}
-
-function DangerRow({ title, description, action, onClick }: { title: string; description: string; action: string; onClick: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3.5 rounded-xl border border-danger/30 bg-danger/5 px-3.5 py-3">
-      <div>
-        <b className="block font-medium">{title}</b>
-        <small className="text-xs text-dim">{description}</small>
-      </div>
-      <Button size="sm" variant="danger" onClick={onClick}>
-        {action}
-      </Button>
-    </div>
   )
 }

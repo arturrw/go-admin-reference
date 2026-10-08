@@ -95,7 +95,18 @@ func NewMemorySessions(ttl time.Duration) *MemorySessions {
 	return &MemorySessions{m: map[string]session{}, ttl: ttl, now: time.Now}
 }
 
-func (s *MemorySessions) TTL() time.Duration { return s.ttl }
+func (s *MemorySessions) TTL() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ttl
+}
+
+// SetTTL changes how long sessions last from their next use on.
+func (s *MemorySessions) SetTTL(ttl time.Duration) {
+	s.mu.Lock()
+	s.ttl = ttl
+	s.mu.Unlock()
+}
 
 // Create starts a session and returns its token.
 func (s *MemorySessions) Create(_ context.Context, memberID int64) (string, error) {

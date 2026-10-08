@@ -17,7 +17,16 @@ func (s *server) audit(ctx context.Context, kind, entity string, entityID int64,
 	s.auditAs(ctx, me, kind, entity, entityID, format, args...)
 }
 
+// auditAs records an action by actor, unless the audit log is switched off in Settings.
 func (s *server) auditAs(ctx context.Context, actor d.Member, kind, entity string, entityID int64, format string, args ...any) {
+	if s.settings(ctx).AuditLog {
+		s.record(ctx, actor, kind, entity, entityID, format, args...)
+	}
+}
+
+// record writes an entry regardless of the setting; settings changes use it,
+// so switching the audit log off or on is itself always logged.
+func (s *server) record(ctx context.Context, actor d.Member, kind, entity string, entityID int64, format string, args ...any) {
 	_, err := s.store.RecordActivity(ctx, d.Activity{
 		Kind: kind, ActorID: actor.ID, Actor: actor.Name, Message: fmt.Sprintf(format, args...),
 		Entity: entity, EntityID: entityID,
