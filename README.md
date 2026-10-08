@@ -62,6 +62,9 @@ Screenshots are full pages captured from the demo data by
   reactivate.
 - **Audit log.** Every change and sign-in, with actor and record, filterable
   by member and type.
+- **API keys.** Create read or read-and-write keys in Settings and call the API
+  with Authorization: Bearer …. Only a hash is stored, the secret is shown once,
+  and revoking works at once.
 - **Request log.** Every API call with redacted headers and bodies, latency
   percentiles and traffic charts.
 - **In-place sheets.** Records linked from another page open on top of it

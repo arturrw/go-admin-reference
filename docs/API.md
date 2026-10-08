@@ -24,6 +24,19 @@ curl -c jar -H 'Content-Type: application/json' \
 curl -b jar http://localhost:8080/api/v1/orders?status=refunded&limit=5
 ```
 
+Server-to-server clients use an **API key** instead of a cookie. Create one in
+Settings → API keys; the full key is shown once, and only its hash is stored.
+
+```bash
+curl -H 'Authorization: Bearer ga_live_…' http://localhost:8080/api/v1/orders?limit=5
+```
+
+A key with *read* access acts like a viewer, and one with *read & write* like an
+editor. Keys never reach settings, the team or the request log, so a leaked key
+can't create more keys. An invalid or revoked key gets 401, even if a session
+cookie is also sent. Writes made with a key appear in the activity log under the
+key's name.
+
 Writes (`POST`, `PUT`, `PATCH`, `DELETE`) carrying an `Origin` header must come
 from the same host. Browsers always send it, so cross-site requests are
 rejected with 403 on top of the SameSite cookie. Clients like `curl` that send
@@ -168,6 +181,9 @@ which the dashboard feed leaves out), `deploy` and `stock`.
 | GET | `/requests/{id}` | `requests:read` | headers and bodies (redacted), user, route, timing |
 | GET | `/settings/log-level` | signed in | `{level}` |
 | PUT | `/settings/log-level` | `settings:write` | `{level: debug\|info\|warn\|error}`; applies until restart |
+| GET | `/settings/api-keys` | `settings:write` | active keys: name, scope, `masked`, creator, last use; never the secret |
+| POST | `/settings/api-keys` | `settings:write` | `{name, scope: read\|write}` → `{key, masked, secret}`; **the secret is returned only here** |
+| DELETE | `/settings/api-keys/{id}` | `settings:write` | revokes at once; 404 if already revoked |
 
 ### Outside `/api/v1`
 

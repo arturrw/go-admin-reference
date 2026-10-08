@@ -172,6 +172,13 @@ erDiagram
         text entity "product|order|customer|member"
         bigint entity_id
     }
+    api_keys {
+        bigint id PK
+        text scope "read|write"
+        text last4 "for recognising the key"
+        bytea token_hash UK "SHA-256 only"
+        timestamptz revoked_at
+    }
     targets {
         text quarter PK "2026-Q4"
         bigint goal_cents
@@ -202,6 +209,7 @@ order count, LTV, last order and segment.
   | `00003_order_refunds.sql` | refund reason, who and when |
   | `00004_member_access.sql` | per-member `granted` / `revoked` |
   | `00005_targets.sql` | quarterly revenue goals |
+  | `00006_api_keys.sql` | server-to-server API keys (hashed) |
 
 - **Seeding and backfills.** An empty database gets the demo dataset. Older
   demo databases get refund reasons and a week of staff history once, on boot
